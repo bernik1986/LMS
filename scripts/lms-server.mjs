@@ -5884,6 +5884,8 @@ const server = createServer((request, response) => {
 server.listen(port, host, () => {
   console.log(`Marine LMS is ready: http://${host}:${port}`);
   console.log(`Storage: ${usePrismaStorage ? `PostgreSQL ${maskedConnectionString(databaseUrl)}` : "JSON data/db.json"}`);
-  console.log("Admin: admin@example.com / Admin123!");
-  console.log("Student: student@example.com / Student123!");
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Demo admin: admin@example.com / Admin123!");
+    console.log("Demo student: student@example.com / Student123!");
+  }
 });
