@@ -1,0 +1,127 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROD_HOST: ${{ secrets.PROD_HOST }}
+      PROD_USER: ${{ secrets.PROD_USER }}
+      PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      PROD_PORT: ${{ secrets.PROD_PORT }}
+      PROD_PATH: ${{ secrets.PROD_PATH }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check deploy secrets
+        id: secrets
+        shell: bash
+        run: |
+          if [ -z "$PROD_HOST" ] || [ -z "$PROD_USER" ] || [ -z "$PROD_SSH_KEY" ]; then
+            echo "::notice::Production deploy skipped. Set PROD_HOST, PROD_USER and PROD_SSH_KEY repository secrets to enable auto-deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build source archive
+        if: steps.secrets.outputs.ready == 'true'
+        shell: bash
+        run: |
+          tar -czf /tmp/marine-lms-${GITHUB_SHA}.tar.gz \
+            --exclude='./.git' \
+            --exclude='./node_modules' \
+            --exclude='./.next' \
+            --exclude='./.npm-cache' \
+            --exclude='./.deploy' \
+            --exclude='./.deploy-*' \
+            --exclude='./.deploy-keys' \
+            --exclude='./.deploy-tools' \
+            --exclude='./.pydeps' \
+            --exclude='./backups' \
+            --exclude='./restore-points' \
+            --exclude='./data/uploads' \
+            --exclude='./data/db.json' \
+            --exclude='./.env' \
+            --exclude='./.env.local' \
+            --exclude='./*.log' \
+            --exclude='./*.err' \
+            --exclude='./*.tsbuildinfo' \
+            .
+
+      - name: Configure SSH
+        if: steps.secrets.outputs.ready == 'true'
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/production_key
+          chmod 600 ~/.ssh/production_key
+          ssh-keyscan -p "${PROD_PORT:-22}" "$PROD_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload source archive
+        if: steps.secrets.outputs.ready == 'true'
+        shell: bash
+        run: |
+          ssh_port="${PROD_PORT:-22}"
+          remote_path="${PROD_PATH:-/opt/marine-lms/app}"
+          ssh -i ~/.ssh/production_key -p "$ssh_port" "$PROD_USER@$PROD_HOST" "mkdir -p /opt/marine-lms/releases"
+          scp -i ~/.ssh/production_key -P "$ssh_port" /tmp/marine-lms-${GITHUB_SHA}.tar.gz "$PROD_USER@$PROD_HOST:/opt/marine-lms/releases/marine-lms-${GITHUB_SHA}.tar.gz"
+          echo "REMOTE_APP_PATH=$remote_path" >> "$GITHUB_ENV"
+
+      - name: Deploy on server
+        if: steps.secrets.outputs.ready == 'true'
+        shell: bash
+        run: |
+          ssh_port="${PROD_PORT:-22}"
+          ssh -i ~/.ssh/production_key -p "$ssh_port" "$PROD_USER@$PROD_HOST" \
+            "GITHUB_SHA='$GITHUB_SHA' APP_PATH='$REMOTE_APP_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          APP="${APP_PATH:-/opt/marine-lms/app}"
+          ARCHIVE="/opt/marine-lms/releases/marine-lms-${GITHUB_SHA}.tar.gz"
+          BACKUP="/opt/marine-lms/backups/github-${GITHUB_SHA}-$(date +%Y%m%d%H%M%S)"
+
+          cd "$APP"
+          mkdir -p "$BACKUP" data/uploads backups
+
+          set -a
+          . ./.env
+          set +a
+
+          pg_dump "${DATABASE_URL%%\?*}" > "$BACKUP/postgres.sql"
+          tar -czf "$BACKUP/code-no-uploads.tar.gz" \
+            --exclude='./node_modules' \
+            --exclude='./data/uploads' \
+            --exclude='./data/db.json' \
+            --exclude='./.env' \
+            --exclude='./*.log' \
+            --exclude='./*.err' \
+            --exclude='./*.tsbuildinfo' \
+            .
+
+          tar -xzf "$ARCHIVE" -C "$APP"
+          chmod 700 .env
+
+          npm ci --include=dev
+          npm run prisma:generate
+          npm run prod:migrate
+          npm run build
+          npm run audit:prod
+          npm run prod:check:no-uploads
+
+          pm2 restart marine-lms --update-env || pm2 start ecosystem.config.cjs --update-env
+          pm2 save
+          sleep 2
+          curl -fsS "http://127.0.0.1:${PORT:-3000}/healthz"
+          REMOTE

@@ -1,0 +1,35 @@
+import Link from "next/link";
+import { Award, BookOpenCheck, LayoutDashboard, UserRound } from "lucide-react";
+
+export default function DashboardLayout({
+  children
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <div className="split-layout">
+      <aside className="sidebar">
+        <span className="eyebrow">Личный кабинет</span>
+        <nav className="sidebar-nav" aria-label="Навигация личного кабинета">
+          <Link href="/dashboard">
+            <LayoutDashboard size={18} />
+            Обзор
+          </Link>
+          <Link href="/dashboard/courses">
+            <BookOpenCheck size={18} />
+            Мои курсы
+          </Link>
+          <Link href="/dashboard/profile">
+            <UserRound size={18} />
+            Профиль
+          </Link>
+          <Link href="/dashboard/certificates">
+            <Award size={18} />
+            Сертификаты
+          </Link>
+        </nav>
+      </aside>
+      <main className="content">{children}</main>
+    </div>
+  );
+}

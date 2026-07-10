@@ -1,0 +1,364 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  instructor
+  student
+}
+
+enum UserStatus {
+  active
+  inactive
+  deleted
+}
+
+enum CourseStatus {
+  active
+  inactive
+}
+
+enum ApplicationStatus {
+  new
+  contacted
+  accepted
+  rejected
+  converted_to_user
+}
+
+enum AssignmentStatus {
+  not_started
+  in_progress
+  materials_completed
+  test_available
+  test_failed
+  test_passed
+  completed
+}
+
+enum MaterialType {
+  video
+  audio
+  text
+  pdf
+  image
+  download
+}
+
+enum TestStatus {
+  active
+  inactive
+}
+
+enum QuestionType {
+  single_choice
+  multiple_choice
+}
+
+enum TestAttemptStatus {
+  in_progress
+  passed
+  failed
+  expired
+}
+
+enum CertificateStatus {
+  issued
+  revoked
+  reissued
+}
+
+enum NotificationStatus {
+  queued
+  logged
+  sent
+  failed
+}
+
+model User {
+  id              String             @id
+  role            UserRole           @default(student)
+  email           String             @unique
+  passwordHash    String
+  firstNameEn     String
+  lastNameEn      String
+  birthDate       DateTime?
+  company         String             @default("")
+  position        String             @default("")
+  phone           String             @default("")
+  photoUrl        String             @default("")
+  status          UserStatus         @default(active)
+  source          Json?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  assignments     CourseAssignment[] @relation("StudentAssignments")
+  assignedCourses CourseAssignment[] @relation("AdminAssignments")
+  testAttempts    TestAttempt[]
+  certificates    Certificate[]
+  notifications   Notification[]
+  auditEvents     AuditEvent[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model CourseApplication {
+  id        String            @id
+  lastName  String
+  firstName String
+  phone     String
+  email     String
+  courseId  String?
+  course    Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  comment   String            @default("")
+  status    ApplicationStatus @default(new)
+  adminNote String            @default("")
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([courseId])
+  @@index([status])
+}
+
+model Course {
+  id                      String             @id
+  title                   String
+  shortDescription        String             @default("")
+  fullDescription         String             @default("")
+  goals                   String             @default("")
+  requirements            String             @default("")
+  status                  CourseStatus       @default(active)
+  isSequential            Boolean            @default(true)
+  imageUrl                String             @default("")
+  showOnHome              Boolean            @default(false)
+  homeSortOrder           Int                @default(999)
+  certificateTemplateHtml String             @db.Text
+  source                  Json?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  lessons                 Lesson[]
+  applications            CourseApplication[]
+  assignments             CourseAssignment[]
+  test                    Test?
+  certificates            Certificate[]
+  certificateEvents       CertificateEvent[]
+
+  @@index([status])
+  @@index([showOnHome, homeSortOrder])
+}
+
+model Lesson {
+  id          String       @id
+  courseId    String
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String       @default("")
+  sortOrder   Int          @default(0)
+  isRequired  Boolean      @default(true)
+  status      CourseStatus @default(active)
+  source      Json?
+  materials   Material[]
+
+  @@index([courseId, sortOrder])
+}
+
+model Material {
+  id         String       @id
+  lessonId   String
+  lesson     Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  type       MaterialType
+  title      String
+  content    String       @db.Text
+  isRequired Boolean      @default(true)
+  sortOrder  Int          @default(0)
+  source     Json?
+
+  @@index([lessonId, sortOrder])
+  @@index([type])
+}
+
+model CourseAssignment {
+  id                  String             @id
+  userId              String
+  courseId            String
+  assignedById        String?
+  user                User               @relation("StudentAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  course              Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignedBy          User?              @relation("AdminAssignments", fields: [assignedById], references: [id], onDelete: SetNull)
+  status              AssignmentStatus   @default(not_started)
+  assignedAt          DateTime           @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+  progressPercent     Int                @default(0)
+  materialProgress    Json?
+  activeTestStartedAt DateTime?
+  extraTestAttempts   Int                @default(0)
+  source              Json?
+  testAttempts        TestAttempt[]
+  certificates        Certificate[]
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model Test {
+  id               String         @id
+  courseId         String         @unique
+  course           Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title            String
+  description      String         @default("")
+  attemptsLimit    Int            @default(3)
+  passingPercent   Int            @default(80)
+  timeLimitMinutes Int            @default(0)
+  showResultToUser Boolean        @default(true)
+  allowRetake      Boolean        @default(true)
+  status           TestStatus     @default(active)
+  questions        TestQuestion[]
+  attempts         TestAttempt[]
+}
+
+model TestQuestion {
+  id           String       @id
+  testId       String
+  test         Test         @relation(fields: [testId], references: [id], onDelete: Cascade)
+  type         QuestionType @default(single_choice)
+  questionText String       @db.Text
+  sortOrder    Int          @default(0)
+  source       Json?
+  options      TestOption[]
+
+  @@index([testId, sortOrder])
+}
+
+model TestOption {
+  id         String       @id
+  questionId String
+  question   TestQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  optionText String       @db.Text
+  isCorrect  Boolean      @default(false)
+  sortOrder  Int          @default(0)
+
+  @@index([questionId, sortOrder])
+}
+
+model TestAttempt {
+  id            String            @id
+  assignmentId  String
+  testId        String
+  userId        String
+  assignment    CourseAssignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  test          Test              @relation(fields: [testId], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attemptNumber Int
+  startedAt     DateTime          @default(now())
+  finishedAt    DateTime?
+  scorePercent  Int              @default(0)
+  status        TestAttemptStatus @default(in_progress)
+  failureReason String            @default("")
+  answers       Json?
+  source        Json?
+
+  @@unique([assignmentId, attemptNumber])
+  @@index([userId])
+  @@index([testId])
+  @@index([status])
+}
+
+model Certificate {
+  id                              String            @id
+  userId                          String
+  courseId                        String
+  assignmentId                    String
+  user                            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course                          Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignment                      CourseAssignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  certificateNumber               String            @unique
+  status                          CertificateStatus @default(issued)
+  issuedAt                        DateTime          @default(now())
+  expiresAt                       DateTime
+  replacesCertificateId           String            @default("")
+  revokedAt                       DateTime?
+  reissuedAt                      DateTime?
+  snapshotFirstName               String
+  snapshotLastName                String
+  snapshotBirthDate               DateTime?
+  snapshotPosition                String            @default("")
+  snapshotCompany                 String            @default("")
+  snapshotPhotoUrl                String            @default("")
+  snapshotCourseTitle             String
+  snapshotCertificateTemplateHtml String            @db.Text
+  certificateHtml                 String            @db.Text
+  events                          CertificateEvent[]
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([assignmentId])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+model Notification {
+  id              String             @id
+  recipientUserId String?
+  recipient       User?              @relation(fields: [recipientUserId], references: [id], onDelete: SetNull)
+  recipientEmail  String
+  type            String
+  status          NotificationStatus @default(logged)
+  payload         String             @db.Text
+  temporaryPassword String           @default("")
+  errorMessage    String             @default("")
+  createdAt       DateTime           @default(now())
+  sentAt          DateTime?
+
+  @@index([recipientUserId])
+  @@index([status])
+  @@index([type])
+}
+
+model AuditEvent {
+  id          String   @id
+  adminUserId String?
+  admin       User?    @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+  adminEmail  String
+  action      String
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model CertificateEvent {
+  id                String       @id
+  certificateId     String?
+  certificate       Certificate? @relation(fields: [certificateId], references: [id], onDelete: SetNull)
+  certificateNumber String
+  userId            String
+  courseId          String?
+  course            Course?      @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  action            String
+  actorUserId       String       @default("")
+  actorEmail        String       @default("system")
+  actorRole         String       @default("system")
+  details           Json?
+  createdAt         DateTime     @default(now())
+
+  @@index([certificateId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

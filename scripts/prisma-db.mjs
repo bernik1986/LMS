@@ -1,0 +1,934 @@
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+export const defaultConnectionString = "postgresql://postgres:postgres@localhost:5432/marine_lms?schema=public";
+
+const userRoles = new Set(["admin", "instructor", "student"]);
+const userStatuses = new Set(["active", "inactive", "deleted"]);
+const courseStatuses = new Set(["active", "inactive"]);
+const applicationStatuses = new Set(["new", "contacted", "accepted", "rejected", "converted_to_user"]);
+const assignmentStatuses = new Set(["not_started", "in_progress", "materials_completed", "test_available", "test_failed", "test_passed", "completed"]);
+const materialTypes = new Set(["video", "audio", "text", "pdf", "image", "download"]);
+const testStatuses = new Set(["active", "inactive"]);
+const questionTypes = new Set(["single_choice", "multiple_choice"]);
+const attemptStatuses = new Set(["in_progress", "passed", "failed", "expired"]);
+const certificateStatuses = new Set(["issued", "revoked", "reissued"]);
+const notificationStatuses = new Set(["queued", "logged", "sent", "failed"]);
+
+export function resolveConnectionString(value = process.env.DATABASE_URL) {
+  return value || defaultConnectionString;
+}
+
+export function maskedConnectionString(value) {
+  return String(value || "").replace(/:[^:@/]+@/, ":***@");
+}
+
+function dateOrNull(value) {
+  if (!value) return null;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+    ? new Date(`${value}T00:00:00.000Z`)
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateOrNow(value) {
+  return dateOrNull(value) ?? new Date();
+}
+
+function dateTimeString(value) {
+  return value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString() : "";
+}
+
+function dateOnlyString(value) {
+  return dateTimeString(value).slice(0, 10);
+}
+
+function enumValue(value, allowed, fallback) {
+  return allowed.has(value) ? value : fallback;
+}
+
+function jsonValue(value) {
+  return value === undefined || value === null ? undefined : value;
+}
+
+function objectWithOptionalJson(object, key, value) {
+  const normalized = jsonValue(value);
+  if (normalized !== undefined) object[key] = normalized;
+  return object;
+}
+
+function compactObject(object) {
+  for (const [key, value] of Object.entries(object)) {
+    if (value === undefined) delete object[key];
+  }
+  return object;
+}
+
+export function flattenDb(db) {
+  const users = db.users ?? [];
+  const courses = db.courses ?? [];
+  const lessons = [];
+  const materials = [];
+  const tests = [];
+  const questions = [];
+  const options = [];
+
+  for (const course of courses) {
+    for (const lesson of course.lessons ?? []) {
+      lessons.push({ ...lesson, courseId: course.id });
+      for (const material of lesson.materials ?? []) {
+        materials.push({ ...material, lessonId: lesson.id });
+      }
+    }
+    if (course.test) {
+      tests.push({ ...course.test, courseId: course.id });
+      for (const question of course.test.questions ?? []) {
+        questions.push({ ...question, testId: course.test.id });
+        for (const option of question.options ?? []) {
+          options.push({ ...option, questionId: question.id });
+        }
+      }
+    }
+  }
+
+  return {
+    users,
+    courses,
+    lessons,
+    materials,
+    tests,
+    questions,
+    options,
+    applications: db.applications ?? [],
+    assignments: db.assignments ?? [],
+    testAttempts: db.testAttempts ?? [],
+    certificates: db.certificates ?? [],
+    notifications: db.notifications ?? [],
+    auditEvents: db.auditEvents ?? [],
+    certificateEvents: db.certificateEvents ?? [],
+    settings: db.settings ?? {}
+  };
+}
+
+export function migrationSummary(flat) {
+  return {
+    users: flat.users.length,
+    courses: flat.courses.length,
+    lessons: flat.lessons.length,
+    materials: flat.materials.length,
+    tests: flat.tests.length,
+    questions: flat.questions.length,
+    options: flat.options.length,
+    applications: flat.applications.length,
+    assignments: flat.assignments.length,
+    testAttempts: flat.testAttempts.length,
+    certificates: flat.certificates.length,
+    notifications: flat.notifications.length,
+    auditEvents: flat.auditEvents.length,
+    certificateEvents: flat.certificateEvents.length,
+    settings: Object.keys(flat.settings).length ? 1 : 0
+  };
+}
+
+function duplicateKeys(items, keyFn) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = keyFn(item);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()].filter(([, count]) => count > 1).map(([key, count]) => ({ key, count }));
+}
+
+function addDuplicateErrors(errors, label, duplicates) {
+  for (const duplicate of duplicates) {
+    errors.push(`${label}: duplicate ${duplicate.key} (${duplicate.count} records)`);
+  }
+}
+
+function invalidIds(items, predicate) {
+  return items.filter((item) => !predicate(item)).map((item) => item.id ?? "(missing id)");
+}
+
+export function validateFlatDb(flat) {
+  const errors = [];
+  const warnings = [];
+  const userIds = new Set(flat.users.map((user) => user.id));
+  const courseIds = new Set(flat.courses.map((course) => course.id));
+  const lessonIds = new Set(flat.lessons.map((lesson) => lesson.id));
+  const testIds = new Set(flat.tests.map((test) => test.id));
+  const questionIds = new Set(flat.questions.map((question) => question.id));
+  const assignmentIds = new Set(flat.assignments.map((assignment) => assignment.id));
+  const certificateIds = new Set(flat.certificates.map((certificate) => certificate.id));
+
+  addDuplicateErrors(errors, "users.id", duplicateKeys(flat.users, (user) => user.id));
+  addDuplicateErrors(errors, "users.email", duplicateKeys(flat.users, (user) => user.email?.toLowerCase()));
+  addDuplicateErrors(errors, "courses.id", duplicateKeys(flat.courses, (course) => course.id));
+  addDuplicateErrors(errors, "lessons.id", duplicateKeys(flat.lessons, (lesson) => lesson.id));
+  addDuplicateErrors(errors, "materials.id", duplicateKeys(flat.materials, (material) => material.id));
+  addDuplicateErrors(errors, "tests.id", duplicateKeys(flat.tests, (test) => test.id));
+  addDuplicateErrors(errors, "tests.courseId", duplicateKeys(flat.tests, (test) => test.courseId));
+  addDuplicateErrors(errors, "questions.id", duplicateKeys(flat.questions, (question) => question.id));
+  addDuplicateErrors(errors, "options.id", duplicateKeys(flat.options, (option) => option.id));
+  addDuplicateErrors(errors, "assignments.id", duplicateKeys(flat.assignments, (assignment) => assignment.id));
+  addDuplicateErrors(errors, "assignments.userId+courseId", duplicateKeys(flat.assignments, (assignment) => `${assignment.userId}|${assignment.courseId}`));
+  addDuplicateErrors(errors, "testAttempts.id", duplicateKeys(flat.testAttempts, (attempt) => attempt.id));
+  addDuplicateErrors(errors, "testAttempts.assignmentId+attemptNumber", duplicateKeys(flat.testAttempts, (attempt) => `${attempt.assignmentId}|${attempt.attemptNumber}`));
+  addDuplicateErrors(errors, "certificates.id", duplicateKeys(flat.certificates, (certificate) => certificate.id));
+  addDuplicateErrors(errors, "certificates.certificateNumber", duplicateKeys(flat.certificates, (certificate) => certificate.certificateNumber));
+
+  for (const user of flat.users) {
+    if (!user.id || !user.email || !user.passwordHash) {
+      errors.push(`users: ${user.id || user.email || "(missing id)"} is missing id, email, or passwordHash`);
+    }
+  }
+  for (const course of flat.courses) {
+    if (!course.id || !course.title) {
+      errors.push(`courses: ${course.id || "(missing id)"} is missing id or title`);
+    }
+  }
+
+  for (const id of invalidIds(flat.lessons, (lesson) => courseIds.has(lesson.courseId))) {
+    errors.push(`lessons: ${id} references a missing course`);
+  }
+  for (const id of invalidIds(flat.materials, (material) => lessonIds.has(material.lessonId))) {
+    errors.push(`materials: ${id} references a missing lesson`);
+  }
+  for (const id of invalidIds(flat.tests, (test) => courseIds.has(test.courseId))) {
+    errors.push(`tests: ${id} references a missing course`);
+  }
+  for (const id of invalidIds(flat.questions, (question) => testIds.has(question.testId))) {
+    errors.push(`questions: ${id} references a missing test`);
+  }
+  for (const id of invalidIds(flat.options, (option) => questionIds.has(option.questionId))) {
+    errors.push(`options: ${id} references a missing question`);
+  }
+  for (const id of invalidIds(flat.assignments, (assignment) => userIds.has(assignment.userId) && courseIds.has(assignment.courseId))) {
+    errors.push(`assignments: ${id} references a missing user or course`);
+  }
+  for (const id of invalidIds(flat.testAttempts, (attempt) => assignmentIds.has(attempt.assignmentId) && testIds.has(attempt.testId) && userIds.has(attempt.userId))) {
+    errors.push(`testAttempts: ${id} references a missing assignment, test, or user`);
+  }
+  for (const id of invalidIds(flat.certificates, (certificate) => userIds.has(certificate.userId) && courseIds.has(certificate.courseId) && assignmentIds.has(certificate.assignmentId))) {
+    errors.push(`certificates: ${id} references a missing user, course, or assignment`);
+  }
+
+  for (const application of flat.applications) {
+    if (application.courseId && !courseIds.has(application.courseId)) {
+      warnings.push(`applications: ${application.id} references a missing course and will be imported without course link`);
+    }
+  }
+  for (const notification of flat.notifications) {
+    if (notification.recipientUserId && !userIds.has(notification.recipientUserId)) {
+      warnings.push(`notifications: ${notification.id} references a missing user and will be imported without user link`);
+    }
+  }
+  for (const event of flat.auditEvents) {
+    if (event.adminUserId && !userIds.has(event.adminUserId)) {
+      warnings.push(`auditEvents: ${event.id} references a missing admin and will be imported without admin link`);
+    }
+  }
+  for (const event of flat.certificateEvents) {
+    if (event.certificateId && !certificateIds.has(event.certificateId)) {
+      warnings.push(`certificateEvents: ${event.id} references a missing certificate and will be imported without certificate link`);
+    }
+    if (event.courseId && !courseIds.has(event.courseId)) {
+      warnings.push(`certificateEvents: ${event.id} references a missing course and will be imported without course link`);
+    }
+  }
+
+  return { errors, warnings };
+}
+
+export function createPrismaClient(connectionString = resolveConnectionString()) {
+  const adapter = new PrismaPg({ connectionString });
+  return new PrismaClient({ adapter });
+}
+
+export async function prismaDataCounts(options = {}) {
+  const prisma = options.prisma ?? createPrismaClient(resolveConnectionString(options.connectionString));
+  const shouldDisconnect = !options.prisma;
+
+  try {
+    const [
+      users,
+      applications,
+      courses,
+      lessons,
+      materials,
+      assignments,
+      tests,
+      questions,
+      optionsCount,
+      attempts,
+      certificates,
+      notifications,
+      auditEvents,
+      certificateEvents,
+      settings
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.courseApplication.count(),
+      prisma.course.count(),
+      prisma.lesson.count(),
+      prisma.material.count(),
+      prisma.courseAssignment.count(),
+      prisma.test.count(),
+      prisma.testQuestion.count(),
+      prisma.testOption.count(),
+      prisma.testAttempt.count(),
+      prisma.certificate.count(),
+      prisma.notification.count(),
+      prisma.auditEvent.count(),
+      prisma.certificateEvent.count(),
+      prisma.appSetting.count()
+    ]);
+
+    const counts = {
+      users,
+      applications,
+      courses,
+      lessons,
+      materials,
+      assignments,
+      tests,
+      questions,
+      options: optionsCount,
+      attempts,
+      certificates,
+      notifications,
+      auditEvents,
+      certificateEvents,
+      settings
+    };
+
+    return {
+      counts,
+      total: Object.values(counts).reduce((sum, count) => sum + count, 0)
+    };
+  } finally {
+    if (shouldDisconnect) await prisma.$disconnect();
+  }
+}
+
+async function clearTables(client) {
+  await client.certificateEvent.deleteMany();
+  await client.auditEvent.deleteMany();
+  await client.notification.deleteMany();
+  await client.certificate.deleteMany();
+  await client.testAttempt.deleteMany();
+  await client.testOption.deleteMany();
+  await client.testQuestion.deleteMany();
+  await client.test.deleteMany();
+  await client.material.deleteMany();
+  await client.lesson.deleteMany();
+  await client.courseAssignment.deleteMany();
+  await client.courseApplication.deleteMany();
+  await client.course.deleteMany();
+  await client.user.deleteMany();
+  await client.appSetting.deleteMany();
+}
+
+export async function clearPrismaDatabase(prisma) {
+  await prisma.$transaction(async (tx) => {
+    await clearTables(tx);
+  });
+}
+
+async function writeFlatDb(client, flat) {
+  const userIds = new Set(flat.users.map((user) => user.id));
+  const courseIds = new Set(flat.courses.map((course) => course.id));
+  const lessonIds = new Set(flat.lessons.map((lesson) => lesson.id));
+  const assignmentIds = new Set(flat.assignments.map((assignment) => assignment.id));
+  const testIds = new Set(flat.tests.map((test) => test.id));
+  const questionIds = new Set(flat.questions.map((question) => question.id));
+  const certificateIds = new Set(flat.certificates.map((certificate) => certificate.id));
+
+  if (flat.users.length) {
+    await client.user.createMany({
+      data: flat.users.map((user) =>
+        objectWithOptionalJson(
+          {
+            id: user.id,
+            role: enumValue(user.role, userRoles, "student"),
+            email: user.email,
+            passwordHash: user.passwordHash,
+            firstNameEn: user.firstNameEn ?? "",
+            lastNameEn: user.lastNameEn ?? "",
+            birthDate: dateOrNull(user.birthDate),
+            company: user.company ?? "",
+            position: user.position ?? "",
+            phone: user.phone ?? "",
+            photoUrl: user.photoUrl ?? "",
+            status: enumValue(user.status, userStatuses, "active"),
+            createdAt: dateOrNow(user.createdAt)
+          },
+          "source",
+          user.source
+        )
+      )
+    });
+  }
+
+  if (flat.courses.length) {
+    await client.course.createMany({
+      data: flat.courses.map((course) =>
+        objectWithOptionalJson(
+          {
+            id: course.id,
+            title: course.title ?? "",
+            shortDescription: course.shortDescription ?? "",
+            fullDescription: course.fullDescription ?? "",
+            goals: course.goals ?? "",
+            requirements: course.requirements ?? "",
+            status: enumValue(course.status, courseStatuses, "active"),
+            isSequential: Boolean(course.isSequential ?? true),
+            imageUrl: course.imageUrl ?? "",
+            showOnHome: Boolean(course.showOnHome),
+            homeSortOrder: Number(course.homeSortOrder) || 999,
+            certificateTemplateHtml: course.certificateTemplateHtml ?? "",
+            createdAt: dateOrNow(course.createdAt)
+          },
+          "source",
+          course.source
+        )
+      )
+    });
+  }
+
+  if (flat.lessons.length) {
+    await client.lesson.createMany({
+      data: flat.lessons
+        .filter((lesson) => courseIds.has(lesson.courseId))
+        .map((lesson) =>
+          objectWithOptionalJson(
+            {
+              id: lesson.id,
+              courseId: lesson.courseId,
+              title: lesson.title ?? "",
+              description: lesson.description ?? "",
+              sortOrder: Number(lesson.sortOrder) || 0,
+              isRequired: Boolean(lesson.isRequired ?? true),
+              status: enumValue(lesson.status, courseStatuses, "active")
+            },
+            "source",
+            lesson.source
+          )
+        )
+    });
+  }
+
+  if (flat.materials.length) {
+    await client.material.createMany({
+      data: flat.materials
+        .filter((material) => lessonIds.has(material.lessonId))
+        .map((material) =>
+          objectWithOptionalJson(
+            {
+              id: material.id,
+              lessonId: material.lessonId,
+              type: enumValue(material.type, materialTypes, "text"),
+              title: material.title ?? "",
+              content: material.content ?? "",
+              isRequired: Boolean(material.isRequired ?? true),
+              sortOrder: Number(material.sortOrder) || 0
+            },
+            "source",
+            material.source
+          )
+        )
+    });
+  }
+
+  if (flat.tests.length) {
+    await client.test.createMany({
+      data: flat.tests
+        .filter((test) => courseIds.has(test.courseId))
+        .map((test) => ({
+          id: test.id,
+          courseId: test.courseId,
+          title: test.title ?? "",
+          description: test.description ?? "",
+          attemptsLimit: Number(test.attemptsLimit) || 3,
+          passingPercent: Number(test.passingPercent) || 80,
+          timeLimitMinutes: Number(test.timeLimitMinutes) || 0,
+          showResultToUser: Boolean(test.showResultToUser ?? true),
+          allowRetake: Boolean(test.allowRetake ?? true),
+          status: enumValue(test.status, testStatuses, "active")
+        }))
+    });
+  }
+
+  if (flat.questions.length) {
+    await client.testQuestion.createMany({
+      data: flat.questions
+        .filter((question) => testIds.has(question.testId))
+        .map((question) =>
+          objectWithOptionalJson(
+            {
+              id: question.id,
+              testId: question.testId,
+              type: enumValue(question.type, questionTypes, "single_choice"),
+              questionText: question.questionText ?? "",
+              sortOrder: Number(question.sortOrder) || 0
+            },
+            "source",
+            question.source
+          )
+        )
+    });
+  }
+
+  if (flat.options.length) {
+    await client.testOption.createMany({
+      data: flat.options
+        .filter((option) => questionIds.has(option.questionId))
+        .map((option) => ({
+          id: option.id,
+          questionId: option.questionId,
+          optionText: option.optionText ?? "",
+          isCorrect: Boolean(option.isCorrect),
+          sortOrder: Number(option.sortOrder) || 0
+        }))
+    });
+  }
+
+  if (flat.applications.length) {
+    await client.courseApplication.createMany({
+      data: flat.applications.map((application) => ({
+        id: application.id,
+        lastName: application.lastName ?? "",
+        firstName: application.firstName ?? "",
+        phone: application.phone ?? "",
+        email: application.email ?? "",
+        courseId: courseIds.has(application.courseId) ? application.courseId : null,
+        comment: application.comment ?? "",
+        status: enumValue(application.status, applicationStatuses, "new"),
+        adminNote: application.adminNote ?? "",
+        createdAt: dateOrNow(application.createdAt)
+      }))
+    });
+  }
+
+  if (flat.assignments.length) {
+    await client.courseAssignment.createMany({
+      data: flat.assignments
+        .filter((assignment) => userIds.has(assignment.userId) && courseIds.has(assignment.courseId))
+        .map((assignment) =>
+          objectWithOptionalJson(
+            objectWithOptionalJson(
+              {
+                id: assignment.id,
+                userId: assignment.userId,
+                courseId: assignment.courseId,
+                assignedById: userIds.has(assignment.assignedById) ? assignment.assignedById : null,
+                status: enumValue(assignment.status, assignmentStatuses, "not_started"),
+                assignedAt: dateOrNow(assignment.assignedAt),
+                startedAt: dateOrNull(assignment.startedAt),
+                completedAt: dateOrNull(assignment.completedAt),
+                progressPercent: Number(assignment.progressPercent) || 0,
+                activeTestStartedAt: dateOrNull(assignment.activeTestStartedAt),
+                extraTestAttempts: Number(assignment.extraTestAttempts) || 0
+              },
+              "materialProgress",
+              assignment.materialProgress
+            ),
+            "source",
+            assignment.source
+          )
+        )
+    });
+  }
+
+  if (flat.testAttempts.length) {
+    await client.testAttempt.createMany({
+      data: flat.testAttempts
+        .filter((attempt) => assignmentIds.has(attempt.assignmentId) && testIds.has(attempt.testId) && userIds.has(attempt.userId))
+        .map((attempt) =>
+          objectWithOptionalJson(
+            objectWithOptionalJson(
+              {
+                id: attempt.id,
+                assignmentId: attempt.assignmentId,
+                testId: attempt.testId,
+                userId: attempt.userId,
+                attemptNumber: Number(attempt.attemptNumber) || 1,
+                startedAt: dateOrNow(attempt.startedAt),
+                finishedAt: dateOrNull(attempt.finishedAt),
+                scorePercent: Number(attempt.scorePercent) || 0,
+                status: enumValue(attempt.status, attemptStatuses, "failed"),
+                failureReason: attempt.failureReason ?? ""
+              },
+              "answers",
+              attempt.answers
+            ),
+            "source",
+            attempt.source
+          )
+        )
+    });
+  }
+
+  if (flat.certificates.length) {
+    await client.certificate.createMany({
+      data: flat.certificates
+        .filter((certificate) => userIds.has(certificate.userId) && courseIds.has(certificate.courseId) && assignmentIds.has(certificate.assignmentId))
+        .map((certificate) => ({
+          id: certificate.id,
+          userId: certificate.userId,
+          courseId: certificate.courseId,
+          assignmentId: certificate.assignmentId,
+          certificateNumber: certificate.certificateNumber,
+          status: enumValue(certificate.status, certificateStatuses, "issued"),
+          issuedAt: dateOrNow(certificate.issuedAt),
+          expiresAt: dateOrNow(certificate.expiresAt),
+          replacesCertificateId: certificate.replacesCertificateId ?? "",
+          revokedAt: dateOrNull(certificate.revokedAt),
+          reissuedAt: dateOrNull(certificate.reissuedAt),
+          snapshotFirstName: certificate.snapshotFirstName ?? "",
+          snapshotLastName: certificate.snapshotLastName ?? "",
+          snapshotBirthDate: dateOrNull(certificate.snapshotBirthDate),
+          snapshotPosition: certificate.snapshotPosition ?? "",
+          snapshotCompany: certificate.snapshotCompany ?? "",
+          snapshotPhotoUrl: certificate.snapshotPhotoUrl ?? "",
+          snapshotCourseTitle: certificate.snapshotCourseTitle ?? "",
+          snapshotCertificateTemplateHtml: certificate.snapshotCertificateTemplateHtml ?? "",
+          certificateHtml: certificate.certificateHtml ?? ""
+        }))
+    });
+  }
+
+  if (flat.notifications.length) {
+    await client.notification.createMany({
+      data: flat.notifications.map((note) => ({
+        id: note.id,
+        recipientUserId: userIds.has(note.recipientUserId) ? note.recipientUserId : null,
+        recipientEmail: note.recipientEmail ?? "",
+        type: note.type ?? "",
+        status: enumValue(note.status, notificationStatuses, "logged"),
+        payload: note.payload ?? "",
+        temporaryPassword: note.temporaryPassword ?? "",
+        errorMessage: note.errorMessage ?? "",
+        createdAt: dateOrNow(note.createdAt),
+        sentAt: dateOrNull(note.sentAt)
+      }))
+    });
+  }
+
+  if (flat.auditEvents.length) {
+    await client.auditEvent.createMany({
+      data: flat.auditEvents.map((event) =>
+        objectWithOptionalJson(
+          {
+            id: event.id,
+            adminUserId: userIds.has(event.adminUserId) ? event.adminUserId : null,
+            adminEmail: event.adminEmail ?? "",
+            action: event.action ?? "",
+            createdAt: dateOrNow(event.createdAt)
+          },
+          "details",
+          event.details
+        )
+      )
+    });
+  }
+
+  if (flat.certificateEvents.length) {
+    await client.certificateEvent.createMany({
+      data: flat.certificateEvents.map((event) =>
+        objectWithOptionalJson(
+          {
+            id: event.id,
+            certificateId: certificateIds.has(event.certificateId) ? event.certificateId : null,
+            certificateNumber: event.certificateNumber ?? "",
+            userId: event.userId ?? "",
+            courseId: courseIds.has(event.courseId) ? event.courseId : null,
+            action: event.action ?? "",
+            actorUserId: event.actorUserId ?? "",
+            actorEmail: event.actorEmail ?? "system",
+            actorRole: event.actorRole ?? "system",
+            createdAt: dateOrNow(event.createdAt)
+          },
+          "details",
+          event.details
+        )
+      )
+    });
+  }
+
+  await client.appSetting.upsert({
+    where: { key: "settings" },
+    update: { value: flat.settings ?? {} },
+    create: { key: "settings", value: flat.settings ?? {} }
+  });
+}
+
+export async function replacePrismaDb(db, options = {}) {
+  const prisma = options.prisma ?? createPrismaClient(resolveConnectionString(options.connectionString));
+  const shouldDisconnect = !options.prisma;
+  const flat = flattenDb(db);
+  const validation = validateFlatDb(flat);
+
+  if (validation.errors.length) {
+    throw new Error(`LMS data failed database validation: ${validation.errors.join("; ")}`);
+  }
+
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        await clearTables(tx);
+        await writeFlatDb(tx, flat);
+      },
+      { maxWait: 120000, timeout: 120000 }
+    );
+    return migrationSummary(flat);
+  } finally {
+    if (shouldDisconnect) await prisma.$disconnect();
+  }
+}
+
+function mapMaterial(material) {
+  return compactObject({
+    id: material.id,
+    type: material.type,
+    title: material.title,
+    content: material.content,
+    isRequired: material.isRequired,
+    sortOrder: material.sortOrder,
+    source: material.source ?? undefined
+  });
+}
+
+function mapLesson(lesson) {
+  return compactObject({
+    id: lesson.id,
+    title: lesson.title,
+    description: lesson.description,
+    sortOrder: lesson.sortOrder,
+    isRequired: lesson.isRequired,
+    status: lesson.status,
+    source: lesson.source ?? undefined,
+    materials: lesson.materials.map(mapMaterial)
+  });
+}
+
+function mapTest(test) {
+  if (!test) return null;
+  return {
+    id: test.id,
+    title: test.title,
+    description: test.description,
+    attemptsLimit: test.attemptsLimit,
+    passingPercent: test.passingPercent,
+    timeLimitMinutes: test.timeLimitMinutes,
+    showResultToUser: test.showResultToUser,
+    allowRetake: test.allowRetake,
+    status: test.status,
+    questions: test.questions.map((question) =>
+      compactObject({
+        id: question.id,
+        type: question.type,
+        questionText: question.questionText,
+        sortOrder: question.sortOrder,
+        source: question.source ?? undefined,
+        options: question.options.map((option) => ({
+          id: option.id,
+          optionText: option.optionText,
+          isCorrect: option.isCorrect,
+          sortOrder: option.sortOrder
+        }))
+      })
+    )
+  };
+}
+
+function mapCourse(course) {
+  return compactObject({
+    id: course.id,
+    title: course.title,
+    shortDescription: course.shortDescription,
+    fullDescription: course.fullDescription,
+    goals: course.goals,
+    requirements: course.requirements,
+    status: course.status,
+    isSequential: course.isSequential,
+    imageUrl: course.imageUrl,
+    showOnHome: course.showOnHome,
+    homeSortOrder: course.homeSortOrder,
+    certificateTemplateHtml: course.certificateTemplateHtml,
+    source: course.source ?? undefined,
+    createdAt: dateTimeString(course.createdAt),
+    lessons: course.lessons.map(mapLesson),
+    test: mapTest(course.test)
+  });
+}
+
+export async function loadPrismaDb(options = {}) {
+  const prisma = options.prisma ?? createPrismaClient(resolveConnectionString(options.connectionString));
+  const shouldDisconnect = !options.prisma;
+
+  try {
+    const [users, applications, courses, assignments, testAttempts, certificates, notifications, auditEvents, certificateEvents, settingsRecord] =
+      await Promise.all([
+        prisma.user.findMany({ orderBy: [{ createdAt: "asc" }, { email: "asc" }] }),
+        prisma.courseApplication.findMany({ orderBy: { createdAt: "desc" } }),
+        prisma.course.findMany({
+          orderBy: [{ homeSortOrder: "asc" }, { title: "asc" }],
+          include: {
+            lessons: {
+              orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+              include: {
+                materials: { orderBy: [{ sortOrder: "asc" }, { title: "asc" }] }
+              }
+            },
+            test: {
+              include: {
+                questions: {
+                  orderBy: [{ sortOrder: "asc" }],
+                  include: {
+                    options: { orderBy: [{ sortOrder: "asc" }] }
+                  }
+                }
+              }
+            }
+          }
+        }),
+        prisma.courseAssignment.findMany({ orderBy: { assignedAt: "desc" } }),
+        prisma.testAttempt.findMany({ orderBy: { startedAt: "desc" } }),
+        prisma.certificate.findMany({ orderBy: { issuedAt: "desc" } }),
+        prisma.notification.findMany({ orderBy: { createdAt: "desc" } }),
+        prisma.auditEvent.findMany({ orderBy: { createdAt: "desc" } }),
+        prisma.certificateEvent.findMany({ orderBy: { createdAt: "desc" } }),
+        prisma.appSetting.findUnique({ where: { key: "settings" } })
+      ]);
+
+    return {
+      users: users.map((user) =>
+        compactObject({
+          id: user.id,
+          role: user.role,
+          email: user.email,
+          passwordHash: user.passwordHash,
+          firstNameEn: user.firstNameEn,
+          lastNameEn: user.lastNameEn,
+          birthDate: dateOnlyString(user.birthDate),
+          company: user.company,
+          position: user.position,
+          phone: user.phone,
+          photoUrl: user.photoUrl,
+          status: user.status,
+          source: user.source ?? undefined,
+          createdAt: dateTimeString(user.createdAt)
+        })
+      ),
+      applications: applications.map((application) => ({
+        id: application.id,
+        lastName: application.lastName,
+        firstName: application.firstName,
+        phone: application.phone,
+        email: application.email,
+        courseId: application.courseId ?? "",
+        comment: application.comment,
+        status: application.status,
+        adminNote: application.adminNote,
+        createdAt: dateTimeString(application.createdAt)
+      })),
+      courses: courses.map(mapCourse),
+      assignments: assignments.map((assignment) =>
+        compactObject({
+          id: assignment.id,
+          userId: assignment.userId,
+          courseId: assignment.courseId,
+          assignedById: assignment.assignedById ?? "",
+          status: assignment.status,
+          assignedAt: dateTimeString(assignment.assignedAt),
+          startedAt: dateTimeString(assignment.startedAt),
+          completedAt: dateTimeString(assignment.completedAt),
+          progressPercent: assignment.progressPercent,
+          materialProgress: assignment.materialProgress ?? {},
+          activeTestStartedAt: dateTimeString(assignment.activeTestStartedAt),
+          extraTestAttempts: assignment.extraTestAttempts,
+          source: assignment.source ?? undefined
+        })
+      ),
+      testAttempts: testAttempts.map((attempt) =>
+        compactObject({
+          id: attempt.id,
+          assignmentId: attempt.assignmentId,
+          testId: attempt.testId,
+          userId: attempt.userId,
+          attemptNumber: attempt.attemptNumber,
+          startedAt: dateTimeString(attempt.startedAt),
+          finishedAt: dateTimeString(attempt.finishedAt),
+          scorePercent: attempt.scorePercent,
+          status: attempt.status,
+          failureReason: attempt.failureReason,
+          answers: attempt.answers ?? {},
+          source: attempt.source ?? undefined
+        })
+      ),
+      certificates: certificates.map((certificate) => ({
+        id: certificate.id,
+        userId: certificate.userId,
+        courseId: certificate.courseId,
+        assignmentId: certificate.assignmentId,
+        certificateNumber: certificate.certificateNumber,
+        status: certificate.status,
+        issuedAt: dateTimeString(certificate.issuedAt),
+        expiresAt: dateTimeString(certificate.expiresAt),
+        replacesCertificateId: certificate.replacesCertificateId,
+        revokedAt: dateTimeString(certificate.revokedAt),
+        reissuedAt: dateTimeString(certificate.reissuedAt),
+        snapshotFirstName: certificate.snapshotFirstName,
+        snapshotLastName: certificate.snapshotLastName,
+        snapshotBirthDate: dateOnlyString(certificate.snapshotBirthDate),
+        snapshotPosition: certificate.snapshotPosition,
+        snapshotCompany: certificate.snapshotCompany,
+        snapshotPhotoUrl: certificate.snapshotPhotoUrl,
+        snapshotCourseTitle: certificate.snapshotCourseTitle,
+        snapshotCertificateTemplateHtml: certificate.snapshotCertificateTemplateHtml,
+        certificateHtml: certificate.certificateHtml
+      })),
+      notifications: notifications.map((note) => ({
+        id: note.id,
+        recipientUserId: note.recipientUserId ?? "",
+        recipientEmail: note.recipientEmail,
+        type: note.type,
+        status: note.status,
+        payload: note.payload,
+        temporaryPassword: note.temporaryPassword,
+        errorMessage: note.errorMessage,
+        createdAt: dateTimeString(note.createdAt),
+        sentAt: dateTimeString(note.sentAt)
+      })),
+      auditEvents: auditEvents.map((event) =>
+        compactObject({
+          id: event.id,
+          adminUserId: event.adminUserId ?? "",
+          adminEmail: event.adminEmail,
+          action: event.action,
+          details: event.details ?? undefined,
+          createdAt: dateTimeString(event.createdAt)
+        })
+      ),
+      certificateEvents: certificateEvents.map((event) =>
+        compactObject({
+          id: event.id,
+          certificateId: event.certificateId ?? "",
+          certificateNumber: event.certificateNumber,
+          userId: event.userId,
+          courseId: event.courseId ?? "",
+          action: event.action,
+          actorUserId: event.actorUserId,
+          actorEmail: event.actorEmail,
+          actorRole: event.actorRole,
+          details: event.details ?? undefined,
+          createdAt: dateTimeString(event.createdAt)
+        })
+      ),
+      settings: settingsRecord?.value && typeof settingsRecord.value === "object" ? settingsRecord.value : {}
+    };
+  } finally {
+    if (shouldDisconnect) await prisma.$disconnect();
+  }
+}
