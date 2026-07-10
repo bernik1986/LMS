@@ -21,6 +21,7 @@ data/uploads
 .deploy-keys
 .deploy-tools
 .deploy
+.ssh/
 .pydeps
 .git
 .gitlocal
