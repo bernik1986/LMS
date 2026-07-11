@@ -54,6 +54,11 @@ const productCss = `
 .course-cover.thumb { width: 104px; min-width: 104px; }
 .course-cover.editor { max-width: 420px; }
 .course-title-cell { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; align-items: center; }
+.course-price { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin: 4px 0; }
+.course-price-old { color: var(--muted); text-decoration: line-through; font-weight: 800; }
+.course-price-new { color: var(--accent); font-size: 20px; font-weight: 900; }
+.course-price.empty { color: var(--muted); font-weight: 800; }
+.course-prices-table input { min-width: 130px; }
 .course-detail-side { display: grid; gap: 12px; min-width: min(320px, 100%); }
 .course-public-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 24px; align-items: start; }
 .course-public-cover { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -186,6 +191,8 @@ function createSeedData() {
       "Закрытый морской курс с последовательным прохождением материалов, финальным тестом и сертификатом.",
     goals: "Подготовить студента к базовым процедурам безопасности на судне.",
     requirements: "Завершить обязательные материалы и сдать финальный тест.",
+    oldPrice: "",
+    newPrice: "",
     status: "active",
     isSequential: true,
     imageUrl: "",
@@ -285,6 +292,8 @@ function createSeedData() {
     fullDescription: "Обязательные действия при травмах и неотложных состояниях на борту.",
     goals: "Закрепить порядок первичной помощи до прибытия медицинской поддержки.",
     requirements: "Завершить материалы и пройти тест.",
+    oldPrice: "",
+    newPrice: "",
     status: "active",
     isSequential: true,
     imageUrl: "",
@@ -400,6 +409,14 @@ function normalizeDb(data) {
     }
     if (!Number.isFinite(Number(course.homeSortOrder))) {
       course.homeSortOrder = 999;
+      changed = true;
+    }
+    if (course.oldPrice === undefined) {
+      course.oldPrice = "";
+      changed = true;
+    }
+    if (course.newPrice === undefined) {
+      course.newPrice = "";
       changed = true;
     }
     if (!course.certificateTemplateHtml) {
@@ -2035,6 +2052,22 @@ function coursePublicUrl(course) {
   return `/courses/${encodeURIComponent(course.id)}`;
 }
 
+function normalizeCoursePrice(value) {
+  return (value ?? "").toString().trim();
+}
+
+function coursePriceHtml(course, options = {}) {
+  const oldPrice = normalizeCoursePrice(course.oldPrice);
+  const newPrice = normalizeCoursePrice(course.newPrice);
+  if (!oldPrice && !newPrice) {
+    return options.showEmpty ? `<div class="course-price empty">Цена не задана</div>` : "";
+  }
+  return `<div class="course-price">
+    ${oldPrice ? `<span class="course-price-old">${escapeHtml(oldPrice)}</span>` : ""}
+    ${newPrice ? `<span class="course-price-new">${escapeHtml(newPrice)}</span>` : ""}
+  </div>`;
+}
+
 function courseTimingText(course) {
   const test = course.test;
   const testTime = test?.timeLimitMinutes ? `${test.timeLimitMinutes} мин. на тест` : "тест без лимита времени";
@@ -2057,6 +2090,7 @@ function publicCourseDetail(user, course) {
           <div>
             <span class="eyebrow">Курс</span>
             <h1>${escapeHtml(course.title)}</h1>
+            ${coursePriceHtml(course)}
             <p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p>
             <div class="actions">
               <a class="button" href="/apply?courseId=${encodeURIComponent(course.id)}">Оставить заявку</a>
@@ -2112,6 +2146,7 @@ function publicCourseCard(course) {
     ${courseCoverHtml(course)}
     ${badge(course.status)}
     <h3>${escapeHtml(course.title)}</h3>
+    ${coursePriceHtml(course)}
     <p class="muted">${escapeHtml(course.shortDescription)}</p>
     <p class="muted">${courseTimingText(course)}</p>
     <div class="table-actions">
@@ -2127,7 +2162,7 @@ function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
   const activeCourses = db.courses
     .filter((course) => course.status === "active")
     .filter((course) =>
-      matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.requirements], params.q)
+      matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.requirements, course.oldPrice, course.newPrice], params.q)
     )
     .sort((a, b) => a.title.localeCompare(b.title, "ru"));
   const pagination = paginateItems(activeCourses, catalogParams);
@@ -2845,6 +2880,7 @@ function adminShell(user, title, body) {
           <a href="/admin/reports">Отчеты</a>
           <a href="/admin/tests">Тесты</a>
           <a href="/admin/courses">Курсы</a>
+          <a href="/admin/course-prices">Цены</a>
           <a href="/admin/homepage">Главная</a>
           <a href="/admin/files">Файлы</a>
           <a href="/admin/certificates">Сертификаты</a>
@@ -3573,7 +3609,7 @@ function adminHomepage(user) {
 function adminCourses(user, searchParams = new URLSearchParams()) {
   const params = listParams(searchParams);
   const courses = db.courses.filter((course) =>
-    matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.status], params.q)
+    matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.oldPrice, course.newPrice, course.status], params.q)
   );
   const pagination = paginateItems(courses, params);
   return adminShell(
@@ -3582,7 +3618,7 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
     `<section class="section">
       <div class="section-heading">
         <div><span class="eyebrow">Курсы</span><h1>Управление курсами</h1><p class="lead">Курс состоит из уроков, обязательных материалов и финального теста.</p></div>
-        <a class="button secondary" href="/admin/homepage">Настроить главную</a>
+        <div class="table-actions"><a class="button secondary" href="/admin/course-prices">Цены курсов</a><a class="button secondary" href="/admin/homepage">Настроить главную</a></div>
       </div>
       <form class="inline-form" method="get" action="/admin/courses">
         <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск курсов" />
@@ -3593,6 +3629,10 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
         <div class="field"><label>Название</label><input name="title" required /></div>
         <div class="field"><label>Краткое описание</label><textarea name="shortDescription" required></textarea></div>
         <div class="field"><label>Цели</label><textarea name="goals"></textarea></div>
+        <div class="admin-edit-grid">
+          <div class="field"><label>Старая цена</label><input name="oldPrice" placeholder="например 250 EUR" /></div>
+          <div class="field"><label>Новая цена</label><input name="newPrice" placeholder="например 199 EUR" /></div>
+        </div>
         <div class="field"><label>Обложка курса</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
         <div class="admin-edit-grid">
           <label class="checkbox-row"><input name="showOnHome" type="checkbox" /> Показывать на главной</label>
@@ -3601,19 +3641,54 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
         <button class="button" type="submit">Создать курс</button>
       </form>
       <table class="table">
-        <thead><tr><th>Курс</th><th>Главная</th><th>Статус</th><th>Материалы</th><th>Тест</th><th>Действия</th></tr></thead>
+        <thead><tr><th>Курс</th><th>Цена</th><th>Главная</th><th>Статус</th><th>Материалы</th><th>Тест</th><th>Действия</th></tr></thead>
         <tbody>${pagination.items
           .map((course) => `<tr>
             <td><div class="course-title-cell">${courseCoverHtml(course, "thumb")}<div><strong>${escapeHtml(course.title)}</strong><br><span class="muted">${escapeHtml(course.shortDescription)}</span></div></div></td>
+            <td>${coursePriceHtml(course, { showEmpty: true })}</td>
             <td>${course.showOnHome ? `<span class="status-pill">Показ</span><br><span class="muted">#${courseHomeSortValue(course)}</span>` : `<span class="muted">Нет</span>`}</td>
             <td>${badge(course.status)}</td>
             <td>${requiredMaterials(course).length} обязательных</td>
             <td>${course.test?.questions.length ?? 0} вопросов, проходной ${course.test?.passingPercent ?? 0}%</td>
             <td><a class="small-button primary" href="/admin/courses/${course.id}">Редактировать</a></td>
           </tr>`)
-          .join("") || `<tr><td colspan="6"><span class="muted">Курсы не найдены.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="7"><span class="muted">Курсы не найдены.</span></td></tr>`}</tbody>
       </table>
       ${paginationControls("/admin/courses", params, pagination)}
+    </section>`
+  );
+}
+
+function adminCoursePrices(user) {
+  const courses = [...db.courses].sort((a, b) => a.title.localeCompare(b.title, "ru"));
+  return adminShell(
+    user,
+    "Цены курсов",
+    `<section class="section">
+      <div class="section-heading">
+        <div><span class="eyebrow">Цены</span><h1>Цены всех курсов</h1><p class="lead">Редактируйте старую и новую цену на одной странице. После сохранения цены сразу обновятся в карточках и на страницах курсов.</p></div>
+        <a class="button secondary" href="/courses">Открыть каталог</a>
+      </div>
+      <form class="form-panel" method="post" action="/admin/course-prices/update">
+        <div class="section-heading">
+          <div><h2>Прайс-лист</h2><p class="muted">Всего курсов: ${courses.length}. Поля можно оставлять пустыми.</p></div>
+          <button class="button" type="submit">Сохранить цены</button>
+        </div>
+        <table class="table course-prices-table">
+          <thead><tr><th>Курс</th><th>Текущая цена</th><th>Старая цена</th><th>Новая цена</th><th>Статус</th><th>Действия</th></tr></thead>
+          <tbody>${courses
+            .map((course) => `<tr>
+              <td><div class="course-title-cell">${courseCoverHtml(course, "thumb")}<div><strong>${escapeHtml(course.title)}</strong><br><span class="muted">${escapeHtml(course.shortDescription)}</span></div></div></td>
+              <td>${coursePriceHtml(course, { showEmpty: true })}</td>
+              <td><input name="oldPrice:${course.id}" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="например 250 EUR" /></td>
+              <td><input name="newPrice:${course.id}" value="${escapeHtml(course.newPrice ?? "")}" placeholder="например 199 EUR" /></td>
+              <td>${badge(course.status)}</td>
+              <td><div class="table-actions"><a class="small-button primary" href="/admin/courses/${course.id}">Редактировать</a><a class="small-button" href="${coursePublicUrl(course)}">Открыть</a></div></td>
+            </tr>`)
+            .join("") || `<tr><td colspan="6"><span class="muted">Курсы не найдены.</span></td></tr>`}</tbody>
+        </table>
+        <div class="table-actions"><button class="button" type="submit">Сохранить цены</button><a class="button secondary" href="/admin/courses">К списку курсов</a></div>
+      </form>
     </section>`
   );
 }
@@ -3770,6 +3845,10 @@ function adminCourseDetail(user, course) {
         <div class="field"><label>Краткое описание</label><textarea name="shortDescription" required>${escapeHtml(course.shortDescription)}</textarea></div>
         <div class="field"><label>Полное описание</label><textarea name="fullDescription">${escapeHtml(course.fullDescription || "")}</textarea></div>
         <div class="field"><label>Цели</label><textarea name="goals">${escapeHtml(course.goals || "")}</textarea></div>
+        <div class="admin-edit-grid">
+          <div class="field"><label>Старая цена</label><input name="oldPrice" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="например 250 EUR" /></div>
+          <div class="field"><label>Новая цена</label><input name="newPrice" value="${escapeHtml(course.newPrice ?? "")}" placeholder="например 199 EUR" /></div>
+        </div>
         <div class="admin-edit-grid">
           <div class="field"><label>Заменить обложку</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
           <label class="checkbox-row"><input name="removeImage" type="checkbox" /> Удалить обложку</label>
@@ -4932,6 +5011,20 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
 
+    if (pathname === "/admin/course-prices/update") {
+      if (!isFullAdmin(admin)) {
+        redirect(response, "/admin");
+        return;
+      }
+      for (const course of db.courses) {
+        course.oldPrice = normalizeCoursePrice(form.get(`oldPrice:${course.id}`));
+        course.newPrice = normalizeCoursePrice(form.get(`newPrice:${course.id}`));
+      }
+      saveDb(db);
+      redirect(response, "/admin/course-prices");
+      return;
+    }
+
     if (pathname === "/admin/applications/status") {
       const application = db.applications.find((item) => item.id === form.get("id"));
       if (application) application.status = form.get("status")?.toString() ?? application.status;
@@ -5221,6 +5314,8 @@ async function handlePost(request, response, pathname, user) {
         fullDescription: "",
         goals: form.get("goals")?.toString() ?? "",
         requirements: "Завершить обязательные материалы и сдать тест.",
+        oldPrice: normalizeCoursePrice(form.get("oldPrice")),
+        newPrice: normalizeCoursePrice(form.get("newPrice")),
         status: "active",
         isSequential: true,
         imageUrl: "",
@@ -5266,6 +5361,8 @@ async function handlePost(request, response, pathname, user) {
         course.shortDescription = form.get("shortDescription")?.toString() ?? course.shortDescription;
         course.fullDescription = form.get("fullDescription")?.toString() ?? "";
         course.goals = form.get("goals")?.toString() ?? "";
+        course.oldPrice = normalizeCoursePrice(form.get("oldPrice"));
+        course.newPrice = normalizeCoursePrice(form.get("newPrice"));
         course.status = form.get("status")?.toString() ?? course.status;
         const requestedShowOnHome = form.get("showOnHome") === "on";
         const requestedHomeSortOrder = Number(form.get("homeSortOrder")) > 0 ? Math.round(Number(form.get("homeSortOrder"))) : 999;
@@ -5790,6 +5887,7 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/reports") return send(response, adminReports(admin, url.searchParams));
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
     if (pathname === "/admin/courses") return send(response, adminCourses(admin, url.searchParams));
+    if (pathname === "/admin/course-prices") return send(response, isFullAdmin(admin) ? adminCoursePrices(admin) : adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/homepage") return send(response, adminHomepage(admin));
     if (pathname === "/admin/files/import-report.csv") return sendImportQualityCsv(response);
     if (pathname === "/admin/files") return send(response, adminFiles(admin, url.searchParams));

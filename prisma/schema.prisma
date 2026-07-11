@@ -132,6 +132,8 @@ model Course {
   fullDescription         String             @default("")
   goals                   String             @default("")
   requirements            String             @default("")
+  oldPrice                String             @default("")
+  newPrice                String             @default("")
   status                  CourseStatus       @default(active)
   isSequential            Boolean            @default(true)
   imageUrl                String             @default("")
