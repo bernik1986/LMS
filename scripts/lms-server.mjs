@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
-import { pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { connect as netConnect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import fontkit from "@pdf-lib/fontkit";
@@ -10,7 +10,7 @@ import { PDFDocument as PdfLibDocument, rgb, StandardFonts } from "pdf-lib";
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import { loadLocalEnv } from "./env.mjs";
-import { loadPrismaDb, maskedConnectionString, replacePrismaDb, resolveConnectionString } from "./prisma-db.mjs";
+import { loadPrismaDb, maskedConnectionString, replacePrismaDb, resolveConnectionString, syncPrismaDb } from "./prisma-db.mjs";
 
 loadLocalEnv();
 
@@ -28,11 +28,36 @@ const maxVideoUploadBytes = Number(process.env.MAX_VIDEO_UPLOAD_MB ?? 512) * 102
 const maxPhotoUploadBytes = Number(process.env.MAX_PHOTO_UPLOAD_MB ?? 3) * 1024 * 1024;
 const maxCourseImageUploadBytes = Number(process.env.MAX_COURSE_IMAGE_MB ?? 8) * 1024 * 1024;
 const maxCertificateBackgroundUploadBytes = Number(process.env.MAX_CERTIFICATE_TEMPLATE_MB ?? 20) * 1024 * 1024;
-const sessions = new Map();
+const maxRequestBodyBytes = Number(process.env.MAX_REQUEST_BODY_MB ?? Math.ceil(maxVideoUploadBytes / 1024 / 1024 + 8)) * 1024 * 1024;
+const sessionTtlMs = Number(process.env.SESSION_TTL_HOURS ?? 12) * 60 * 60 * 1000;
+const passwordResetTtlMs = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 30) * 60 * 1000;
+const trustProxy = process.env.TRUST_PROXY === "true";
+const isProduction = process.env.NODE_ENV === "production";
+const allowDemoData = process.env.LMS_ALLOW_DEMO_DATA === "true" || !isProduction;
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()"
+};
+if (isProduction && publicBaseUrl.startsWith("https://")) {
+  securityHeaders["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+}
+
+function responseSecurityHeaders(nonce = "") {
+  const scriptSource = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
+  return {
+    ...securityHeaders,
+    "Content-Security-Policy": `default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src ${scriptSource}`
+  };
+}
 const loginAttempts = new Map();
+const passwordResetAttempts = new Map();
 const csrfTokens = new Map();
 let saveQueue = Promise.resolve();
 let lastSaveError = null;
+let requestQueue = Promise.resolve();
+let persistedDb = null;
 
 const baseCss = readFileSync(cssPath, "utf8");
 const productCss = `
@@ -58,7 +83,9 @@ const productCss = `
 .course-price-old { color: var(--muted); text-decoration: line-through; font-weight: 800; }
 .course-price-new { color: var(--accent); font-size: 20px; font-weight: 900; }
 .course-price.empty { color: var(--muted); font-weight: 800; }
-.course-prices-table input { min-width: 130px; }
+.course-prices-table th, .course-prices-table td { padding: 8px 10px; }
+.course-prices-table input { min-width: 120px; min-height: 34px; padding: 7px 9px; }
+.course-prices-table .course-name-cell { font-weight: 850; color: var(--primary-strong); min-width: 220px; }
 .course-detail-side { display: grid; gap: 12px; min-width: min(320px, 100%); }
 .course-public-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 24px; align-items: start; }
 .course-public-cover { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -144,6 +171,14 @@ function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   return `${salt}:${hash}`;
 }
 
+function hashSecret(value) {
+  return createHash("sha256").update(String(value)).digest("hex");
+}
+
+function opaqueToken() {
+  return randomBytes(32).toString("base64url");
+}
+
 function verifyPassword(password, stored) {
   const [salt, hash] = stored.split(":");
   const candidate = hashPassword(password, salt).split(":")[1];
@@ -164,6 +199,8 @@ function createSeedData() {
     phone: "+10000000001",
     photoUrl: "",
     status: "active",
+    createdById: "",
+    authVersion: 1,
     createdAt: now()
   };
 
@@ -180,6 +217,8 @@ function createSeedData() {
     phone: "+10000000002",
     photoUrl: "",
     status: "active",
+    createdById: admin.id,
+    authVersion: 1,
     createdAt: now()
   };
 
@@ -397,6 +436,14 @@ function normalizeDb(data) {
       user.photoUrl = "";
       changed = true;
     }
+    if (user.createdById === undefined) {
+      user.createdById = "";
+      changed = true;
+    }
+    if (!Number.isInteger(user.authVersion) || user.authVersion < 1) {
+      user.authVersion = 1;
+      changed = true;
+    }
   }
   for (const course of data.courses ?? []) {
     if (course.imageUrl === undefined) {
@@ -423,6 +470,11 @@ function normalizeDb(data) {
       course.certificateTemplateHtml = defaultCertificateTemplate();
       changed = true;
     }
+    const upgradedTemplate = upgradeCertificatePdfEmbeds(course.certificateTemplateHtml);
+    if (upgradedTemplate !== course.certificateTemplateHtml) {
+      course.certificateTemplateHtml = upgradedTemplate;
+      changed = true;
+    }
   }
   for (const certificate of data.certificates ?? []) {
     if (!certificate.expiresAt) {
@@ -435,6 +487,13 @@ function normalizeDb(data) {
     }
     if (!certificate.certificateHtml) {
       certificate.certificateHtml = renderCertificateTemplate(certificate, certificate.snapshotCertificateTemplateHtml);
+      changed = true;
+    }
+    const upgradedSnapshot = upgradeCertificatePdfEmbeds(certificate.snapshotCertificateTemplateHtml);
+    const upgradedCertificate = upgradeCertificatePdfEmbeds(certificate.certificateHtml);
+    if (upgradedSnapshot !== certificate.snapshotCertificateTemplateHtml || upgradedCertificate !== certificate.certificateHtml) {
+      certificate.snapshotCertificateTemplateHtml = upgradedSnapshot;
+      certificate.certificateHtml = upgradedCertificate;
       changed = true;
     }
   }
@@ -454,6 +513,20 @@ function normalizeDb(data) {
     data.certificateEvents = [];
     changed = true;
   }
+  if (!Array.isArray(data.sessions)) {
+    data.sessions = [];
+    changed = true;
+  }
+  if (!Array.isArray(data.passwordResetTokens)) {
+    data.passwordResetTokens = [];
+    changed = true;
+  }
+  for (const note of data.notifications ?? []) {
+    if (Object.prototype.hasOwnProperty.call(note, "temporaryPassword")) {
+      delete note.temporaryPassword;
+      changed = true;
+    }
+  }
   if (!data.settings.emailTemplates) {
     data.settings.emailTemplates = defaultEmailTemplates();
     changed = true;
@@ -464,6 +537,10 @@ function normalizeDb(data) {
         data.settings.emailTemplates[type] = template;
         changed = true;
       }
+    }
+    if (String(data.settings.emailTemplates.password_recovery?.body ?? "").includes("temporaryPassword")) {
+      data.settings.emailTemplates.password_recovery = defaults.password_recovery;
+      changed = true;
     }
   }
   if (data.settings.defaultCertificateDesigner) {
@@ -482,13 +559,17 @@ async function loadDb() {
     if (lastSaveError) throw lastSaveError;
     const data = await loadPrismaDb({ connectionString: databaseUrl });
     if (!(data.users?.length || data.courses?.length)) {
+      if (!allowDemoData) {
+        throw new Error("Production database is empty. Import data or create the first administrator before starting Marine LMS.");
+      }
       const seedData = createSeedData();
       normalizeDb(seedData);
       await replacePrismaDb(seedData, { connectionString: databaseUrl });
       return seedData;
     }
+    const originalData = cloneDb(data);
     const changed = normalizeDb(data);
-    if (changed) saveDb(data);
+    if (changed) await syncPrismaDb(originalData, data, { connectionString: databaseUrl });
     return data;
   }
 
@@ -518,9 +599,11 @@ function saveDb(data) {
   }
 
   const snapshot = cloneDb(data);
+  const previousSnapshot = persistedDb ?? snapshot;
+  persistedDb = snapshot;
   const write = saveQueue
     .catch(() => {})
-    .then(() => replacePrismaDb(snapshot, { connectionString: databaseUrl }));
+    .then(() => syncPrismaDb(previousSnapshot, snapshot, { connectionString: databaseUrl }));
 
   saveQueue = write
     .then(() => {
@@ -533,6 +616,7 @@ function saveDb(data) {
 }
 
 let db = await loadDb();
+persistedDb = cloneDb(db);
 
 function defaultCertificateTemplate() {
   return `<span class="eyebrow">Marine LMS Certificate</span>
@@ -562,8 +646,21 @@ function escapeHtml(value = "") {
 function sanitizeCertificateTemplate(html) {
   return String(html)
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<(?:iframe|object|embed|base|meta|link|form)\b[\s\S]*?>[\s\S]*?<\/(?:iframe|object|embed|base|meta|link|form)>/gi, "")
+    .replace(/<(?:iframe|object|embed|base|meta|link|form)\b[^>]*\/?\s*>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
     .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "");
+    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
+    .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, "")
+    .replace(/\s(?:href|src|xlink:href|action|formaction)\s*=\s*(["'])\s*(?:javascript:|data:text\/html)[\s\S]*?\1/gi, "")
+    .replace(/\s(?:href|src|xlink:href|action|formaction)\s*=\s*(?:javascript:|data:text\/html)[^\s>]*/gi, "");
+}
+
+function upgradeCertificatePdfEmbeds(html) {
+  return String(html ?? "").replace(
+    /<object class="(visual-cert-pdf-bg|certificate-designer-pdf-bg)" data="([^"]+)" type="application\/pdf" aria-hidden="true"><\/object>/gi,
+    (_, className, source) => `<iframe class="${className}" src="${source}" title="Certificate background" tabindex="-1"></iframe>`
+  );
 }
 
 function addYearsIso(value, years) {
@@ -799,7 +896,7 @@ function certificateTemplateFromDesigner(designerInput) {
     ? ` style="background-image:url('${escapeHtml(designer.backgroundUrl)}')"`
     : "";
   const backgroundLayer = hasPdfBackground
-    ? `<object class="visual-cert-pdf-bg" data="${escapeHtml(designer.backgroundUrl)}#toolbar=0&navpanes=0&scrollbar=0" type="application/pdf" aria-hidden="true"></object>`
+    ? `<iframe class="visual-cert-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
     : "";
   const fields = certificateDesignerFieldsForRender(designer.fields.filter((field) => field.visible))
     .map((field) => `<div class="${certificateDesignerFieldClasses(field, "visual-cert-field")}" style="${certificateDesignerFieldStyle(field)}">${certificateDesignerToken(field, designer)}</div>`)
@@ -816,9 +913,7 @@ function certificateShellClass(certificateHtml, extra = "") {
 
 function saveCertificateDesignerBackground(course, file) {
   if (!file || typeof file === "string" || !file.buffer?.length) return { ok: true, skipped: true };
-  const type = String(file.contentType ?? "").toLowerCase().split(";")[0];
-  const ext = extname(file.filename || "").toLowerCase();
-  const isPdf = type === "application/pdf" || ext === ".pdf";
+  const isPdf = isPdfFile(file);
   if (!isPdf && !imageUploadAllowed(file)) {
     return { ok: false, message: "Upload certificate background as PDF, JPG, PNG, WebP or GIF." };
   }
@@ -856,7 +951,7 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
   const hasPdfBackground = Boolean(designer.backgroundUrl) && designer.backgroundType === "pdf";
   const backgroundStyle = designer.backgroundUrl && !hasPdfBackground ? ` style="background-image:url('${escapeHtml(designer.backgroundUrl)}')"` : "";
   const backgroundLayer = hasPdfBackground
-    ? `<object class="certificate-designer-pdf-bg" data="${escapeHtml(designer.backgroundUrl)}#toolbar=0&navpanes=0&scrollbar=0" type="application/pdf" aria-hidden="true"></object>`
+    ? `<iframe class="certificate-designer-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
     : "";
   const fieldOptions = designer.fields.map((field) => `<option value="${escapeHtml(field.key)}">${escapeHtml(field.label)}</option>`).join("");
   const previewClass = certificateShellClass(previewCertificate.certificateHtml, "certificate-preview");
@@ -909,7 +1004,7 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
 }
 
 function certificateDesignerScript() {
-  return `<script>
+  return `<script nonce="{{CSP_NONCE}}">
 (() => {
   const root = document.querySelector("[data-certificate-designer]");
   if (!root || root.dataset.ready === "1") return;
@@ -1435,7 +1530,7 @@ function defaultEmailTemplates() {
     },
     password_recovery: {
       subject: "Password recovery",
-      body: "Marine LMS\n\nTemporary password: {{temporaryPassword}}\n\nPlease log in and change it in your profile.\n\nLogin: {{platformUrl}}/login"
+      body: "Marine LMS\n\nUse this one-time link within 30 minutes to choose a new password:\n{{payload}}\n\nIf you did not request this, you can ignore this email."
     },
     password_changed: {
       subject: "Password changed",
@@ -1471,8 +1566,7 @@ function emailTemplate(note) {
     recipientEmail: note.recipientEmail || "",
     date: formatDate(note.createdAt || now()),
     platformUrl: publicBaseUrl,
-    type: note.type || "",
-    temporaryPassword: note.temporaryPassword || ""
+    type: note.type || ""
   };
   const subject = renderTextTemplate(template?.subject ?? "Marine LMS notification", values);
   return {
@@ -1598,12 +1692,25 @@ function getCookie(request, name) {
 }
 
 function clientIp(request) {
-  return request.headers["x-forwarded-for"]?.split(",")[0]?.trim() || request.socket.remoteAddress || "unknown";
+  if (trustProxy) {
+    const forwarded = request.headers["x-forwarded-for"]?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+  }
+  return request.socket.remoteAddress || "unknown";
+}
+
+function publicOrigin(request) {
+  try {
+    if (process.env.PUBLIC_BASE_URL) return new URL(publicBaseUrl).origin;
+  } catch {
+    // Fall back to the incoming host in local development.
+  }
+  const proto = trustProxy ? request.headers["x-forwarded-proto"] || "http" : "http";
+  return `${proto}://${request.headers.host}`;
 }
 
 function sameOriginPost(request) {
-  const proto = request.headers["x-forwarded-proto"] || "http";
-  const expected = `${proto}://${request.headers.host}`;
+  const expected = publicOrigin(request);
   const origin = request.headers.origin;
   if (origin && origin !== expected) return false;
   const referer = request.headers.referer;
@@ -1614,7 +1721,7 @@ function sameOriginPost(request) {
       return false;
     }
   }
-  return true;
+  return Boolean(origin);
 }
 
 function loginRateLimited(request) {
@@ -1633,14 +1740,65 @@ function clearLoginRateLimit(request) {
   loginAttempts.delete(clientIp(request));
 }
 
-function sessionUserId(sessionRecord) {
-  return typeof sessionRecord === "string" ? sessionRecord : sessionRecord?.userId;
+function passwordResetRateLimited(request, email) {
+  const key = `${clientIp(request)}:${String(email).toLowerCase()}`;
+  const windowMs = 15 * 60 * 1000;
+  const limit = 5;
+  const current = Date.now();
+  const recent = (passwordResetAttempts.get(key) ?? []).filter((timestamp) => current - timestamp < windowMs);
+  recent.push(current);
+  passwordResetAttempts.set(key, recent);
+  return recent.length > limit;
+}
+
+function sessionCookie(value, maxAge = Math.floor(sessionTtlMs / 1000)) {
+  const secure = publicBaseUrl.startsWith("https://") ? "; Secure" : "";
+  return `sid=${encodeURIComponent(value)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+}
+
+function invalidateUserSessions(user) {
+  user.authVersion = (Number(user.authVersion) || 1) + 1;
+  db.sessions = (db.sessions ?? []).filter((session) => session.userId !== user.id);
+  csrfTokens.delete(user.id);
+}
+
+function createPasswordResetToken(user) {
+  const token = opaqueToken();
+  db.passwordResetTokens = (db.passwordResetTokens ?? []).filter((item) => item.userId !== user.id);
+  db.passwordResetTokens.push({
+    id: id("reset"), tokenHash: hashSecret(token), userId: user.id,
+    expiresAt: new Date(Date.now() + passwordResetTtlMs).toISOString(), usedAt: "", createdAt: now()
+  });
+  return token;
+}
+
+async function sendPasswordRecovery(user, token) {
+  const note = {
+    id: id("note"), recipientUserId: user.id, recipientEmail: user.email, type: "password_recovery",
+    status: notificationInitialStatus(), payload: `${publicBaseUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(token)}`,
+    createdAt: now(), sentAt: ""
+  };
+  await deliverNotification(note);
+  note.payload = "Password reset link requested.";
+  db.notifications.push(note);
 }
 
 function currentUser(request) {
   const sessionId = getCookie(request, "sid");
-  const userId = sessionUserId(sessions.get(sessionId));
-  return db.users.find((user) => user.id === userId && user.status === "active") ?? null;
+  if (!sessionId) return null;
+  const session = (db.sessions ?? []).find((item) => item.tokenHash === hashSecret(sessionId));
+  if (!session || new Date(session.expiresAt).getTime() <= Date.now()) return null;
+  const user = db.users.find((item) => item.id === session.userId && item.status === "active");
+  return user && session.authVersion === user.authVersion ? user : null;
+}
+
+function pruneExpiredAuthRecords() {
+  const current = Date.now();
+  const sessionsBefore = (db.sessions ?? []).length;
+  const resetsBefore = (db.passwordResetTokens ?? []).length;
+  db.sessions = (db.sessions ?? []).filter((session) => new Date(session.expiresAt).getTime() > current);
+  db.passwordResetTokens = (db.passwordResetTokens ?? []).filter((token) => token.usedAt || new Date(token.expiresAt).getTime() > current);
+  return sessionsBefore !== db.sessions.length || resetsBefore !== db.passwordResetTokens.length;
 }
 
 function csrfTokenFor(user) {
@@ -1666,8 +1824,21 @@ function csrfFormValid(user, form) {
 }
 
 async function parseBody(request) {
+  const contentLength = Number(request.headers["content-length"] ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > maxRequestBodyBytes) {
+    const error = new Error("Request body is too large.");
+    error.statusCode = 413;
+    throw error;
+  }
   const chunks = [];
+  let size = 0;
   for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maxRequestBodyBytes) {
+      const error = new Error("Request body is too large.");
+      error.statusCode = 413;
+      throw error;
+    }
     chunks.push(chunk);
   }
   const buffer = Buffer.concat(chunks);
@@ -1712,23 +1883,27 @@ function parseMultipart(buffer, contentType) {
 }
 
 function send(response, body, status = 200, headers = {}) {
+  const nonce = randomBytes(18).toString("base64url");
   response.writeHead(status, {
     "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    ...responseSecurityHeaders(nonce),
     ...headers
   });
-  response.end(body);
+  response.end(String(body).replaceAll("{{CSP_NONCE}}", nonce));
 }
 
 function sendJson(response, body, status = 200) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    ...responseSecurityHeaders()
   });
   response.end(JSON.stringify(body));
 }
 
 function redirect(response, location) {
-  response.writeHead(303, { Location: location });
+  response.writeHead(303, { Location: location, ...responseSecurityHeaders() });
   response.end();
 }
 
@@ -1807,11 +1982,37 @@ function uploadLimitForFile(file) {
     : maxMaterialUploadBytes;
 }
 
+function fileStartsWith(buffer, bytes) {
+  return Buffer.isBuffer(buffer) && buffer.length >= bytes.length && bytes.every((value, index) => buffer[index] === value);
+}
+
+function detectedImageExtension(file) {
+  const buffer = file?.buffer;
+  if (fileStartsWith(buffer, [0xff, 0xd8, 0xff])) return ".jpg";
+  if (fileStartsWith(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return ".png";
+  if (fileStartsWith(buffer, [0x47, 0x49, 0x46, 0x38])) return ".gif";
+  if (Buffer.isBuffer(buffer) && buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") return ".webp";
+  return "";
+}
+
+function isPdfFile(file) {
+  return fileStartsWith(file?.buffer, [0x25, 0x50, 0x44, 0x46, 0x2d]);
+}
+
+function isVideoFileUpload(file) {
+  const buffer = file?.buffer;
+  return (Buffer.isBuffer(buffer) && buffer.length >= 12 && buffer.subarray(4, 8).toString("ascii") === "ftyp") || fileStartsWith(buffer, [0x1a, 0x45, 0xdf, 0xa3]);
+}
+
+function isPlainTextFile(file) {
+  if (!Buffer.isBuffer(file?.buffer) || file.buffer.includes(0)) return false;
+  return /\.txt$/i.test(file.filename || "");
+}
+
 function materialUploadAllowed(file) {
-  const ext = extname(file.filename || "").toLowerCase();
-  const type = file.contentType ?? "";
-  const allowedExtensions = new Set([".mp4", ".m4v", ".mov", ".webm", ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".txt", ".doc", ".docx", ".ppt", ".pptx"]);
-  return allowedExtensions.has(ext) || type.startsWith("video/") || type.startsWith("image/") || type === "application/pdf" || type.startsWith("text/");
+  if (detectedImageExtension(file)) return true;
+  if (isPdfFile(file) || isVideoFileUpload(file)) return true;
+  return isPlainTextFile(file);
 }
 
 function uploadFromFormFile(file, prefix = "material") {
@@ -1819,26 +2020,23 @@ function uploadFromFormFile(file, prefix = "material") {
   if (!materialUploadAllowed(file)) return "";
   if (file.buffer.length > uploadLimitForFile(file)) return "";
   if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
-  const ext = extname(file.filename || "").toLowerCase() || ".bin";
+  const requestedExt = extname(file.filename || "").toLowerCase();
+  const ext = detectedImageExtension(file)
+    || (isPdfFile(file) ? ".pdf" : "")
+    || (isVideoFileUpload(file) && [".mp4", ".m4v", ".mov", ".webm"].includes(requestedExt) ? requestedExt : "")
+    || (isPlainTextFile(file) ? ".txt" : "");
+  if (!ext) return "";
   const storedName = `${prefix}_${randomUUID().slice(0, 10)}${ext}`;
   writeFileSync(resolve(uploadsDir, storedName), file.buffer);
   return `/uploads/${storedName}`;
 }
 
 function imageUploadAllowed(file) {
-  const ext = extname(file?.filename || "").toLowerCase();
-  const type = file?.contentType ?? "";
-  return type.startsWith("image/") || [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext);
+  return Boolean(detectedImageExtension(file));
 }
 
 function imageExtension(file) {
-  const extensionByType = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif"
-  };
-  return extensionByType[file.contentType] ?? (extname(file.filename).toLowerCase() || ".jpg");
+  return detectedImageExtension(file) || ".jpg";
 }
 
 function saveCourseImage(course, image) {
@@ -1858,7 +2056,7 @@ function saveCourseImage(course, image) {
 }
 
 function saveCertificatePhoto(user, photo) {
-  if (!photo?.buffer?.length || !photo.contentType?.startsWith("image/")) {
+  if (!photo?.buffer?.length || !imageUploadAllowed(photo)) {
     return { ok: false, message: "Upload an image file: JPG, PNG or WebP." };
   }
   if (photo.buffer.length > maxPhotoUploadBytes) {
@@ -1873,9 +2071,46 @@ function saveCertificatePhoto(user, photo) {
   return { ok: true, photoUrl: user.photoUrl };
 }
 
+function comparableUploadPath(value = "") {
+  try {
+    return decodeURIComponent(String(value).split(/[?#]/)[0]);
+  } catch {
+    return "";
+  }
+}
+
+function certificateUploadPaths(certificate) {
+  const paths = new Set([certificate.snapshotPhotoUrl]);
+  const html = `${certificate.snapshotCertificateTemplateHtml ?? ""}\n${certificate.certificateHtml ?? ""}`;
+  for (const match of html.matchAll(/\/uploads\/[^\s"'<>?#]+(?:%[0-9a-f]{2}|[^\s"'<>?#])*/gi)) {
+    paths.add(match[0]);
+  }
+  return [...paths].map(comparableUploadPath);
+}
+
+function canAccessUpload(user, fileName) {
+  const requestedPath = comparableUploadPath(`/uploads/${fileName}`);
+  if (!requestedPath) return false;
+  if (isPublicCourseImagePath(fileName)) return true;
+  if (!user) return false;
+  if (isFullAdmin(user)) return true;
+  if (canEditStudents(user) && db.users.some((student) => comparableUploadPath(student.photoUrl) === requestedPath)) return true;
+  if (comparableUploadPath(user.photoUrl) === requestedPath) return true;
+
+  const assignedCourseIds = new Set((db.assignments ?? []).filter((assignment) => assignment.userId === user.id).map((assignment) => assignment.courseId));
+  const hasAssignedMaterial = db.courses.some(
+    (course) => assignedCourseIds.has(course.id) && course.lessons?.some((lesson) => lesson.materials?.some((material) => comparableUploadPath(material.content) === requestedPath))
+  );
+  if (hasAssignedMaterial) return true;
+
+  return (db.certificates ?? []).some(
+    (certificate) => certificate.userId === user.id && certificateUploadPaths(certificate).includes(requestedPath)
+  );
+}
+
 function serveUpload(request, response, user, fileName) {
-  if (!user && !isPublicCourseImagePath(fileName)) {
-    response.writeHead(403);
+  if (!canAccessUpload(user, fileName)) {
+    response.writeHead(403, { ...responseSecurityHeaders(), "Cache-Control": "no-store" });
     response.end("Forbidden");
     return true;
   }
@@ -1908,7 +2143,8 @@ function serveUpload(request, response, user, fileName) {
       "Content-Length": end - start + 1,
       "Content-Range": `bytes ${start}-${end}/${stats.size}`,
       "Accept-Ranges": "bytes",
-      "Cache-Control": "private, max-age=3600"
+      "Cache-Control": "private, max-age=3600",
+      "X-Content-Type-Options": "nosniff"
     });
     createReadStream(path, { start, end }).pipe(response);
     return true;
@@ -1918,7 +2154,8 @@ function serveUpload(request, response, user, fileName) {
     "Content-Type": contentType,
     "Content-Length": stats.size,
     "Accept-Ranges": "bytes",
-    "Cache-Control": "private, max-age=3600"
+    "Cache-Control": "private, max-age=3600",
+    "X-Content-Type-Options": "nosniff"
   });
   createReadStream(path).pipe(response);
   return true;
@@ -2864,10 +3101,11 @@ function page(title, user, body) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)} | Marine LMS</title>
-    <style>${baseCss}${productCss}</style>
+    <style nonce="{{CSP_NONCE}}">${baseCss}${productCss}</style>
   </head>
   <body>
     ${content}
+    <script nonce="{{CSP_NONCE}}">document.addEventListener("click", (event) => { if (event.target.closest("[data-print-certificate]")) window.print(); });</script>
   </body>
 </html>`;
 }
@@ -2878,6 +3116,7 @@ function adminShell(user, title, body) {
           <a href="/admin/applications">Заявки</a>
           <a href="/admin/users">Пользователи</a>
           <a href="/admin/reports">Отчеты</a>
+          <a href="/admin/checks">Чеки</a>
           <a href="/admin/tests">Тесты</a>
           <a href="/admin/courses">Курсы</a>
           <a href="/admin/course-prices">Цены</a>
@@ -2978,11 +3217,6 @@ function loginPage(user, notice = "") {
           <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" required /></div>
           <button class="button" type="submit">Войти</button>
           <a class="link-line" href="/forgot-password">Восстановить пароль</a>
-          <div class="auth-note">
-            <strong>Демо-доступ</strong>
-            <span>Админ: admin@example.com / Admin123!</span>
-            <span>Студент: student@example.com / Student123!</span>
-          </div>
         </form>
       </section>
     </main>`
@@ -2996,15 +3230,31 @@ function forgotPasswordPage(user, success = false) {
     null,
     `<main class="page">
       <section class="section">
-        <div><span class="eyebrow">Доступ</span><h1>Восстановление пароля</h1><p class="lead">Если e-mail есть в системе, LMS отправит временный пароль через настроенные уведомления.</p></div>
-        ${success ? `<div class="notice">Если такой e-mail зарегистрирован, временный пароль был отправлен.</div>` : ""}
+        <div><span class="eyebrow">Доступ</span><h1>Восстановление пароля</h1><p class="lead">Если e-mail есть в системе, LMS отправит одноразовую ссылку для выбора нового пароля.</p></div>
+        ${success ? `<div class="notice">Если такой e-mail зарегистрирован, ссылка для восстановления была отправлена.</div>` : ""}
         <form class="form-panel" method="post" action="/forgot-password">
           <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>
-          <button class="button" type="submit">Получить временный пароль</button>
+          <button class="button" type="submit">Получить ссылку</button>
           <a class="small-button" href="/login">Вернуться ко входу</a>
         </form>
       </section>
     </main>`
+  );
+}
+
+function resetPasswordPage(token = "", error = "") {
+  const message = error === "invalid" ? `<div class="notice danger">Ссылка недействительна или срок ее действия истек.</div>` : "";
+  return page(
+    "Новый пароль",
+    null,
+    `<main class="page"><section class="section"><div><span class="eyebrow">Доступ</span><h1>Новый пароль</h1><p class="lead">Ссылка действует 30 минут и может быть использована один раз.</p></div>
+      ${message}
+      <form class="form-panel" method="post" action="/reset-password">
+        <input type="hidden" name="token" value="${escapeHtml(token)}" />
+        <div class="field"><label>Новый пароль</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
+        <button class="button" type="submit">Сохранить пароль</button>
+      </form>
+    </section></main>`
   );
 }
 
@@ -3169,7 +3419,7 @@ function adminStudentCard(student, viewer = null) {
         </form>
         <form method="post" action="/admin/users/reset-password" class="inline-form">
           <input type="hidden" name="id" value="${student.id}" />
-          <input name="password" value="Student123!" required />
+          <input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="Temporary password" required />
           <button class="small-button warning" type="submit">Сбросить пароль</button>
         </form>
       </div>` : ""}
@@ -3255,7 +3505,7 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
         <div class="field"><label>Должность</label><input name="position" required /></div>
         <div class="field"><label>Компания — необязательно</label><input name="company" /></div>
         <div class="field"><label>Телефон</label><input name="phone" /></div>
-        <div class="field"><label>Временный пароль</label><input name="password" value="Student123!" required /></div>
+        <div class="field"><label>Временный пароль</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
         <button class="button" type="submit">Создать пользователя</button>
       </form>
       ${isFullAdmin(user) ? `<article class="panel stack">
@@ -3486,6 +3736,179 @@ function adminReports(user, searchParams = new URLSearchParams()) {
   );
 }
 
+function checkParams(searchParams = new URLSearchParams()) {
+  const from = (searchParams.get("from") ?? "").trim();
+  const to = (searchParams.get("to") ?? "").trim();
+  return {
+    staffId: searchParams.get("staffId") ?? "",
+    from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : "",
+    to: /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : ""
+  };
+}
+
+function dateRangeBounds(params) {
+  return {
+    from: params.from ? new Date(`${params.from}T00:00:00.000`) : null,
+    to: params.to ? new Date(`${params.to}T23:59:59.999`) : null
+  };
+}
+
+function isWithinDateRange(value, bounds) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return false;
+  if (bounds.from && time < bounds.from.getTime()) return false;
+  if (bounds.to && time > bounds.to.getTime()) return false;
+  return true;
+}
+
+function staffSelectOptions(selectedId) {
+  return db.users
+    .filter((item) => item.role === "admin" || item.role === "instructor")
+    .sort((a, b) => (displayUserName(a) || a.email).localeCompare(displayUserName(b) || b.email, "ru"))
+    .map(
+      (item) =>
+        `<option value="${item.id}" ${selectedId === item.id ? "selected" : ""}>${escapeHtml(displayUserName(item) || item.email)} (${escapeHtml(roleLabel(item.role))})</option>`
+    )
+    .join("");
+}
+
+function parseCoursePriceAmount(value) {
+  const text = normalizeCoursePrice(value);
+  const match = text.match(/-?\d[\d\s]*(?:[.,]\d+)?/);
+  if (!match) return { amount: 0, currency: "" };
+  const compact = match[0].replace(/\s/g, "");
+  const commaIndex = compact.lastIndexOf(",");
+  const dotIndex = compact.lastIndexOf(".");
+  let numericText = compact;
+  if (commaIndex >= 0 && dotIndex >= 0) {
+    const decimalSeparator = commaIndex > dotIndex ? "," : ".";
+    const thousandSeparator = decimalSeparator === "," ? "." : ",";
+    numericText = compact.split(thousandSeparator).join("").replace(decimalSeparator, ".");
+  } else {
+    numericText = compact.replace(",", ".");
+  }
+  const amount = Number(numericText);
+  const currency = text.replace(match[0], "").trim();
+  return { amount: Number.isFinite(amount) ? amount : 0, currency };
+}
+
+function courseRevenuePrice(course) {
+  const newPrice = normalizeCoursePrice(course?.newPrice);
+  const oldPrice = normalizeCoursePrice(course?.oldPrice);
+  const selectedPrice = newPrice || oldPrice;
+  return { ...parseCoursePriceAmount(selectedPrice), selectedPrice };
+}
+
+function formatReportMoney(amount, currencies = new Set()) {
+  const formatted = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(amount);
+  const cleanCurrencies = [...currencies].filter(Boolean);
+  if (cleanCurrencies.length === 1) return `${formatted} ${cleanCurrencies[0]}`;
+  if (cleanCurrencies.length > 1) return `${formatted} (смешанная валюта)`;
+  return formatted;
+}
+
+function checkReportData(searchParams = new URLSearchParams()) {
+  const params = checkParams(searchParams);
+  const bounds = dateRangeBounds(params);
+  const staffFilter = params.staffId;
+  const registeredStudents = db.users
+    .filter((item) => item.role === "student")
+    .filter((item) => !staffFilter || item.createdById === staffFilter)
+    .filter((item) => isWithinDateRange(item.createdAt, bounds))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const assignments = db.assignments
+    .filter((assignment) => !staffFilter || assignment.assignedById === staffFilter)
+    .filter((assignment) => isWithinDateRange(assignment.assignedAt, bounds))
+    .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime());
+  const currencies = new Set();
+  const total = assignments.reduce((sum, assignment) => {
+    const course = courseById(assignment.courseId);
+    const price = courseRevenuePrice(course);
+    if (price.currency) currencies.add(price.currency);
+    return sum + price.amount;
+  }, 0);
+  const assignedStudentIds = new Set(assignments.map((item) => item.userId));
+  const hasStudentsWithoutCreator = registeredStudents.some((student) => !student.createdById);
+  return { params, registeredStudents, assignments, currencies, total, assignedStudentIds, hasStudentsWithoutCreator };
+}
+
+function adminChecks(user, searchParams = new URLSearchParams()) {
+  const { params, registeredStudents, assignments, currencies, total, assignedStudentIds, hasStudentsWithoutCreator } =
+    checkReportData(searchParams);
+  const exportHref = `/admin/checks/export.xls${reportQuery(params)}`;
+  return adminShell(
+    user,
+    "Чеки",
+    `<section class="section">
+      <div>
+        <span class="eyebrow">Статистика</span>
+        <h1>Чеки и назначения</h1>
+        <p class="lead">Выберите сотрудника и период, чтобы увидеть, кого он зарегистрировал, какие курсы назначил и какая сумма получается по ценам курсов.</p>
+      </div>
+      <form class="form-panel" method="get" action="/admin/checks">
+        <h2>Фильтр</h2>
+        <div class="admin-edit-grid">
+          <div class="field"><label>Сотрудник</label><select name="staffId"><option value="">Все админы и инструкторы</option>${staffSelectOptions(params.staffId)}</select></div>
+          <div class="field"><label>С даты</label><input name="from" type="date" value="${escapeHtml(params.from)}" /></div>
+          <div class="field"><label>По дату</label><input name="to" type="date" value="${escapeHtml(params.to)}" /></div>
+        </div>
+        <div class="table-actions"><button class="small-button primary" type="submit">Показать</button><a class="small-button" href="/admin/checks">Сбросить</a><a class="small-button warning" href="${exportHref}">Экспорт Excel</a></div>
+      </form>
+      <div class="grid four">
+        <article class="metric"><span class="muted">Зарегистрировано студентов</span><strong class="metric-value">${registeredStudents.length}</strong></article>
+        <article class="metric"><span class="muted">Назначено курсов</span><strong class="metric-value">${assignments.length}</strong></article>
+        <article class="metric"><span class="muted">Уникальных студентов в назначениях</span><strong class="metric-value">${assignedStudentIds.size}</strong></article>
+        <article class="metric"><span class="muted">Общая сумма</span><strong class="metric-value">${escapeHtml(formatReportMoney(total, currencies))}</strong></article>
+      </div>
+      <article class="panel stack">
+        <div class="section-heading"><div><h2>Курсы и суммы</h2><p class="muted">В сумму идет новая цена; если она пустая, берется старая цена.</p></div></div>
+        <table class="table">
+          <thead><tr><th>Сотрудник</th><th>Студент</th><th>Курс</th><th>Старая цена</th><th>Новая цена</th><th>В сумме</th><th>Дата</th></tr></thead>
+          <tbody>${assignments
+            .map((assignment) => {
+              const student = userById(assignment.userId);
+              const course = courseById(assignment.courseId);
+              const staff = userById(assignment.assignedById);
+              const price = courseRevenuePrice(course);
+              const rowCurrencies = new Set(price.currency ? [price.currency] : []);
+              return `<tr>
+                <td>${escapeHtml(displayUserName(staff) || staff?.email || "Не указано")}</td>
+                <td><a class="link-line" href="/admin/users/${encodeURIComponent(assignment.userId)}">${escapeHtml(displayUserName(student) || student?.email || "Студент удален")}</a><br><span class="muted">${escapeHtml(student?.email ?? "")}</span></td>
+                <td>${escapeHtml(course?.title ?? "Курс удален")}</td>
+                <td>${escapeHtml(course?.oldPrice || "-")}</td>
+                <td>${escapeHtml(course?.newPrice || "-")}</td>
+                <td>${escapeHtml(formatReportMoney(price.amount, rowCurrencies))}</td>
+                <td>${new Date(assignment.assignedAt).toLocaleDateString("ru-RU")}</td>
+              </tr>`;
+            })
+            .join("") || `<tr><td colspan="7"><span class="muted">Назначений за выбранный период нет.</span></td></tr>`}</tbody>
+        </table>
+      </article>
+      <article class="panel stack">
+        <div class="section-heading"><div><h2>Зарегистрированные студенты</h2><p class="muted">Показывает, кто был создан сотрудником в выбранный период.</p></div></div>
+        <table class="table">
+          <thead><tr><th>Сотрудник</th><th>Студент</th><th>E-mail</th><th>Назначений в период</th><th>Дата регистрации</th></tr></thead>
+          <tbody>${registeredStudents
+            .map((student) => {
+              const creator = userById(student.createdById);
+              const assignmentCount = assignments.filter((assignment) => assignment.userId === student.id).length;
+              return `<tr>
+                <td>${escapeHtml(displayUserName(creator) || creator?.email || "Не указано")}</td>
+                <td><a class="link-line" href="/admin/users/${encodeURIComponent(student.id)}">${escapeHtml(displayUserName(student) || student.email)}</a></td>
+                <td>${escapeHtml(student.email)}</td>
+                <td>${assignmentCount}</td>
+                <td>${new Date(student.createdAt).toLocaleDateString("ru-RU")}</td>
+              </tr>`;
+            })
+            .join("") || `<tr><td colspan="5"><span class="muted">Регистраций за выбранный период нет.</span></td></tr>`}</tbody>
+        </table>
+      </article>
+      ${hasStudentsWithoutCreator ? `<div class="notice">У части старых студентов нет регистратора, потому что они были импортированы или созданы до появления этого отчета.</div>` : ""}
+    </section>`
+  );
+}
+
 function testReportParams(searchParams = new URLSearchParams()) {
   return {
     q: (searchParams.get("q") ?? "").trim(),
@@ -3659,35 +4082,61 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
   );
 }
 
-function adminCoursePrices(user) {
-  const courses = [...db.courses].sort((a, b) => a.title.localeCompare(b.title, "ru"));
+function coursePriceParams(searchParams = new URLSearchParams()) {
+  const status = searchParams.get("status") ?? "";
+  return {
+    q: (searchParams.get("q") ?? "").trim(),
+    status: ["active", "inactive"].includes(status) ? status : ""
+  };
+}
+
+function coursePriceStatusOptions(selectedStatus) {
+  return ["", "active", "inactive"]
+    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? statusLabel(status) : "Все статусы"}</option>`)
+    .join("");
+}
+
+function filteredCoursePrices(params) {
+  return [...db.courses]
+    .filter((course) => !params.status || course.status === params.status)
+    .filter((course) => matchesQuery([course.title, course.shortDescription, course.oldPrice, course.newPrice, statusLabel(course.status)], params.q))
+    .sort((a, b) => a.title.localeCompare(b.title, "ru"));
+}
+
+function adminCoursePrices(user, searchParams = new URLSearchParams()) {
+  const params = coursePriceParams(searchParams);
+  const courses = filteredCoursePrices(params);
+  const exportHref = `/admin/course-prices/export.xls${reportQuery(params)}`;
+  const returnTo = `/admin/course-prices${reportQuery(params)}`;
   return adminShell(
     user,
     "Цены курсов",
     `<section class="section">
       <div class="section-heading">
-        <div><span class="eyebrow">Цены</span><h1>Цены всех курсов</h1><p class="lead">Редактируйте старую и новую цену на одной странице. После сохранения цены сразу обновятся в карточках и на страницах курсов.</p></div>
-        <a class="button secondary" href="/courses">Открыть каталог</a>
+        <div><span class="eyebrow">Цены</span><h1>Цены всех курсов</h1></div>
+        <button class="button" form="course-prices-form" type="submit">Сохранить цены</button>
       </div>
-      <form class="form-panel" method="post" action="/admin/course-prices/update">
-        <div class="section-heading">
-          <div><h2>Прайс-лист</h2><p class="muted">Всего курсов: ${courses.length}. Поля можно оставлять пустыми.</p></div>
-          <button class="button" type="submit">Сохранить цены</button>
+      <form class="form-panel" method="get" action="/admin/course-prices">
+        <h2>Фильтр</h2>
+        <div class="admin-edit-grid">
+          <div class="field"><label>Поиск</label><input name="q" value="${escapeHtml(params.q)}" placeholder="Курс или цена" /></div>
+          <div class="field"><label>Статус</label><select name="status">${coursePriceStatusOptions(params.status)}</select></div>
         </div>
+        <div class="table-actions"><button class="small-button primary" type="submit">Показать</button><a class="small-button" href="/admin/course-prices">Сбросить</a><a class="small-button warning" href="${exportHref}">Экспорт Excel</a></div>
+      </form>
+      <form id="course-prices-form" class="form-panel" method="post" action="/admin/course-prices/update">
+        <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />
         <table class="table course-prices-table">
-          <thead><tr><th>Курс</th><th>Текущая цена</th><th>Старая цена</th><th>Новая цена</th><th>Статус</th><th>Действия</th></tr></thead>
+          <thead><tr><th>Курс</th><th>Старая цена</th><th>Новая цена</th></tr></thead>
           <tbody>${courses
             .map((course) => `<tr>
-              <td><div class="course-title-cell">${courseCoverHtml(course, "thumb")}<div><strong>${escapeHtml(course.title)}</strong><br><span class="muted">${escapeHtml(course.shortDescription)}</span></div></div></td>
-              <td>${coursePriceHtml(course, { showEmpty: true })}</td>
+              <td class="course-name-cell">${escapeHtml(course.title)}</td>
               <td><input name="oldPrice:${course.id}" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="например 250 EUR" /></td>
               <td><input name="newPrice:${course.id}" value="${escapeHtml(course.newPrice ?? "")}" placeholder="например 199 EUR" /></td>
-              <td>${badge(course.status)}</td>
-              <td><div class="table-actions"><a class="small-button primary" href="/admin/courses/${course.id}">Редактировать</a><a class="small-button" href="${coursePublicUrl(course)}">Открыть</a></div></td>
             </tr>`)
-            .join("") || `<tr><td colspan="6"><span class="muted">Курсы не найдены.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="3"><span class="muted">Курсы не найдены.</span></td></tr>`}</tbody>
         </table>
-        <div class="table-actions"><button class="button" type="submit">Сохранить цены</button><a class="button secondary" href="/admin/courses">К списку курсов</a></div>
+        <div class="table-actions"><button class="button" type="submit">Сохранить цены</button></div>
       </form>
     </section>`
   );
@@ -4257,6 +4706,38 @@ function csvValue(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
+function excelTableHtml(title, rows) {
+  return `<h2>${escapeHtml(title)}</h2>
+  <table>
+    <thead><tr>${(rows[0] ?? []).map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr></thead>
+    <tbody>${rows
+      .slice(1)
+      .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
+      .join("")}</tbody>
+  </table>`;
+}
+
+function excelDocument(title, tables) {
+  return `\uFEFF<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: Arial, sans-serif; }
+    h1 { color: #0b4f7a; }
+    h2 { margin-top: 22px; color: #0b4f7a; }
+    table { border-collapse: collapse; margin-bottom: 18px; }
+    th, td { border: 1px solid #8aaac1; padding: 6px 8px; mso-number-format: "\\@"; }
+    th { background: #0b4f7a; color: #ffffff; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  ${tables.map((table) => excelTableHtml(table.title, table.rows)).join("")}
+</body>
+</html>`;
+}
+
 function certificatesCsv(searchParams = new URLSearchParams()) {
   const rows = certificateExportRows(searchParams);
   return `\uFEFF${rows.map((row) => row.map(csvValue).join(";")).join("\r\n")}`;
@@ -4302,6 +4783,96 @@ function sendCertificatesExcel(response, searchParams = new URLSearchParams()) {
     "Content-Disposition": `attachment; filename="certificates-${fileDate}.xls"`
   });
   response.end(certificatesExcel(searchParams));
+}
+
+function checksExcel(searchParams = new URLSearchParams()) {
+  const { params, registeredStudents, assignments, currencies, total, assignedStudentIds } = checkReportData(searchParams);
+  const staff = userById(params.staffId);
+  const filterRows = [
+    ["Параметр", "Значение"],
+    ["Сотрудник", params.staffId ? displayUserName(staff) || staff?.email || "Не найден" : "Все админы и инструкторы"],
+    ["С даты", params.from || "Не задано"],
+    ["По дату", params.to || "Не задано"],
+    ["Зарегистрировано студентов", registeredStudents.length],
+    ["Назначено курсов", assignments.length],
+    ["Уникальных студентов в назначениях", assignedStudentIds.size],
+    ["Общая сумма", formatReportMoney(total, currencies)]
+  ];
+  const assignmentRows = [
+    ["Сотрудник", "Студент", "E-mail", "Курс", "Старая цена", "Новая цена", "В сумме", "Дата назначения"],
+    ...assignments.map((assignment) => {
+      const student = userById(assignment.userId);
+      const course = courseById(assignment.courseId);
+      const assignedBy = userById(assignment.assignedById);
+      const price = courseRevenuePrice(course);
+      return [
+        displayUserName(assignedBy) || assignedBy?.email || "Не указано",
+        displayUserName(student) || student?.email || "Студент удален",
+        student?.email ?? "",
+        course?.title ?? "Курс удален",
+        course?.oldPrice || "",
+        course?.newPrice || "",
+        formatReportMoney(price.amount, new Set(price.currency ? [price.currency] : [])),
+        new Date(assignment.assignedAt).toLocaleDateString("ru-RU")
+      ];
+    })
+  ];
+  const registeredRows = [
+    ["Сотрудник", "Студент", "E-mail", "Назначений в период", "Дата регистрации"],
+    ...registeredStudents.map((student) => {
+      const creator = userById(student.createdById);
+      const assignmentCount = assignments.filter((assignment) => assignment.userId === student.id).length;
+      return [
+        displayUserName(creator) || creator?.email || "Не указано",
+        displayUserName(student) || student.email,
+        student.email,
+        assignmentCount,
+        new Date(student.createdAt).toLocaleDateString("ru-RU")
+      ];
+    })
+  ];
+  return excelDocument("Чеки и назначения", [
+    { title: "Итоги и фильтры", rows: filterRows },
+    { title: "Курсы и суммы", rows: assignmentRows },
+    { title: "Зарегистрированные студенты", rows: registeredRows }
+  ]);
+}
+
+function sendChecksExcel(response, searchParams = new URLSearchParams()) {
+  const fileDate = new Date().toISOString().slice(0, 10);
+  response.writeHead(200, {
+    "Content-Type": "application/vnd.ms-excel; charset=utf-8",
+    "Content-Disposition": `attachment; filename="checks-${fileDate}.xls"`
+  });
+  response.end(checksExcel(searchParams));
+}
+
+function coursePricesExcel(searchParams = new URLSearchParams()) {
+  const params = coursePriceParams(searchParams);
+  const courses = filteredCoursePrices(params);
+  const rows = [
+    ["Курс", "Статус", "Старая цена", "Новая цена"],
+    ...courses.map((course) => [course.title, statusLabel(course.status), course.oldPrice || "", course.newPrice || ""])
+  ];
+  const filterRows = [
+    ["Параметр", "Значение"],
+    ["Поиск", params.q || "Не задано"],
+    ["Статус", params.status ? statusLabel(params.status) : "Все статусы"],
+    ["Курсов в выгрузке", courses.length]
+  ];
+  return excelDocument("Цены курсов", [
+    { title: "Фильтр", rows: filterRows },
+    { title: "Прайс-лист", rows }
+  ]);
+}
+
+function sendCoursePricesExcel(response, searchParams = new URLSearchParams()) {
+  const fileDate = new Date().toISOString().slice(0, 10);
+  response.writeHead(200, {
+    "Content-Type": "application/vnd.ms-excel; charset=utf-8",
+    "Content-Disposition": `attachment; filename="course-prices-${fileDate}.xls"`
+  });
+  response.end(coursePricesExcel(searchParams));
 }
 
 function certificateAdminReturnTo(form) {
@@ -4726,7 +5297,7 @@ function certificatePage(requestUser, certificate) {
       ${certificate.status === "issued" ? "" : `<div class="notice danger">Этот сертификат не активен: текущий статус ${escapeHtml(statusLabel(certificate.status))}.</div>`}
       <section class="${certificateShellClass(certificateHtml)}">
         ${certificateHtml}
-        <div class="actions" style="justify-content:center;margin-top:24px"><a class="button" href="/certificates/${certificate.id}.pdf">Скачать PDF</a><button class="button secondary" onclick="window.print()">Печать</button></div>
+        <div class="actions" style="justify-content:center;margin-top:24px"><a class="button" href="/certificates/${certificate.id}.pdf">Скачать PDF</a><button class="button secondary" type="button" data-print-certificate>Печать</button></div>
       </section>
     </main>`
   );
@@ -4773,13 +5344,25 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
     clearLoginRateLimit(request);
-    const sessionId = randomUUID();
+    const sessionId = opaqueToken();
     const csrfToken = randomBytes(32).toString("hex");
-    sessions.set(sessionId, { userId: found.id, csrfToken });
+    db.sessions = (db.sessions ?? []).filter((session) => session.userId !== found.id || new Date(session.expiresAt).getTime() > Date.now());
+    db.sessions.push({
+      id: id("session"),
+      tokenHash: hashSecret(sessionId),
+      csrfToken,
+      userId: found.id,
+      authVersion: found.authVersion,
+      expiresAt: new Date(Date.now() + sessionTtlMs).toISOString(),
+      createdAt: now(),
+      lastSeenAt: now()
+    });
     csrfTokens.set(found.id, csrfToken);
+    saveDb(db);
     response.writeHead(303, {
       Location: canAccessAdminPanel(found) ? "/admin" : "/dashboard",
-      "Set-Cookie": `sid=${encodeURIComponent(sessionId)}; HttpOnly; Path=/; SameSite=Lax`
+      "Set-Cookie": sessionCookie(sessionId),
+      ...responseSecurityHeaders()
     });
     response.end();
     return;
@@ -4788,22 +5371,8 @@ async function handlePost(request, response, pathname, user) {
   if (pathname === "/forgot-password") {
     const email = form.get("email")?.toString().trim().toLowerCase() ?? "";
     const found = db.users.find((item) => item.email.toLowerCase() === email && item.status === "active");
-    if (found) {
-      const temporaryPassword = randomBytes(9).toString("base64").replace(/[+/=]/g, "").slice(0, 12) || "Temp12345";
-      found.passwordHash = hashPassword(temporaryPassword);
-      const note = {
-        id: id("note"),
-        recipientUserId: found.id,
-        recipientEmail: found.email,
-        type: "password_recovery",
-        status: notificationInitialStatus(),
-        payload: "Temporary password was generated by recovery form.",
-        temporaryPassword,
-        createdAt: now(),
-        sentAt: ""
-      };
-      await deliverNotification(note);
-      db.notifications.push(note);
+    if (found && !passwordResetRateLimited(request, email)) {
+      await sendPasswordRecovery(found, createPasswordResetToken(found));
       saveDb(db);
     }
     redirect(response, "/forgot-password?success=1");
@@ -4812,13 +5381,36 @@ async function handlePost(request, response, pathname, user) {
 
   if (pathname === "/logout") {
     const sessionId = getCookie(request, "sid");
-    sessions.delete(sessionId);
+    db.sessions = (db.sessions ?? []).filter((session) => session.tokenHash !== hashSecret(sessionId));
+    saveDb(db);
     response.writeHead(303, {
       Location: "/",
-      "Set-Cookie": "sid=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax"
+      "Set-Cookie": sessionCookie("", 0),
+      ...responseSecurityHeaders()
     });
     response.end();
     return;
+  }
+
+  if (pathname === "/reset-password") {
+    const token = form.get("token")?.toString() ?? "";
+    const password = form.get("password")?.toString() ?? "";
+    const reset = (db.passwordResetTokens ?? []).find(
+      (item) => item.tokenHash === hashSecret(token) && !item.usedAt && new Date(item.expiresAt).getTime() > Date.now()
+    );
+    const userToReset = reset && db.users.find((item) => item.id === reset.userId && item.status === "active");
+    if (!reset || !userToReset || password.length < 12) {
+      return redirect(response, "/reset-password?error=invalid");
+    }
+    userToReset.passwordHash = hashPassword(password);
+    invalidateUserSessions(userToReset);
+    reset.usedAt = now();
+    db.notifications.push({
+      id: id("note"), recipientUserId: userToReset.id, recipientEmail: userToReset.email, type: "password_changed",
+      status: notificationInitialStatus(), payload: "Password changed through recovery link.", createdAt: now(), sentAt: ""
+    });
+    saveDb(db);
+    return redirect(response, "/login?notice=password_reset");
   }
 
   if (pathname === "/apply") {
@@ -4881,8 +5473,9 @@ async function handlePost(request, response, pathname, user) {
     if (!student) return;
     const currentPassword = form.get("currentPassword")?.toString() ?? "";
     const newPassword = form.get("newPassword")?.toString() ?? "";
-    if (verifyPassword(currentPassword, student.passwordHash) && newPassword.length >= 8) {
+    if (verifyPassword(currentPassword, student.passwordHash) && newPassword.length >= 12) {
       student.passwordHash = hashPassword(newPassword);
+      invalidateUserSessions(student);
       db.notifications.push({
         id: id("note"),
         recipientUserId: student.id,
@@ -4894,7 +5487,7 @@ async function handlePost(request, response, pathname, user) {
         sentAt: now()
       });
       saveDb(db);
-      redirect(response, "/dashboard/profile");
+      redirect(response, "/login?notice=password_changed");
       return;
     }
     send(response, studentShell(student, "Смена пароля", `<section class="section"><div class="notice danger">Пароль не изменен: проверьте текущий пароль и длину нового пароля.</div><a class="button" href="/dashboard/profile">Вернуться</a></section>`), 400);
@@ -4910,7 +5503,7 @@ async function handlePost(request, response, pathname, user) {
     }
 
     const photo = form.get("photo");
-    if (!photo?.buffer?.length || !photo.contentType?.startsWith("image/")) {
+    if (!photo?.buffer?.length || !imageUploadAllowed(photo)) {
       send(response, studentShell(student, "Фото", `<section class="section"><div class="notice danger">Загрузите файл изображения: JPG, PNG или WebP.</div><a class="button" href="/dashboard/profile">Вернуться</a></section>`), 400);
       return;
     }
@@ -5017,11 +5610,13 @@ async function handlePost(request, response, pathname, user) {
         return;
       }
       for (const course of db.courses) {
-        course.oldPrice = normalizeCoursePrice(form.get(`oldPrice:${course.id}`));
-        course.newPrice = normalizeCoursePrice(form.get(`newPrice:${course.id}`));
+        const oldPriceKey = `oldPrice:${course.id}`;
+        const newPriceKey = `newPrice:${course.id}`;
+        if (form.has(oldPriceKey)) course.oldPrice = normalizeCoursePrice(form.get(oldPriceKey));
+        if (form.has(newPriceKey)) course.newPrice = normalizeCoursePrice(form.get(newPriceKey));
       }
       saveDb(db);
-      redirect(response, "/admin/course-prices");
+      redirect(response, adminReturnTo(form, "/admin/course-prices"));
       return;
     }
 
@@ -5042,7 +5637,7 @@ async function handlePost(request, response, pathname, user) {
             id: id("user"),
             role: "student",
             email: application.email,
-            passwordHash: hashPassword("Student123!"),
+            passwordHash: hashPassword(opaqueToken()),
             firstNameEn: application.firstName,
             lastNameEn: application.lastName,
             birthDate: "",
@@ -5051,9 +5646,14 @@ async function handlePost(request, response, pathname, user) {
             phone: application.phone,
             photoUrl: "",
             status: "active",
+            createdById: admin.id,
+            authVersion: 1,
             createdAt: now()
           };
           db.users.push(student);
+          await sendPasswordRecovery(student, createPasswordResetToken(student));
+        } else if (!student.createdById) {
+          student.createdById = admin.id;
         }
         if (!assignmentFor(student.id, application.courseId)) {
           db.assignments.push({
@@ -5084,13 +5684,14 @@ async function handlePost(request, response, pathname, user) {
       const position = form.get("position")?.toString().trim() ?? "";
       const requestedRole = form.get("role")?.toString() ?? "student";
       const role = isFullAdmin(admin) && requestedRole === "instructor" ? "instructor" : "student";
+      const password = form.get("password")?.toString() ?? "";
       const duplicate = db.users.some((item) => item.email.toLowerCase() === email.toLowerCase());
-      if (email && firstNameEn && lastNameEn && birthDate && position && !duplicate) {
+      if (email && firstNameEn && lastNameEn && birthDate && position && password.length >= 12 && !duplicate) {
         db.users.push({
           id: id("user"),
           role,
           email,
-          passwordHash: hashPassword(form.get("password")?.toString() || "Student123!"),
+          passwordHash: hashPassword(password),
           firstNameEn,
           lastNameEn,
           birthDate,
@@ -5099,6 +5700,8 @@ async function handlePost(request, response, pathname, user) {
           phone: form.get("phone")?.toString().trim() ?? "",
           photoUrl: "",
           status: "active",
+          createdById: admin.id,
+          authVersion: 1,
           createdAt: now()
         });
       }
@@ -5167,7 +5770,10 @@ async function handlePost(request, response, pathname, user) {
 
     if (pathname === "/admin/users/toggle") {
       const student = db.users.find((item) => item.id === form.get("id") && item.role === "student");
-      if (student) student.status = student.status === "active" ? "inactive" : "active";
+      if (student) {
+        student.status = student.status === "active" ? "inactive" : "active";
+        if (student.status !== "active") invalidateUserSessions(student);
+      }
       saveDb(db);
       redirect(response, "/admin/users");
       return;
@@ -5175,7 +5781,10 @@ async function handlePost(request, response, pathname, user) {
 
     if (pathname === "/admin/users/delete") {
       const student = db.users.find((item) => item.id === form.get("id") && item.role === "student");
-      if (student) student.status = "deleted";
+      if (student) {
+        student.status = "deleted";
+        invalidateUserSessions(student);
+      }
       saveDb(db);
       redirect(response, "/admin/users");
       return;
@@ -5183,9 +5792,10 @@ async function handlePost(request, response, pathname, user) {
 
     if (pathname === "/admin/users/reset-password") {
       const student = db.users.find((item) => item.id === form.get("id") && item.role === "student");
-      const temporaryPassword = form.get("password")?.toString() || "Student123!";
-      if (student && temporaryPassword.trim()) {
+      const temporaryPassword = form.get("password")?.toString() ?? "";
+      if (student && temporaryPassword.length >= 12) {
         student.passwordHash = hashPassword(temporaryPassword);
+        invalidateUserSessions(student);
         db.notifications.push({
           id: id("note"),
           recipientUserId: student.id,
@@ -5829,7 +6439,9 @@ async function handlePost(request, response, pathname, user) {
 }
 
 async function handleRequest(request, response) {
-  db = await loadDb();
+  await saveQueue;
+  if (lastSaveError) throw lastSaveError;
+  if (pruneExpiredAuthRecords()) saveDb(db);
   const url = new URL(request.url ?? "/", `http://${host}:${port}`);
   const pathname = url.pathname;
   const user = currentUser(request);
@@ -5860,6 +6472,7 @@ async function handleRequest(request, response) {
   if (pathname === "/") return send(response, homePage(user));
   if (pathname === "/login") return send(response, loginPage(user, url.searchParams.get("notice") ?? ""));
   if (pathname === "/forgot-password") return send(response, forgotPasswordPage(user, url.searchParams.get("success") === "1"));
+  if (pathname === "/reset-password") return send(response, resetPasswordPage(url.searchParams.get("token") ?? "", url.searchParams.get("error") ?? ""));
   if (pathname === "/apply") return send(response, applyPage(user, url.searchParams.get("success") === "1", url.searchParams.get("courseId") ?? ""));
   if (pathname === "/courses") return send(response, publicCoursesCatalog(user, url.searchParams));
   const publicCourseMatch = pathname.match(/^\/courses\/([^/]+)$/);
@@ -5885,9 +6498,12 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/applications") return send(response, adminApplications(admin, url.searchParams));
     if (pathname === "/admin/users") return send(response, adminUsers(admin, url.searchParams));
     if (pathname === "/admin/reports") return send(response, adminReports(admin, url.searchParams));
+    if (pathname === "/admin/checks/export.xls") return isFullAdmin(admin) ? sendChecksExcel(response, url.searchParams) : send(response, adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), 403);
+    if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
     if (pathname === "/admin/courses") return send(response, adminCourses(admin, url.searchParams));
-    if (pathname === "/admin/course-prices") return send(response, isFullAdmin(admin) ? adminCoursePrices(admin) : adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), isFullAdmin(admin) ? 200 : 403);
+    if (pathname === "/admin/course-prices/export.xls") return isFullAdmin(admin) ? sendCoursePricesExcel(response, url.searchParams) : send(response, adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), 403);
+    if (pathname === "/admin/course-prices") return send(response, isFullAdmin(admin) ? adminCoursePrices(admin, url.searchParams) : adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/homepage") return send(response, adminHomepage(admin));
     if (pathname === "/admin/files/import-report.csv") return sendImportQualityCsv(response);
     if (pathname === "/admin/files") return send(response, adminFiles(admin, url.searchParams));
@@ -5957,7 +6573,9 @@ async function handleRequest(request, response) {
     const pdf = await certificatePdfBuffer(cert);
     response.writeHead(200, {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${cert.certificateNumber.replace(/[^a-zA-Z0-9_-]+/g, "-")}.pdf"`
+      "Content-Disposition": `attachment; filename="${cert.certificateNumber.replace(/[^a-zA-Z0-9_-]+/g, "-")}.pdf"`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-store"
     });
     response.end(pdf);
     return;
@@ -5973,10 +6591,17 @@ async function handleRequest(request, response) {
 }
 
 const server = createServer((request, response) => {
-  handleRequest(request, response).catch((error) => {
-    console.error(error);
-    send(response, page("Ошибка", null, `<main class="page"><div class="notice danger">Ошибка сервера: ${escapeHtml(error.message)}</div></main>`), 500);
-  });
+  const work = requestQueue
+    .catch(() => {})
+    .then(() => handleRequest(request, response))
+    .catch((error) => {
+      console.error("Marine LMS request failed:", error);
+      if (!response.headersSent) {
+        const status = Number(error?.statusCode) === 413 ? 413 : 500;
+        send(response, page("Ошибка", null, `<main class="page"><div class="notice danger">Запрос не удалось обработать. Попробуйте еще раз или обратитесь к администратору.</div></main>`), status);
+      }
+    });
+  requestQueue = work.catch(() => {});
 });
 
 server.listen(port, host, () => {

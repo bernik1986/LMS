@@ -67,6 +67,10 @@ HOST="127.0.0.1"
 PORT="3000"
 PUBLIC_BASE_URL="https://your-domain.com"
 APP_URL="https://your-domain.com"
+TRUST_PROXY="true"
+LMS_ALLOW_DEMO_DATA="false"
+SESSION_TTL_HOURS="12"
+PASSWORD_RESET_TTL_MINUTES="30"
 ```
 
 Важно: `PUBLIC_BASE_URL` должен быть настоящим HTTPS-доменом. Он попадает в QR-коды сертификатов.
@@ -210,6 +214,11 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
     }
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 }
 ```
 

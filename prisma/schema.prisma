@@ -93,6 +93,8 @@ model User {
   phone           String             @default("")
   photoUrl        String             @default("")
   status          UserStatus         @default(active)
+  createdById     String             @default("")
+  authVersion     Int                @default(1)
   source          Json?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -102,9 +104,12 @@ model User {
   certificates    Certificate[]
   notifications   Notification[]
   auditEvents     AuditEvent[]
+  sessions        Session[]
+  passwordResets  PasswordResetToken[]
 
   @@index([role])
   @@index([status])
+  @@index([createdById])
 }
 
 model CourseApplication {
@@ -313,7 +318,6 @@ model Notification {
   type            String
   status          NotificationStatus @default(logged)
   payload         String             @db.Text
-  temporaryPassword String           @default("")
   errorMessage    String             @default("")
   createdAt       DateTime           @default(now())
   sentAt          DateTime?
@@ -321,6 +325,34 @@ model Notification {
   @@index([recipientUserId])
   @@index([status])
   @@index([type])
+}
+
+model Session {
+  id          String   @id
+  tokenHash   String   @unique
+  csrfToken   String
+  userId      String
+  authVersion Int
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model AuditEvent {

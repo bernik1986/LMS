@@ -1,8 +1,13 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const schema = readFileSync(resolve("prisma/schema.prisma"), "utf8");
-const migration = readFileSync(resolve("prisma/migrations/20260702160000_init/migration.sql"), "utf8");
+const migrationsDir = resolve("prisma/migrations");
+const migration = readdirSync(migrationsDir, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .sort((left, right) => left.name.localeCompare(right.name))
+  .map((entry) => readFileSync(resolve(migrationsDir, entry.name, "migration.sql"), "utf8"))
+  .join("\n");
 
 const models = [...schema.matchAll(/^model\s+(\w+)\s+\{/gm)].map((match) => match[1]);
 const enums = [...schema.matchAll(/^enum\s+(\w+)\s+\{/gm)].map((match) => match[1]);

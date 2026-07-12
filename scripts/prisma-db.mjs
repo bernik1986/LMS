@@ -104,6 +104,8 @@ export function flattenDb(db) {
     testAttempts: db.testAttempts ?? [],
     certificates: db.certificates ?? [],
     notifications: db.notifications ?? [],
+    sessions: db.sessions ?? [],
+    passwordResetTokens: db.passwordResetTokens ?? [],
     auditEvents: db.auditEvents ?? [],
     certificateEvents: db.certificateEvents ?? [],
     settings: db.settings ?? {}
@@ -124,6 +126,8 @@ export function migrationSummary(flat) {
     testAttempts: flat.testAttempts.length,
     certificates: flat.certificates.length,
     notifications: flat.notifications.length,
+    sessions: flat.sessions.length,
+    passwordResetTokens: flat.passwordResetTokens.length,
     auditEvents: flat.auditEvents.length,
     certificateEvents: flat.certificateEvents.length,
     settings: Object.keys(flat.settings).length ? 1 : 0
@@ -205,6 +209,12 @@ export function validateFlatDb(flat) {
   }
   for (const id of invalidIds(flat.assignments, (assignment) => userIds.has(assignment.userId) && courseIds.has(assignment.courseId))) {
     errors.push(`assignments: ${id} references a missing user or course`);
+  }
+  for (const id of invalidIds(flat.sessions, (session) => userIds.has(session.userId))) {
+    errors.push(`sessions: ${id} references a missing user`);
+  }
+  for (const id of invalidIds(flat.passwordResetTokens, (token) => userIds.has(token.userId))) {
+    errors.push(`passwordResetTokens: ${id} references a missing user`);
   }
   for (const id of invalidIds(flat.testAttempts, (attempt) => assignmentIds.has(attempt.assignmentId) && testIds.has(attempt.testId) && userIds.has(attempt.userId))) {
     errors.push(`testAttempts: ${id} references a missing assignment, test, or user`);
@@ -312,6 +322,8 @@ export async function prismaDataCounts(options = {}) {
 }
 
 async function clearTables(client) {
+  await client.session.deleteMany();
+  await client.passwordResetToken.deleteMany();
   await client.certificateEvent.deleteMany();
   await client.auditEvent.deleteMany();
   await client.notification.deleteMany();
@@ -361,6 +373,8 @@ async function writeFlatDb(client, flat) {
             phone: user.phone ?? "",
             photoUrl: user.photoUrl ?? "",
             status: enumValue(user.status, userStatuses, "active"),
+            createdById: user.createdById ?? "",
+            authVersion: Number(user.authVersion) || 1,
             createdAt: dateOrNow(user.createdAt)
           },
           "source",
@@ -609,11 +623,42 @@ async function writeFlatDb(client, flat) {
         type: note.type ?? "",
         status: enumValue(note.status, notificationStatuses, "logged"),
         payload: note.payload ?? "",
-        temporaryPassword: note.temporaryPassword ?? "",
         errorMessage: note.errorMessage ?? "",
         createdAt: dateOrNow(note.createdAt),
         sentAt: dateOrNull(note.sentAt)
       }))
+    });
+  }
+
+  if (flat.sessions.length) {
+    await client.session.createMany({
+      data: flat.sessions
+        .filter((session) => userIds.has(session.userId))
+        .map((session) => ({
+          id: session.id,
+          tokenHash: session.tokenHash,
+          csrfToken: session.csrfToken,
+          userId: session.userId,
+          authVersion: Number(session.authVersion) || 1,
+          expiresAt: dateOrNow(session.expiresAt),
+          createdAt: dateOrNow(session.createdAt),
+          lastSeenAt: dateOrNow(session.lastSeenAt)
+        }))
+    });
+  }
+
+  if (flat.passwordResetTokens.length) {
+    await client.passwordResetToken.createMany({
+      data: flat.passwordResetTokens
+        .filter((token) => userIds.has(token.userId))
+        .map((token) => ({
+          id: token.id,
+          tokenHash: token.tokenHash,
+          userId: token.userId,
+          expiresAt: dateOrNow(token.expiresAt),
+          usedAt: dateOrNull(token.usedAt),
+          createdAt: dateOrNow(token.createdAt)
+        }))
     });
   }
 
@@ -684,6 +729,254 @@ export async function replacePrismaDb(db, options = {}) {
       { maxWait: 120000, timeout: 120000 }
     );
     return migrationSummary(flat);
+  } finally {
+    if (shouldDisconnect) await prisma.$disconnect();
+  }
+}
+
+function stableRecord(value) {
+  return JSON.stringify(value ?? null);
+}
+
+function changedRecords(previous = [], next = []) {
+  const previousById = new Map(previous.map((item) => [item.id, item]));
+  return next.filter((item) => stableRecord(previousById.get(item.id)) !== stableRecord(item));
+}
+
+function removedIds(previous = [], next = []) {
+  const nextIds = new Set(next.map((item) => item.id));
+  return previous.filter((item) => !nextIds.has(item.id)).map((item) => item.id);
+}
+
+function updateData(data) {
+  const update = { ...data };
+  delete update.id;
+  delete update.createdAt;
+  return update;
+}
+
+async function upsertRecords(client, modelName, records, mapper) {
+  for (const record of records) {
+    const data = mapper(record);
+    await client[modelName].upsert({ where: { id: data.id }, create: data, update: updateData(data) });
+  }
+}
+
+function userData(user) {
+  return objectWithOptionalJson({
+    id: user.id,
+    role: enumValue(user.role, userRoles, "student"),
+    email: user.email,
+    passwordHash: user.passwordHash,
+    firstNameEn: user.firstNameEn ?? "",
+    lastNameEn: user.lastNameEn ?? "",
+    birthDate: dateOrNull(user.birthDate),
+    company: user.company ?? "",
+    position: user.position ?? "",
+    phone: user.phone ?? "",
+    photoUrl: user.photoUrl ?? "",
+    status: enumValue(user.status, userStatuses, "active"),
+    createdById: user.createdById ?? "",
+    authVersion: Number(user.authVersion) || 1,
+    createdAt: dateOrNow(user.createdAt)
+  }, "source", user.source);
+}
+
+function courseData(course) {
+  return objectWithOptionalJson({
+    id: course.id,
+    title: course.title ?? "",
+    shortDescription: course.shortDescription ?? "",
+    fullDescription: course.fullDescription ?? "",
+    goals: course.goals ?? "",
+    requirements: course.requirements ?? "",
+    oldPrice: course.oldPrice ?? "",
+    newPrice: course.newPrice ?? "",
+    status: enumValue(course.status, courseStatuses, "active"),
+    isSequential: Boolean(course.isSequential ?? true),
+    imageUrl: course.imageUrl ?? "",
+    showOnHome: Boolean(course.showOnHome),
+    homeSortOrder: Number(course.homeSortOrder) || 999,
+    certificateTemplateHtml: course.certificateTemplateHtml ?? "",
+    createdAt: dateOrNow(course.createdAt)
+  }, "source", course.source);
+}
+
+function lessonData(lesson) {
+  return objectWithOptionalJson({
+    id: lesson.id, courseId: lesson.courseId, title: lesson.title ?? "", description: lesson.description ?? "",
+    sortOrder: Number(lesson.sortOrder) || 0, isRequired: Boolean(lesson.isRequired ?? true),
+    status: enumValue(lesson.status, courseStatuses, "active")
+  }, "source", lesson.source);
+}
+
+function materialData(material) {
+  return objectWithOptionalJson({
+    id: material.id, lessonId: material.lessonId, type: enumValue(material.type, materialTypes, "text"),
+    title: material.title ?? "", content: material.content ?? "", isRequired: Boolean(material.isRequired ?? true), sortOrder: Number(material.sortOrder) || 0
+  }, "source", material.source);
+}
+
+function testData(test) {
+  return {
+    id: test.id, courseId: test.courseId, title: test.title ?? "", description: test.description ?? "",
+    attemptsLimit: Number(test.attemptsLimit) || 3, passingPercent: Number(test.passingPercent) || 80,
+    timeLimitMinutes: Number(test.timeLimitMinutes) || 0, showResultToUser: Boolean(test.showResultToUser ?? true),
+    allowRetake: Boolean(test.allowRetake ?? true), status: enumValue(test.status, testStatuses, "active")
+  };
+}
+
+function questionData(question) {
+  return objectWithOptionalJson({
+    id: question.id, testId: question.testId, type: enumValue(question.type, questionTypes, "single_choice"),
+    questionText: question.questionText ?? "", sortOrder: Number(question.sortOrder) || 0
+  }, "source", question.source);
+}
+
+function optionData(option) {
+  return { id: option.id, questionId: option.questionId, optionText: option.optionText ?? "", isCorrect: Boolean(option.isCorrect), sortOrder: Number(option.sortOrder) || 0 };
+}
+
+function applicationData(application, courseIds) {
+  return {
+    id: application.id, lastName: application.lastName ?? "", firstName: application.firstName ?? "", phone: application.phone ?? "", email: application.email ?? "",
+    courseId: courseIds.has(application.courseId) ? application.courseId : null, comment: application.comment ?? "",
+    status: enumValue(application.status, applicationStatuses, "new"), adminNote: application.adminNote ?? "", createdAt: dateOrNow(application.createdAt)
+  };
+}
+
+function assignmentData(assignment, userIds) {
+  return objectWithOptionalJson(objectWithOptionalJson({
+    id: assignment.id, userId: assignment.userId, courseId: assignment.courseId,
+    assignedById: userIds.has(assignment.assignedById) ? assignment.assignedById : null,
+    status: enumValue(assignment.status, assignmentStatuses, "not_started"), assignedAt: dateOrNow(assignment.assignedAt),
+    startedAt: dateOrNull(assignment.startedAt), completedAt: dateOrNull(assignment.completedAt), progressPercent: Number(assignment.progressPercent) || 0,
+    activeTestStartedAt: dateOrNull(assignment.activeTestStartedAt), extraTestAttempts: Number(assignment.extraTestAttempts) || 0
+  }, "materialProgress", assignment.materialProgress), "source", assignment.source);
+}
+
+function testAttemptData(attempt) {
+  return objectWithOptionalJson(objectWithOptionalJson({
+    id: attempt.id, assignmentId: attempt.assignmentId, testId: attempt.testId, userId: attempt.userId,
+    attemptNumber: Number(attempt.attemptNumber) || 1, startedAt: dateOrNow(attempt.startedAt), finishedAt: dateOrNull(attempt.finishedAt),
+    scorePercent: Number(attempt.scorePercent) || 0, status: enumValue(attempt.status, attemptStatuses, "failed"), failureReason: attempt.failureReason ?? ""
+  }, "answers", attempt.answers), "source", attempt.source);
+}
+
+function certificateData(certificate) {
+  return {
+    id: certificate.id, userId: certificate.userId, courseId: certificate.courseId, assignmentId: certificate.assignmentId,
+    certificateNumber: certificate.certificateNumber, status: enumValue(certificate.status, certificateStatuses, "issued"),
+    issuedAt: dateOrNow(certificate.issuedAt), expiresAt: dateOrNow(certificate.expiresAt), replacesCertificateId: certificate.replacesCertificateId ?? "",
+    revokedAt: dateOrNull(certificate.revokedAt), reissuedAt: dateOrNull(certificate.reissuedAt), snapshotFirstName: certificate.snapshotFirstName ?? "",
+    snapshotLastName: certificate.snapshotLastName ?? "", snapshotBirthDate: dateOrNull(certificate.snapshotBirthDate), snapshotPosition: certificate.snapshotPosition ?? "",
+    snapshotCompany: certificate.snapshotCompany ?? "", snapshotPhotoUrl: certificate.snapshotPhotoUrl ?? "", snapshotCourseTitle: certificate.snapshotCourseTitle ?? "",
+    snapshotCertificateTemplateHtml: certificate.snapshotCertificateTemplateHtml ?? "", certificateHtml: certificate.certificateHtml ?? ""
+  };
+}
+
+function notificationData(note, userIds) {
+  return {
+    id: note.id, recipientUserId: userIds.has(note.recipientUserId) ? note.recipientUserId : null,
+    recipientEmail: note.recipientEmail ?? "", type: note.type ?? "", status: enumValue(note.status, notificationStatuses, "logged"),
+    payload: note.payload ?? "", errorMessage: note.errorMessage ?? "", createdAt: dateOrNow(note.createdAt), sentAt: dateOrNull(note.sentAt)
+  };
+}
+
+function sessionData(session) {
+  return {
+    id: session.id, tokenHash: session.tokenHash, csrfToken: session.csrfToken, userId: session.userId,
+    authVersion: Number(session.authVersion) || 1, expiresAt: dateOrNow(session.expiresAt),
+    createdAt: dateOrNow(session.createdAt), lastSeenAt: dateOrNow(session.lastSeenAt)
+  };
+}
+
+function passwordResetTokenData(token) {
+  return {
+    id: token.id, tokenHash: token.tokenHash, userId: token.userId, expiresAt: dateOrNow(token.expiresAt),
+    usedAt: dateOrNull(token.usedAt), createdAt: dateOrNow(token.createdAt)
+  };
+}
+
+function auditEventData(event, userIds) {
+  return objectWithOptionalJson({
+    id: event.id, adminUserId: userIds.has(event.adminUserId) ? event.adminUserId : null,
+    adminEmail: event.adminEmail ?? "", action: event.action ?? "", createdAt: dateOrNow(event.createdAt)
+  }, "details", event.details);
+}
+
+function certificateEventData(event, certificateIds, courseIds) {
+  return objectWithOptionalJson({
+    id: event.id, certificateId: certificateIds.has(event.certificateId) ? event.certificateId : null,
+    certificateNumber: event.certificateNumber ?? "", userId: event.userId ?? "", courseId: courseIds.has(event.courseId) ? event.courseId : null,
+    action: event.action ?? "", actorUserId: event.actorUserId ?? "", actorEmail: event.actorEmail ?? "system", actorRole: event.actorRole ?? "system",
+    createdAt: dateOrNow(event.createdAt)
+  }, "details", event.details);
+}
+
+async function deleteRecords(client, modelName, ids) {
+  if (ids.length) await client[modelName].deleteMany({ where: { id: { in: ids } } });
+}
+
+export async function syncPrismaDb(previousDb, nextDb, options = {}) {
+  const prisma = options.prisma ?? createPrismaClient(resolveConnectionString(options.connectionString));
+  const shouldDisconnect = !options.prisma;
+  const previous = flattenDb(previousDb);
+  const next = flattenDb(nextDb);
+  const validation = validateFlatDb(next);
+  if (validation.errors.length) throw new Error(`LMS data failed database validation: ${validation.errors.join("; ")}`);
+
+  const userIds = new Set(next.users.map((item) => item.id));
+  const courseIds = new Set(next.courses.map((item) => item.id));
+  const lessonIds = new Set(next.lessons.map((item) => item.id));
+  const testIds = new Set(next.tests.map((item) => item.id));
+  const questionIds = new Set(next.questions.map((item) => item.id));
+  const assignmentIds = new Set(next.assignments.map((item) => item.id));
+  const certificateIds = new Set(next.certificates.map((item) => item.id));
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Delete leaf records first so removed parent records keep referential integrity.
+      await deleteRecords(tx, "session", removedIds(previous.sessions, next.sessions));
+      await deleteRecords(tx, "passwordResetToken", removedIds(previous.passwordResetTokens, next.passwordResetTokens));
+      await deleteRecords(tx, "certificateEvent", removedIds(previous.certificateEvents, next.certificateEvents));
+      await deleteRecords(tx, "auditEvent", removedIds(previous.auditEvents, next.auditEvents));
+      await deleteRecords(tx, "notification", removedIds(previous.notifications, next.notifications));
+      await deleteRecords(tx, "certificate", removedIds(previous.certificates, next.certificates));
+      await deleteRecords(tx, "testAttempt", removedIds(previous.testAttempts, next.testAttempts));
+      await deleteRecords(tx, "testOption", removedIds(previous.options, next.options));
+      await deleteRecords(tx, "testQuestion", removedIds(previous.questions, next.questions));
+      await deleteRecords(tx, "test", removedIds(previous.tests, next.tests));
+      await deleteRecords(tx, "material", removedIds(previous.materials, next.materials));
+      await deleteRecords(tx, "lesson", removedIds(previous.lessons, next.lessons));
+      await deleteRecords(tx, "courseAssignment", removedIds(previous.assignments, next.assignments));
+      await deleteRecords(tx, "courseApplication", removedIds(previous.applications, next.applications));
+
+      await upsertRecords(tx, "user", changedRecords(previous.users, next.users), userData);
+      await upsertRecords(tx, "course", changedRecords(previous.courses, next.courses), courseData);
+      await upsertRecords(tx, "lesson", changedRecords(previous.lessons, next.lessons).filter((item) => courseIds.has(item.courseId)), lessonData);
+      await upsertRecords(tx, "material", changedRecords(previous.materials, next.materials).filter((item) => lessonIds.has(item.lessonId)), materialData);
+      await upsertRecords(tx, "test", changedRecords(previous.tests, next.tests).filter((item) => courseIds.has(item.courseId)), testData);
+      await upsertRecords(tx, "testQuestion", changedRecords(previous.questions, next.questions).filter((item) => testIds.has(item.testId)), questionData);
+      await upsertRecords(tx, "testOption", changedRecords(previous.options, next.options).filter((item) => questionIds.has(item.questionId)), optionData);
+      await upsertRecords(tx, "courseApplication", changedRecords(previous.applications, next.applications), (item) => applicationData(item, courseIds));
+      await upsertRecords(tx, "courseAssignment", changedRecords(previous.assignments, next.assignments).filter((item) => userIds.has(item.userId) && courseIds.has(item.courseId)), (item) => assignmentData(item, userIds));
+      await upsertRecords(tx, "testAttempt", changedRecords(previous.testAttempts, next.testAttempts).filter((item) => assignmentIds.has(item.assignmentId) && testIds.has(item.testId) && userIds.has(item.userId)), testAttemptData);
+      await upsertRecords(tx, "certificate", changedRecords(previous.certificates, next.certificates).filter((item) => userIds.has(item.userId) && courseIds.has(item.courseId) && assignmentIds.has(item.assignmentId)), certificateData);
+      await upsertRecords(tx, "notification", changedRecords(previous.notifications, next.notifications), (item) => notificationData(item, userIds));
+      await upsertRecords(tx, "session", changedRecords(previous.sessions, next.sessions).filter((item) => userIds.has(item.userId)), sessionData);
+      await upsertRecords(tx, "passwordResetToken", changedRecords(previous.passwordResetTokens, next.passwordResetTokens).filter((item) => userIds.has(item.userId)), passwordResetTokenData);
+      await upsertRecords(tx, "auditEvent", changedRecords(previous.auditEvents, next.auditEvents), (item) => auditEventData(item, userIds));
+      await upsertRecords(tx, "certificateEvent", changedRecords(previous.certificateEvents, next.certificateEvents), (item) => certificateEventData(item, certificateIds, courseIds));
+
+      if (stableRecord(previous.settings) !== stableRecord(next.settings)) {
+        await tx.appSetting.upsert({ where: { key: "settings" }, update: { value: next.settings ?? {} }, create: { key: "settings", value: next.settings ?? {} } });
+      }
+
+      await deleteRecords(tx, "course", removedIds(previous.courses, next.courses));
+      await deleteRecords(tx, "user", removedIds(previous.users, next.users));
+    }, { maxWait: 120000, timeout: 120000 });
+    return migrationSummary(next);
   } finally {
     if (shouldDisconnect) await prisma.$disconnect();
   }
@@ -772,7 +1065,7 @@ export async function loadPrismaDb(options = {}) {
   const shouldDisconnect = !options.prisma;
 
   try {
-    const [users, applications, courses, assignments, testAttempts, certificates, notifications, auditEvents, certificateEvents, settingsRecord] =
+    const [users, applications, courses, assignments, testAttempts, certificates, notifications, sessions, passwordResetTokens, auditEvents, certificateEvents, settingsRecord] =
       await Promise.all([
         prisma.user.findMany({ orderBy: [{ createdAt: "asc" }, { email: "asc" }] }),
         prisma.courseApplication.findMany({ orderBy: { createdAt: "desc" } }),
@@ -801,6 +1094,8 @@ export async function loadPrismaDb(options = {}) {
         prisma.testAttempt.findMany({ orderBy: { startedAt: "desc" } }),
         prisma.certificate.findMany({ orderBy: { issuedAt: "desc" } }),
         prisma.notification.findMany({ orderBy: { createdAt: "desc" } }),
+        prisma.session.findMany({ orderBy: { createdAt: "desc" } }),
+        prisma.passwordResetToken.findMany({ orderBy: { createdAt: "desc" } }),
         prisma.auditEvent.findMany({ orderBy: { createdAt: "desc" } }),
         prisma.certificateEvent.findMany({ orderBy: { createdAt: "desc" } }),
         prisma.appSetting.findUnique({ where: { key: "settings" } })
@@ -821,6 +1116,8 @@ export async function loadPrismaDb(options = {}) {
           phone: user.phone,
           photoUrl: user.photoUrl,
           status: user.status,
+          createdById: user.createdById ?? "",
+          authVersion: user.authVersion,
           source: user.source ?? undefined,
           createdAt: dateTimeString(user.createdAt)
         })
@@ -900,10 +1197,27 @@ export async function loadPrismaDb(options = {}) {
         type: note.type,
         status: note.status,
         payload: note.payload,
-        temporaryPassword: note.temporaryPassword,
         errorMessage: note.errorMessage,
         createdAt: dateTimeString(note.createdAt),
         sentAt: dateTimeString(note.sentAt)
+      })),
+      sessions: sessions.map((session) => ({
+        id: session.id,
+        tokenHash: session.tokenHash,
+        csrfToken: session.csrfToken,
+        userId: session.userId,
+        authVersion: session.authVersion,
+        expiresAt: dateTimeString(session.expiresAt),
+        createdAt: dateTimeString(session.createdAt),
+        lastSeenAt: dateTimeString(session.lastSeenAt)
+      })),
+      passwordResetTokens: passwordResetTokens.map((token) => ({
+        id: token.id,
+        tokenHash: token.tokenHash,
+        userId: token.userId,
+        expiresAt: dateTimeString(token.expiresAt),
+        usedAt: dateTimeString(token.usedAt),
+        createdAt: dateTimeString(token.createdAt)
       })),
       auditEvents: auditEvents.map((event) =>
         compactObject({
