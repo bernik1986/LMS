@@ -501,6 +501,10 @@ function normalizeDb(data) {
     data.settings = {};
     changed = true;
   }
+  if (!Array.isArray(data.settings.invoices)) {
+    data.settings.invoices = [];
+    changed = true;
+  }
   if (data.settings.homepageCourseSelectionEnabled === undefined) {
     data.settings.homepageCourseSelectionEnabled = false;
     changed = true;
@@ -657,10 +661,15 @@ function sanitizeCertificateTemplate(html) {
 }
 
 function upgradeCertificatePdfEmbeds(html) {
-  return String(html ?? "").replace(
-    /<object class="(visual-cert-pdf-bg|certificate-designer-pdf-bg)" data="([^"]+)" type="application\/pdf" aria-hidden="true"><\/object>/gi,
-    (_, className, source) => `<iframe class="${className}" src="${source}" title="Certificate background" tabindex="-1"></iframe>`
-  );
+  return String(html ?? "")
+    .replace(
+      /<object class="(visual-cert-pdf-bg|certificate-designer-pdf-bg)" data="([^"]+)" type="application\/pdf" aria-hidden="true"><\/object>/gi,
+      (_, className, source) => `<iframe class="${className}" src="${source}" title="Certificate background" tabindex="-1"></iframe>`
+    )
+    .replace(
+      /(<iframe class="(?:visual-cert-pdf-bg|certificate-designer-pdf-bg)" src=")([^"#]+)(?:#[^"]*)?(" title="Certificate background" tabindex="-1"><\/iframe>)/gi,
+      (_, prefix, source, suffix) => `${prefix}${source}#zoom=page-width&toolbar=0&navpanes=0&scrollbar=0${suffix}`
+    );
 }
 
 function addYearsIso(value, years) {
@@ -671,6 +680,15 @@ function addYearsIso(value, years) {
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString("ru-RU") : "";
+}
+
+function formatEnglishCertificateDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getUTCMonth()];
+  return `${day}-${month}-${date.getUTCFullYear()}`;
 }
 
 function dateInputValue(value = now()) {
@@ -713,6 +731,7 @@ function certificateTemplateValues(certificate) {
     lastName: escapeHtml(certificate.snapshotLastName),
     fullName: escapeHtml(`${certificate.snapshotFirstName} ${certificate.snapshotLastName}`.trim()),
     birthDate: escapeHtml(formatDate(certificate.snapshotBirthDate)),
+    birthDateEn: escapeHtml(formatEnglishCertificateDate(certificate.snapshotBirthDate)),
     position: escapeHtml(certificate.snapshotPosition || ""),
     company: escapeHtml(certificate.snapshotCompany || ""),
     courseTitle: escapeHtml(certificate.snapshotCourseTitle),
@@ -737,6 +756,7 @@ function certificateDesignerFieldDefinitions() {
     { key: "fullName", label: "Full name", x: 18, y: 34, width: 64, height: 8, fontSize: 42, color: "#0b4f7a", align: "center", fontWeight: "800", visible: true },
     { key: "courseTitle", label: "Course title", x: 19, y: 52, width: 62, height: 8, fontSize: 28, color: "#06395d", align: "center", fontWeight: "800", visible: true },
     { key: "birthDate", label: "Birth date", x: 24, y: 44, width: 24, height: 4, fontSize: 15, color: "#0d1b2a", align: "center", fontWeight: "500", visible: true },
+    { key: "birthDateEn", label: "Birth date (04-Nov-1972)", x: 24, y: 44, width: 24, height: 4, fontSize: 15, color: "#0d1b2a", align: "center", fontWeight: "500", visible: false },
     { key: "position", label: "Position", x: 52, y: 44, width: 24, height: 4, fontSize: 15, color: "#0d1b2a", align: "center", fontWeight: "500", visible: true },
     { key: "certificateNumber", label: "Certificate number", x: 18, y: 66, width: 28, height: 4, fontSize: 14, color: "#0d1b2a", align: "left", fontWeight: "600", visible: true },
     { key: "issuedAt", label: "Issued date", x: 18, y: 72, width: 20, height: 4, fontSize: 14, color: "#0d1b2a", align: "left", fontWeight: "500", visible: true },
@@ -787,13 +807,15 @@ function cleanBackgroundType(value = "", backgroundUrl = "") {
   return certificateDesignerBackgroundIsPdf(backgroundUrl) ? "pdf" : "image";
 }
 
-function defaultCertificateDesigner(backgroundUrl = "", backgroundType = "", stampUrl = "") {
+function defaultCertificateDesigner(backgroundUrl = "", backgroundType = "", stampUrl = "", pageWidth = 1123, pageHeight = 794) {
   const cleanUrl = cleanBackgroundUrl(backgroundUrl);
   return {
-    version: 1,
+    version: 2,
     backgroundUrl: cleanUrl,
     backgroundType: cleanBackgroundType(backgroundType, cleanUrl),
     stampUrl: cleanStampUrl(stampUrl),
+    pageWidth: clampNumber(pageWidth, 100, 5000, 1123),
+    pageHeight: clampNumber(pageHeight, 100, 5000, 794),
     fields: certificateDesignerFieldDefinitions()
   };
 }
@@ -804,10 +826,12 @@ function normalizeCertificateDesigner(input = {}) {
   const stampUrl = cleanStampUrl(existing.stampUrl);
   const fieldsByKey = new Map((Array.isArray(existing.fields) ? existing.fields : []).map((field) => [field.key, field]));
   return {
-    version: 1,
+    version: 2,
     backgroundUrl,
     backgroundType: cleanBackgroundType(existing.backgroundType, backgroundUrl),
     stampUrl,
+    pageWidth: clampNumber(existing.pageWidth, 100, 5000, 1123),
+    pageHeight: clampNumber(existing.pageHeight, 100, 5000, 794),
     fields: certificateDesignerFieldDefinitions().map((definition) => {
       const field = fieldsByKey.get(definition.key) ?? {};
       return {
@@ -888,20 +912,30 @@ function certificateDesignerToken(field, designer = {}) {
   return `{{${field.key}}}`;
 }
 
+function certificateDesignerCanvasStyle(designer, includeBackground = false) {
+  const styles = [
+    `aspect-ratio:${designer.pageWidth}/${designer.pageHeight}`,
+    `max-width:${designer.pageHeight > designer.pageWidth ? 794 : 1123}px`
+  ];
+  if (designer.pageHeight > designer.pageWidth) styles.push("margin-inline:auto");
+  if (includeBackground && designer.backgroundUrl && designer.backgroundType !== "pdf") {
+    styles.push(`background-image:url('${escapeHtml(designer.backgroundUrl)}')`);
+  }
+  return ` style="${styles.join(";")}"`;
+}
+
 function certificateTemplateFromDesigner(designerInput) {
   const designer = normalizeCertificateDesigner(designerInput);
   const hasBackground = Boolean(designer.backgroundUrl);
   const hasPdfBackground = hasBackground && designer.backgroundType === "pdf";
-  const backgroundStyle = hasBackground && !hasPdfBackground
-    ? ` style="background-image:url('${escapeHtml(designer.backgroundUrl)}')"`
-    : "";
+  const canvasStyle = certificateDesignerCanvasStyle(designer, true);
   const backgroundLayer = hasPdfBackground
-    ? `<iframe class="visual-cert-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
+    ? `<iframe class="visual-cert-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#zoom=page-width&toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
     : "";
   const fields = certificateDesignerFieldsForRender(designer.fields.filter((field) => field.visible))
     .map((field) => `<div class="${certificateDesignerFieldClasses(field, "visual-cert-field")}" style="${certificateDesignerFieldStyle(field)}">${certificateDesignerToken(field, designer)}</div>`)
     .join("");
-  return `<div class="visual-certificate${hasBackground ? "" : " no-background"}${hasPdfBackground ? " has-pdf-background" : ""}" data-visual-certificate="1" data-background-type="${hasPdfBackground ? "pdf" : "image"}" data-background-url="${escapeHtml(designer.backgroundUrl)}"${backgroundStyle}>${backgroundLayer}${fields}</div>`;
+  return `<div class="visual-certificate${hasBackground ? "" : " no-background"}${hasPdfBackground ? " has-pdf-background" : ""}" data-visual-certificate="1" data-background-type="${hasPdfBackground ? "pdf" : "image"}" data-background-url="${escapeHtml(designer.backgroundUrl)}" data-page-width="${designer.pageWidth}" data-page-height="${designer.pageHeight}"${canvasStyle}>${backgroundLayer}${fields}</div>`;
 }
 
 function certificateShellClass(certificateHtml, extra = "") {
@@ -911,7 +945,52 @@ function certificateShellClass(certificateHtml, extra = "") {
   return classes.join(" ");
 }
 
-function saveCertificateDesignerBackground(course, file) {
+async function normalizeCertificateBackgroundPdf(buffer) {
+  try {
+    const sourcePdf = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+    const sourcePage = sourcePdf.getPageCount() ? sourcePdf.getPage(0) : null;
+    if (!sourcePage) return buffer;
+    const cropBox = sourcePage.getCropBox();
+    const mediaBox = sourcePage.getMediaBox();
+    const isAlreadyNormalized =
+      Math.abs(cropBox.x - mediaBox.x) < 0.01 &&
+      Math.abs(cropBox.y - mediaBox.y) < 0.01 &&
+      Math.abs(cropBox.width - mediaBox.width) < 0.01 &&
+      Math.abs(cropBox.height - mediaBox.height) < 0.01;
+    if (isAlreadyNormalized) return buffer;
+
+    // Some source certificates use a wide technical MediaBox with a portrait CropBox.
+    // Flatten the visible crop into a real page so browser previews fill the canvas too.
+    const normalizedPdf = await PdfLibDocument.create();
+    const normalizedPage = normalizedPdf.addPage([cropBox.width, cropBox.height]);
+    const embeddedPage = await normalizedPdf.embedPage(sourcePage, {
+      left: cropBox.x,
+      bottom: cropBox.y,
+      right: cropBox.x + cropBox.width,
+      top: cropBox.y + cropBox.height
+    });
+    normalizedPage.drawPage(embeddedPage, { x: 0, y: 0, width: cropBox.width, height: cropBox.height });
+    return Buffer.from(await normalizedPdf.save());
+  } catch {
+    return buffer;
+  }
+}
+
+async function certificateBackgroundPageSize(buffer, isPdf) {
+  try {
+    if (isPdf) {
+      const pdf = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+      const page = pdf.getPageCount() ? pdf.getPage(0) : null;
+      return page ? page.getCropBox() : null;
+    }
+    const metadata = await sharp(buffer, { animated: false }).metadata();
+    return metadata.width && metadata.height ? { width: metadata.width, height: metadata.height } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveCertificateDesignerBackground(course, file) {
   if (!file || typeof file === "string" || !file.buffer?.length) return { ok: true, skipped: true };
   const isPdf = isPdfFile(file);
   if (!isPdf && !imageUploadAllowed(file)) {
@@ -923,8 +1002,16 @@ function saveCertificateDesignerBackground(course, file) {
   }
   mkdirSync(uploadsDir, { recursive: true });
   const fileName = `certificate_template_${course.id}-${Date.now()}${isPdf ? ".pdf" : imageExtension(file)}`;
-  writeFileSync(resolve(uploadsDir, fileName), file.buffer);
-  return { ok: true, backgroundUrl: `/uploads/${fileName}`, backgroundType: isPdf ? "pdf" : "image" };
+  const backgroundBuffer = isPdf ? await normalizeCertificateBackgroundPdf(file.buffer) : file.buffer;
+  writeFileSync(resolve(uploadsDir, fileName), backgroundBuffer);
+  const pageSize = await certificateBackgroundPageSize(backgroundBuffer, isPdf);
+  return {
+    ok: true,
+    backgroundUrl: `/uploads/${fileName}`,
+    backgroundType: isPdf ? "pdf" : "image",
+    pageWidth: pageSize?.width,
+    pageHeight: pageSize?.height
+  };
 }
 
 function saveCertificateDesignerStamp(course, file) {
@@ -949,9 +1036,9 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
   const designer = certificateDesignerForCourse(course);
   const designerJson = escapeHtml(JSON.stringify(designer));
   const hasPdfBackground = Boolean(designer.backgroundUrl) && designer.backgroundType === "pdf";
-  const backgroundStyle = designer.backgroundUrl && !hasPdfBackground ? ` style="background-image:url('${escapeHtml(designer.backgroundUrl)}')"` : "";
+  const canvasStyle = certificateDesignerCanvasStyle(designer, true);
   const backgroundLayer = hasPdfBackground
-    ? `<iframe class="certificate-designer-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
+    ? `<iframe class="certificate-designer-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#zoom=page-width&toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
     : "";
   const fieldOptions = designer.fields.map((field) => `<option value="${escapeHtml(field.key)}">${escapeHtml(field.label)}</option>`).join("");
   const previewClass = certificateShellClass(previewCertificate.certificateHtml, "certificate-preview");
@@ -962,7 +1049,7 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
           <textarea name="designerJson" data-designer-json hidden>${designerJson}</textarea>
           <div class="certificate-designer-layout">
             <div class="certificate-designer-stage">
-              <div class="certificate-designer-canvas ${designer.backgroundUrl ? "" : "no-background"}${hasPdfBackground ? " has-pdf-background" : ""}" data-designer-canvas${backgroundStyle}>
+              <div class="certificate-designer-canvas ${designer.backgroundUrl ? "" : "no-background"}${hasPdfBackground ? " has-pdf-background" : ""}" data-designer-canvas${canvasStyle}>
                 ${backgroundLayer}
                 ${certificateDesignerFieldsForRender(designer.fields).map(certificateDesignerEditorFieldHtml).join("")}
               </div>
@@ -1290,18 +1377,18 @@ async function visualCertificatePdfBufferFromPdfTemplate(certificate, html, back
   const pdfDoc = await PdfLibDocument.load(readFileSync(backgroundPath));
   const page = pdfDoc.getPageCount() > 0 ? pdfDoc.getPage(0) : pdfDoc.addPage([841.89, 595.28]);
   const { regularFont, boldFont } = await pdfLibCertificateFonts(pdfDoc);
-  const { width: pageWidth, height: pageHeight } = page.getSize();
+  const { x: pageX, y: pageY, width: pageWidth, height: pageHeight } = page.getCropBox();
   const fontScale = Math.min(pageWidth / 1123, pageHeight / 794);
 
   const fieldPattern = /<div class="visual-cert-field[^"]*" style="([^"]+)">([\s\S]*?)<\/div>/g;
   for (const match of html.matchAll(fieldPattern)) {
     const style = match[1];
     const content = match[2];
-    const x = (styleNumber(style, "left") / 100) * pageWidth;
+    const x = pageX + (styleNumber(style, "left") / 100) * pageWidth;
     const top = (styleNumber(style, "top") / 100) * pageHeight;
     const width = (styleNumber(style, "width", 10) / 100) * pageWidth;
     const height = (styleNumber(style, "height", 5) / 100) * pageHeight;
-    const y = pageHeight - top - height;
+    const y = pageY + pageHeight - top - height;
     const fontSize = styleNumber(style, "font-size", 12) * fontScale;
     const color = pdfLibColor(styleText(style, "color", "#0d1b2a"));
     const align = styleText(style, "text-align", "center");
@@ -1551,6 +1638,10 @@ function defaultEmailTemplates() {
     smtp_test: {
       subject: "SMTP test",
       body: "Marine LMS\n\nThis is a test email from the admin panel.\n\n{{payload}}\n\nDate: {{date}}"
+    },
+    invoice_sent: {
+      subject: "Marine LMS invoice",
+      body: "Marine LMS\n\nYour invoice is ready.\n\n{{payload}}"
     }
   };
 }
@@ -3833,7 +3924,7 @@ function checkReportData(searchParams = new URLSearchParams()) {
   return { params, registeredStudents, assignments, currencies, total, assignedStudentIds, hasStudentsWithoutCreator };
 }
 
-function adminChecks(user, searchParams = new URLSearchParams()) {
+function adminChecksLegacy(user, searchParams = new URLSearchParams()) {
   const { params, registeredStudents, assignments, currencies, total, assignedStudentIds, hasStudentsWithoutCreator } =
     checkReportData(searchParams);
   const exportHref = `/admin/checks/export.xls${reportQuery(params)}`;
@@ -3907,6 +3998,228 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
       ${hasStudentsWithoutCreator ? `<div class="notice">У части старых студентов нет регистратора, потому что они были импортированы или созданы до появления этого отчета.</div>` : ""}
     </section>`
   );
+}
+
+const invoiceStatuses = ["draft", "issued", "sent", "viewed", "partially_paid", "paid", "overdue", "cancelled"];
+
+function invoiceStatusLabel(status) {
+  return {
+    draft: "Черновик", issued: "Сформирован", sent: "Отправлен", viewed: "Просмотрен",
+    partially_paid: "Частично оплачен", paid: "Оплачен", overdue: "Просрочен", cancelled: "Отменён"
+  }[status] ?? status;
+}
+
+function invoiceItems() {
+  db.settings ??= {};
+  db.settings.invoices ??= [];
+  return db.settings.invoices;
+}
+
+function invoiceById(invoiceId) {
+  return invoiceItems().find((item) => item.id === invoiceId);
+}
+
+function checkDateForEvent(assignment, event) {
+  if (event === "started") return assignment.startedAt;
+  if (event === "completed") return assignment.completedAt;
+  return assignment.assignedAt;
+}
+
+function invoiceFilterParams(searchParams = new URLSearchParams()) {
+  const basic = checkParams(searchParams);
+  const today = new Date();
+  const preset = ["current_month", "previous_month", "custom"].includes(searchParams.get("period")) ? searchParams.get("period") : "custom";
+  let { from, to } = basic;
+  if (preset !== "custom") {
+    const anchor = new Date(today.getFullYear(), today.getMonth() + (preset === "previous_month" ? -1 : 0), 1);
+    from = anchor.toISOString().slice(0, 10);
+    to = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).toISOString().slice(0, 10);
+  }
+  return {
+    ...basic,
+    from,
+    to,
+    period: preset,
+    event: ["assigned", "started", "completed"].includes(searchParams.get("event")) ? searchParams.get("event") : "assigned",
+    studentIds: searchParams.getAll("studentId").filter(Boolean),
+    company: (searchParams.get("company") ?? "").trim(),
+    status: searchParams.get("status") ?? "",
+    groupBy: ["student", "course", "company", "staff", "date", "status"].includes(searchParams.get("groupBy")) ? searchParams.get("groupBy") : "student"
+  };
+}
+
+function invoiceFilterQuery(params) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "studentIds") {
+      for (const studentId of value ?? []) query.append("studentId", studentId);
+    } else if (value) {
+      query.set(key, String(value));
+    }
+  }
+  return query.toString();
+}
+
+function invoiceAssignmentData(params) {
+  const bounds = dateRangeBounds(params);
+  return db.assignments
+    .map(recalculateAssignment)
+    .filter((assignment) => {
+      const student = userById(assignment.userId);
+      if (!student) return false;
+      if (params.staffId && assignment.assignedById !== params.staffId && student.createdById !== params.staffId) return false;
+      if (params.studentIds.length && !params.studentIds.includes(assignment.userId)) return false;
+      if (params.company && String(student.company || "").toLowerCase() !== params.company.toLowerCase()) return false;
+      if (params.status && assignment.status !== params.status) return false;
+      return isWithinDateRange(checkDateForEvent(assignment, params.event), bounds);
+    })
+    .sort((a, b) => new Date(checkDateForEvent(b, params.event) || 0).getTime() - new Date(checkDateForEvent(a, params.event) || 0).getTime());
+}
+
+function invoiceGroupKey(assignment, groupBy) {
+  const student = userById(assignment.userId);
+  const course = courseById(assignment.courseId);
+  const staff = userById(assignment.assignedById || student?.createdById);
+  if (groupBy === "course") return course?.title || "";
+  if (groupBy === "company") return student?.company || "";
+  if (groupBy === "staff") return displayUserName(staff) || staff?.email || "";
+  if (groupBy === "date") return String(assignment.assignedAt || "").slice(0, 10);
+  if (groupBy === "status") return statusLabel(assignment.status);
+  return displayUserName(student) || student?.email || "";
+}
+
+function invoiceLineFromAssignment(assignment) {
+  const student = userById(assignment.userId);
+  const course = courseById(assignment.courseId);
+  const creator = userById(assignment.assignedById || student?.createdById);
+  const price = courseRevenuePrice(course);
+  const certificate = activeCertificateForAssignment(assignment.id);
+  return {
+    id: id("invoice_line"), assignmentId: assignment.id, studentId: assignment.userId,
+    studentName: displayUserName(student) || student?.email || "Студент удалён",
+    studentEmail: student?.email || "", company: student?.company || "",
+    creatorName: displayUserName(creator) || creator?.email || "Не указан",
+    courseId: assignment.courseId, courseTitle: course?.title || "Курс удалён",
+    assignedAt: assignment.assignedAt || "", startedAt: assignment.startedAt || "", completedAt: assignment.completedAt || "",
+    status: assignment.status, certificateNumber: certificate?.certificateNumber || "",
+    baseAmount: price.amount, discount: 0, amount: price.amount, currency: price.currency || ""
+  };
+}
+
+function invoiceTotals(invoice) {
+  const lines = (invoice.lines ?? []).filter((line) => line.included !== false);
+  const subtotal = lines.reduce((sum, line) => sum + Math.max(0, Number(line.amount) || 0), 0);
+  const lineDiscount = lines.reduce((sum, line) => sum + Math.max(0, Number(line.discount) || 0), 0);
+  const invoiceDiscount = Math.max(0, Number(invoice.discount) || 0);
+  const extraCharge = Math.max(0, Number(invoice.extraCharge) || 0);
+  const taxable = Math.max(0, subtotal - lineDiscount - invoiceDiscount + extraCharge);
+  const vatAmount = taxable * Math.max(0, Number(invoice.vatRate) || 0) / 100;
+  return { subtotal, lineDiscount, invoiceDiscount, extraCharge, vatAmount, total: taxable + vatAmount };
+}
+
+function invoiceNumber() {
+  const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  const count = invoiceItems().filter((invoice) => String(invoice.number).includes(date)).length + 1;
+  return `INV-${date}-${String(count).padStart(4, "0")}`;
+}
+
+function invoiceStatusOptions(selected) {
+  return invoiceStatuses.map((status) => `<option value="${status}" ${selected === status ? "selected" : ""}>${invoiceStatusLabel(status)}</option>`).join("");
+}
+
+function invoicePdfPath(invoice) {
+  return resolve(uploadsDir, "invoices", `${invoice.id}.pdf`);
+}
+
+function invoicePdfBuffer(invoice) {
+  const totals = invoiceTotals(invoice);
+  return new Promise((resolvePdf, rejectPdf) => {
+    const doc = new PDFDocument({ size: "A4", margin: 42 });
+    const chunks = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolvePdf(Buffer.concat(chunks)));
+    doc.on("error", rejectPdf);
+    const font = ["C:/Windows/Fonts/arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"].find(existsSync);
+    if (font) doc.font(font);
+    doc.fillColor("#06395d").fontSize(24).text("MARINE LMS", { align: "right" });
+    doc.fillColor("#0d1b2a").fontSize(20).text(`INVOICE ${invoice.number}`);
+    doc.fontSize(10).fillColor("#587087").text(`Issue date: ${formatDate(invoice.issueDate)}    Due date: ${formatDate(invoice.dueDate)}`);
+    doc.text(`Status: ${invoiceStatusLabel(invoice.status)}    Period: ${invoice.period?.from || "-"} - ${invoice.period?.to || "-"}`);
+    doc.moveDown();
+    doc.fillColor("#0d1b2a").fontSize(12).text(`Recipient: ${invoice.recipientName || "Not specified"}`);
+    if (invoice.recipientEmail) doc.text(`E-mail: ${invoice.recipientEmail}`);
+    if (invoice.recipientCompany) doc.text(`Company: ${invoice.recipientCompany}`);
+    doc.moveDown(0.7);
+    const columns = [42, 245, 355, 425, 495];
+    doc.fillColor("#06395d").fontSize(8).text("Student", columns[0]).text("Course", columns[1]).text("Status", columns[2]).text("Date", columns[3]).text("Amount", columns[4], { width: 60, align: "right" });
+    doc.moveTo(42, doc.y + 3).lineTo(553, doc.y + 3).stroke("#8aaac1");
+    for (const line of (invoice.lines ?? []).filter((item) => item.included !== false)) {
+      if (doc.y > 700) doc.addPage();
+      const y = doc.y + 8;
+      doc.fillColor("#0d1b2a").fontSize(8).text(pdfText(line.studentName), columns[0], y, { width: 195, height: 24 });
+      doc.text(pdfText(line.courseTitle), columns[1], y, { width: 104, height: 24 });
+      doc.text(statusLabel(line.status), columns[2], y, { width: 65, height: 24 });
+      doc.text(formatDate(line.assignedAt), columns[3], y, { width: 64, height: 24 });
+      doc.text(`${formatReportMoney(Math.max(0, Number(line.amount) || 0), new Set(invoice.currency ? [invoice.currency] : []))}`, columns[4], y, { width: 60, align: "right" });
+      doc.y = y + 26;
+    }
+    doc.moveDown();
+    doc.fontSize(10).fillColor("#0d1b2a");
+    for (const [label, amount] of [["Subtotal", totals.subtotal], ["Discount", -(totals.lineDiscount + totals.invoiceDiscount)], ["Extra charge", totals.extraCharge], [`VAT ${invoice.vatRate || 0}%`, totals.vatAmount], ["TOTAL", totals.total]]) {
+      doc.text(label, 350, doc.y, { width: 120 }).text(formatReportMoney(amount, new Set(invoice.currency ? [invoice.currency] : [])), 470, doc.y - 12, { width: 82, align: "right" });
+    }
+    if (invoice.comment) { doc.moveDown(); doc.fillColor("#587087").fontSize(9).text(`Comment: ${pdfText(invoice.comment)}`); }
+    doc.end();
+  });
+}
+
+async function persistInvoicePdf(invoice) {
+  mkdirSync(dirname(invoicePdfPath(invoice)), { recursive: true });
+  writeFileSync(invoicePdfPath(invoice), await invoicePdfBuffer(invoice));
+  invoice.pdfUrl = `/admin/checks/invoices/${encodeURIComponent(invoice.id)}.pdf`;
+}
+
+function invoiceHistoryRows() {
+  return invoiceItems().slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+function adminChecks(user, searchParams = new URLSearchParams()) {
+  if (searchParams.get("legacy") === "1") return adminChecksLegacy(user, searchParams);
+  const params = invoiceFilterParams(searchParams);
+  const assignments = invoiceAssignmentData(params).sort((a, b) => invoiceGroupKey(a, params.groupBy).localeCompare(invoiceGroupKey(b, params.groupBy), "ru"));
+  const total = assignments.reduce((sum, assignment) => sum + courseRevenuePrice(courseById(assignment.courseId)).amount, 0);
+  const students = db.users.filter((item) => item.role === "student").sort((a, b) => displayUserName(a).localeCompare(displayUserName(b), "ru"));
+  const companies = [...new Set(students.map((item) => item.company).filter(Boolean))].sort();
+  const query = invoiceFilterQuery(params);
+  const selectedStaff = userById(params.staffId);
+  return adminShell(user, "Чеки", `<section class="section stack">
+    <div><span class="eyebrow">Инвойсы и отчёты</span><h1>Чеки</h1><p class="lead">Отберите назначения, сформируйте предварительный инвойс и сохраните его в истории.</p></div>
+    <form class="form-panel" method="get" action="/admin/checks"><h2>Фильтры</h2><div class="admin-edit-grid">
+      <div class="field"><label>Пользователь / менеджер</label><select name="staffId"><option value="">Все пользователи</option>${staffSelectOptions(params.staffId)}</select></div>
+      <div class="field"><label>Компания</label><select name="company"><option value="">Все компании</option>${companies.map((company) => `<option value="${escapeHtml(company)}" ${params.company === company ? "selected" : ""}>${escapeHtml(company)}</option>`).join("")}</select></div>
+      <div class="field"><label>Студенты</label><select name="studentId" multiple size="4">${students.map((student) => `<option value="${student.id}" ${params.studentIds.includes(student.id) ? "selected" : ""}>${escapeHtml(displayUserName(student) || student.email)}</option>`).join("")}</select></div>
+      <div class="field"><label>Событие периода</label><select name="event"><option value="assigned" ${params.event === "assigned" ? "selected" : ""}>Назначение</option><option value="started" ${params.event === "started" ? "selected" : ""}>Начало обучения</option><option value="completed" ${params.event === "completed" ? "selected" : ""}>Завершение</option></select></div>
+      <div class="field"><label>Период</label><select name="period"><option value="current_month" ${params.period === "current_month" ? "selected" : ""}>Текущий месяц</option><option value="previous_month" ${params.period === "previous_month" ? "selected" : ""}>Предыдущий месяц</option><option value="custom" ${params.period === "custom" ? "selected" : ""}>Произвольный</option></select></div>
+      <div class="field"><label>С даты</label><input name="from" type="date" value="${escapeHtml(params.from)}" /></div><div class="field"><label>По дату</label><input name="to" type="date" value="${escapeHtml(params.to)}" /></div>
+      <div class="field"><label>Статус курса</label><select name="status">${assignmentStatusOptions(params.status)}</select></div>
+      <div class="field"><label>Группировка</label><select name="groupBy"><option value="student" ${params.groupBy === "student" ? "selected" : ""}>По студентам</option><option value="course" ${params.groupBy === "course" ? "selected" : ""}>По курсам</option><option value="company" ${params.groupBy === "company" ? "selected" : ""}>По компаниям</option><option value="staff" ${params.groupBy === "staff" ? "selected" : ""}>По пользователям</option><option value="date" ${params.groupBy === "date" ? "selected" : ""}>По датам</option><option value="status" ${params.groupBy === "status" ? "selected" : ""}>По статусам</option></select></div>
+    </div><div class="table-actions"><button class="small-button primary">Показать</button><a class="small-button" href="/admin/checks">Сбросить</a><a class="small-button warning" href="/admin/checks/export.xls?${query}">Экспорт Excel</a></div></form>
+    <div class="grid four"><article class="metric"><span class="muted">Курсы в выборке</span><strong class="metric-value">${assignments.length}</strong></article><article class="metric"><span class="muted">Студенты</span><strong class="metric-value">${new Set(assignments.map((item) => item.userId)).size}</strong></article><article class="metric"><span class="muted">Получатель</span><strong class="metric-value">${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.email || params.company || "Все")}</strong></article><article class="metric"><span class="muted">Предварительная сумма</span><strong class="metric-value">${escapeHtml(formatReportMoney(total))}</strong></article></div>
+    <article class="panel stack"><div class="section-heading"><div><h2>Предварительный расчёт</h2><p class="muted">Отметьте позиции, которые должны попасть в документ. Стоимость можно изменить уже в черновике.</p></div></div>
+      <form id="invoice-create-form" method="post" action="/admin/checks/invoices/create" class="inline-form"><input type="hidden" name="filterQuery" value="${escapeHtml(query)}" /><input type="hidden" name="recipientName" value="${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.company || params.company)}" /><input type="hidden" name="recipientEmail" value="${escapeHtml(selectedStaff?.email || "")}" /><input type="hidden" name="recipientCompany" value="${escapeHtml(params.company || selectedStaff?.company || "")}" /><button class="button" type="submit">Создать черновик инвойса</button></form>
+      <table class="table"><thead><tr><th>В инвойс</th><th>Студент / компания</th><th>Создал / назначил</th><th>Курс</th><th>Назначен</th><th>Начат</th><th>Завершён</th><th>Статус</th><th>Сертификат</th><th>Стоимость</th></tr></thead><tbody>${assignments.map((assignment) => { const line = invoiceLineFromAssignment(assignment); return `<tr><td><input form="invoice-create-form" type="checkbox" name="assignmentId" value="${assignment.id}" checked aria-label="Добавить в инвойс" /></td><td><a class="link-line" href="/admin/users/${assignment.userId}">${escapeHtml(line.studentName)}</a><br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.creatorName)}</td><td>${escapeHtml(line.courseTitle)}</td><td>${formatDate(line.assignedAt)}</td><td>${formatDate(line.startedAt)}</td><td>${formatDate(line.completedAt)}</td><td>${badge(line.status)}</td><td>${line.certificateNumber ? escapeHtml(line.certificateNumber) : "-"}</td><td>${escapeHtml(formatReportMoney(line.amount, new Set(line.currency ? [line.currency] : [])))}</td></tr>`; }).join("") || `<tr><td colspan="10"><span class="muted">В выборке нет назначений.</span></td></tr>`}</tbody></table>
+    </article>
+    <article class="panel stack"><div class="section-heading"><div><h2>История инвойсов</h2><p class="muted">Все суммы и позиции зафиксированы в момент создания документа.</p></div></div><table class="table"><thead><tr><th>Номер</th><th>Получатель</th><th>Период</th><th>Сумма</th><th>Статус</th><th>Создан</th><th></th></tr></thead><tbody>${invoiceHistoryRows().map((invoice) => { const totals = invoiceTotals(invoice); return `<tr><td>${escapeHtml(invoice.number)}</td><td>${escapeHtml(invoice.recipientName || invoice.recipientCompany || "Не указан")}</td><td>${escapeHtml(invoice.period?.from || "-")} - ${escapeHtml(invoice.period?.to || "-")}</td><td>${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</td><td>${badge(invoiceStatusLabel(invoice.status))}</td><td>${formatDate(invoice.createdAt)}</td><td><a class="small-button" href="/admin/checks/invoices/${invoice.id}">Открыть</a></td></tr>`; }).join("") || `<tr><td colspan="7"><span class="muted">Инвойсов ещё нет.</span></td></tr>`}</tbody></table></article>
+  </section>`);
+}
+
+function adminInvoiceDetail(user, invoice) {
+  const totals = invoiceTotals(invoice);
+  return adminShell(user, `Инвойс ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Инвойс</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Редактируйте позиции до отправки. Изменения сохраняются в историю.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">К списку</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF и печать</a></div></div>
+    <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Получатель</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Компания</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>E-mail</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Дата выставления</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Срок оплаты</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Валюта</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Скидка на инвойс</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Доплата</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Статус</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Дата оплаты</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div><div class="field"><label>Комментарий</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
+      <article class="panel stack"><h2>Позиции</h2><table class="table"><thead><tr><th>Включить</th><th>Студент</th><th>Курс</th><th>Статус / сертификат</th><th>Цена</th><th>Скидка</th></tr></thead><tbody>${(invoice.lines ?? []).map((line) => `<tr><td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td><td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.courseTitle)}<br><span class="muted">${formatDate(line.assignedAt)}</span></td><td>${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "Без сертификата")}</span></td><td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td><td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td></tr>`).join("")}</tbody></table></article>
+      <article class="panel"><div class="grid four"><article class="metric"><span class="muted">Промежуточно</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.subtotal, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Скидки</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.lineDiscount + totals.invoiceDiscount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">VAT</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.vatAmount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Итого</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article></div></article><div class="table-actions"><button class="button" type="submit">Сохранить и обновить PDF</button><button class="small-button warning" type="submit" name="sendEmail" value="1">Отправить по e-mail</button></div></form>
+    <article class="panel stack"><h2>История изменений</h2><table class="table"><thead><tr><th>Дата</th><th>Пользователь</th><th>Событие</th></tr></thead><tbody>${(invoice.changes ?? []).slice().reverse().map((change) => `<tr><td>${new Date(change.at).toLocaleString("ru-RU")}</td><td>${escapeHtml(change.byName || "")}</td><td>${escapeHtml(change.action)}</td></tr>`).join("") || `<tr><td colspan="3"><span class="muted">Изменений нет.</span></td></tr>`}</tbody></table></article></section>`);
 }
 
 function testReportParams(searchParams = new URLSearchParams()) {
@@ -4786,7 +5099,12 @@ function sendCertificatesExcel(response, searchParams = new URLSearchParams()) {
 }
 
 function checksExcel(searchParams = new URLSearchParams()) {
-  const { params, registeredStudents, assignments, currencies, total, assignedStudentIds } = checkReportData(searchParams);
+  const params = invoiceFilterParams(searchParams);
+  const assignments = invoiceAssignmentData(params);
+  const registeredStudents = db.users.filter((student) => student.role === "student" && assignments.some((assignment) => assignment.userId === student.id));
+  const currencies = new Set(assignments.map((assignment) => courseRevenuePrice(courseById(assignment.courseId)).currency).filter(Boolean));
+  const total = assignments.reduce((sum, assignment) => sum + courseRevenuePrice(courseById(assignment.courseId)).amount, 0);
+  const assignedStudentIds = new Set(assignments.map((assignment) => assignment.userId));
   const staff = userById(params.staffId);
   const filterRows = [
     ["Параметр", "Значение"],
@@ -5550,6 +5868,52 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
 
+    if (pathname === "/admin/checks/invoices/create") {
+      const filterParams = invoiceFilterParams(new URLSearchParams(form.get("filterQuery")?.toString() ?? ""));
+      const selectedAssignmentIds = new Set(form.getAll("assignmentId").map((value) => value.toString()));
+      const lines = invoiceAssignmentData(filterParams).filter((assignment) => selectedAssignmentIds.has(assignment.id)).map(invoiceLineFromAssignment);
+      if (!lines.length) return redirect(response, `/admin/checks?${invoiceFilterQuery(filterParams)}`);
+      const invoice = {
+        id: id("invoice"), number: invoiceNumber(), createdAt: now(), createdById: admin.id,
+        recipientName: form.get("recipientName")?.toString().trim() ?? "", recipientEmail: form.get("recipientEmail")?.toString().trim() ?? "", recipientCompany: form.get("recipientCompany")?.toString().trim() ?? "",
+        period: { from: filterParams.from, to: filterParams.to, event: filterParams.event }, lines, currency: lines.map((line) => line.currency).find(Boolean) ?? "",
+        discount: 0, extraCharge: 0, vatRate: 0, comment: "", issueDate: new Date().toISOString().slice(0, 10), dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), status: "draft", paidAt: "", pdfUrl: "", shareToken: opaqueToken(),
+        changes: [{ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: `Создано позиций: ${lines.length}` }]
+      };
+      invoiceItems().push(invoice);
+      await persistInvoicePdf(invoice);
+      saveDb(db);
+      redirect(response, `/admin/checks/invoices/${invoice.id}`);
+      return;
+    }
+
+    const invoiceUpdateMatch = pathname.match(/^\/admin\/checks\/invoices\/([^/]+)\/update$/);
+    if (invoiceUpdateMatch) {
+      const invoice = invoiceById(invoiceUpdateMatch[1]);
+      if (!invoice) return redirect(response, "/admin/checks");
+      for (const key of ["recipientName", "recipientCompany", "recipientEmail", "issueDate", "dueDate", "currency", "comment", "paidAt"]) invoice[key] = form.get(key)?.toString().trim() ?? "";
+      for (const key of ["discount", "extraCharge", "vatRate"]) invoice[key] = Math.max(0, Number(form.get(key)) || 0);
+      const requestedStatus = form.get("status")?.toString() ?? "draft";
+      invoice.status = invoiceStatuses.includes(requestedStatus) ? requestedStatus : "draft";
+      for (const line of invoice.lines ?? []) {
+        line.included = form.get(`included_${line.id}`) === "on";
+        line.amount = Math.max(0, Number(form.get(`amount_${line.id}`)) || 0);
+        line.discount = Math.max(0, Number(form.get(`lineDiscount_${line.id}`)) || 0);
+      }
+      const sendEmail = form.get("sendEmail") === "1" && invoice.recipientEmail;
+      if (sendEmail) {
+        invoice.status = "sent";
+        invoice.shareToken ??= opaqueToken();
+        db.notifications.push({ id: id("note"), recipientUserId: "", recipientEmail: invoice.recipientEmail, type: "invoice_sent", status: notificationInitialStatus(), payload: `Invoice ${invoice.number}: ${publicBaseUrl}/invoices/${invoice.id}/${invoice.shareToken}.pdf`, errorMessage: "", createdAt: now(), sentAt: "" });
+      }
+      invoice.changes ??= [];
+      invoice.changes.push({ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: sendEmail ? "Обновлён и отправлен по e-mail" : "Обновлён расчёт и PDF" });
+      await persistInvoicePdf(invoice);
+      saveDb(db);
+      redirect(response, `/admin/checks/invoices/${invoice.id}`);
+      return;
+    }
+
     if (pathname === "/admin/notifications/send-pending") {
       await deliverPendingNotifications();
       saveDb(db);
@@ -6000,7 +6364,13 @@ async function handlePost(request, response, pathname, user) {
       if (course) {
         let designer = certificateDesignerForCourse(course);
         if (form.get("resetDesigner") === "on") {
-          designer = defaultCertificateDesigner(designer.backgroundUrl, designer.backgroundType, designer.stampUrl);
+          designer = defaultCertificateDesigner(
+            designer.backgroundUrl,
+            designer.backgroundType,
+            designer.stampUrl,
+            designer.pageWidth,
+            designer.pageHeight
+          );
         } else {
           try {
             designer = normalizeCertificateDesigner(JSON.parse(form.get("designerJson")?.toString() || "{}"));
@@ -6012,8 +6382,10 @@ async function handlePost(request, response, pathname, user) {
         if (form.get("removeBackground") === "on") {
           designer.backgroundUrl = "";
           designer.backgroundType = "image";
+          designer.pageWidth = 1123;
+          designer.pageHeight = 794;
         }
-        const savedBackground = saveCertificateDesignerBackground(course, form.get("backgroundFile"));
+        const savedBackground = await saveCertificateDesignerBackground(course, form.get("backgroundFile"));
         if (!savedBackground.ok) {
           send(response, adminShell(admin, "Certificate designer", `<section class="section"><div class="notice danger">${escapeHtml(savedBackground.message)}</div><a class="button" href="/admin/courses/${course.id}">Back to course</a></section>`), 400);
           return;
@@ -6021,6 +6393,8 @@ async function handlePost(request, response, pathname, user) {
         if (savedBackground.backgroundUrl) {
           designer.backgroundUrl = savedBackground.backgroundUrl;
           designer.backgroundType = savedBackground.backgroundType;
+          designer.pageWidth = savedBackground.pageWidth ?? designer.pageWidth;
+          designer.pageHeight = savedBackground.pageHeight ?? designer.pageHeight;
         }
         if (form.get("removeStamp") === "on") designer.stampUrl = "";
         const savedStamp = saveCertificateDesignerStamp(course, form.get("stampFile"));
@@ -6488,6 +6862,23 @@ async function handleRequest(request, response) {
     );
   }
 
+  const sharedInvoicePdfMatch = pathname.match(/^\/invoices\/([^/]+)\/([^/]+)\.pdf$/);
+  if (sharedInvoicePdfMatch) {
+    const invoice = invoiceById(sharedInvoicePdfMatch[1]);
+    if (!invoice || !invoice.shareToken || invoice.shareToken !== sharedInvoicePdfMatch[2]) {
+      response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" });
+      response.end("Not found");
+      return;
+    }
+    const path = invoicePdfPath(invoice);
+    if (!existsSync(path)) await persistInvoicePdf(invoice);
+    if (invoice.status === "sent") invoice.status = "viewed";
+    saveDb(db);
+    response.writeHead(200, { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${invoice.number}.pdf"`, "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" });
+    response.end(readFileSync(path));
+    return;
+  }
+
   if (pathname.startsWith("/admin")) {
     const admin = requireAdmin(request, response);
     if (!admin) return;
@@ -6498,6 +6889,21 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/applications") return send(response, adminApplications(admin, url.searchParams));
     if (pathname === "/admin/users") return send(response, adminUsers(admin, url.searchParams));
     if (pathname === "/admin/reports") return send(response, adminReports(admin, url.searchParams));
+    const invoicePdfMatch = pathname.match(/^\/admin\/checks\/invoices\/([^/]+)\.pdf$/);
+    if (invoicePdfMatch) {
+      const invoice = invoiceById(invoicePdfMatch[1]);
+      if (!invoice) return send(response, adminShell(admin, "Not found", `<section class="section"><div class="notice">Invoice not found.</div></section>`), 404);
+      const path = invoicePdfPath(invoice);
+      if (!existsSync(path)) await persistInvoicePdf(invoice);
+      response.writeHead(200, { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${invoice.number}.pdf"`, "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" });
+      response.end(readFileSync(path));
+      return;
+    }
+    const invoiceMatch = pathname.match(/^\/admin\/checks\/invoices\/([^/]+)$/);
+    if (invoiceMatch) {
+      const invoice = invoiceById(invoiceMatch[1]);
+      return send(response, invoice ? adminInvoiceDetail(admin, invoice) : adminShell(admin, "Not found", `<section class="section"><div class="notice">Invoice not found.</div></section>`), invoice ? 200 : 404);
+    }
     if (pathname === "/admin/checks/export.xls") return isFullAdmin(admin) ? sendChecksExcel(response, url.searchParams) : send(response, adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), 403);
     if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
