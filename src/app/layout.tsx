@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LogIn, ShieldCheck } from "lucide-react";
+import { ScaffoldNotice } from "@/components/scaffold-notice";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="ru">
       <body>
         <div className="app-shell">
+          <ScaffoldNotice />
           <header className="topbar">
             <Link className="brand" href="/">
               <span className="brand-mark">M</span>

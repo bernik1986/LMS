@@ -27,13 +27,14 @@ export default function LoginPage() {
               autoComplete="current-password"
             />
           </div>
-          <button className="button" type="button">
+          <button className="button" type="button" disabled>
             <LogIn size={17} />
             Войти
           </button>
           <p className="muted">
-            Для Sprint 1 форма является интерфейсной заготовкой. Реальная
-            авторизация запланирована на Sprint 2.
+            Форма неактивна: это mock-страница Next.js-каркаса. Рабочий вход —
+            на <a href="http://127.0.0.1:3000/login">127.0.0.1:3000/login</a> после{" "}
+            <code>npm run dev</code>.
           </p>
           <Link className="nav-link" href="/apply">
             Еще нет доступа? Оставить заявку

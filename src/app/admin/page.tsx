@@ -7,11 +7,11 @@ export default function AdminDashboardPage() {
     <section className="section">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">Sprint 1</span>
+          <span className="eyebrow">UI-каркас</span>
           <h1>Админский дашборд</h1>
           <p className="lead">
-            Рабочая зона администратора для заявок, пользователей, курсов,
-            тестов и сертификатов.
+            Макет будущей админ-панели на mock-данных. Рабочая админка — в
+            standalone-сервере после <code>npm run dev</code>.
           </p>
         </div>
         <div className="actions">
@@ -44,10 +44,12 @@ export default function AdminDashboardPage() {
         })}
       </div>
       <article className="panel">
-        <h2>Что будет подключено дальше</h2>
+        <h2>Где смотреть реальную админку</h2>
         <p className="lead">
-          В Sprint 2 эта зона получит авторизацию, реальные заявки из базы,
-          ручное создание пользователей и защиту по роли администратора.
+          Заявки, пользователи, курсы, тесты и сертификаты уже работают в{" "}
+          <code>scripts/lms-server.mjs</code>. Откройте{" "}
+          <a href="http://127.0.0.1:3000/admin">127.0.0.1:3000/admin</a> после
+          запуска <code>npm run dev</code>.
         </p>
       </article>
     </section>

@@ -7,6 +7,7 @@ import {
   UserRoundCheck
 } from "lucide-react";
 
+/** Mock-данные только для Next.js-каркаса в src/app/. Рабочее приложение использует data/db.json или PostgreSQL. */
 export type CourseStatus = "active" | "inactive";
 export type AssignmentStatus =
   | "not_started"

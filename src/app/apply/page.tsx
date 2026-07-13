@@ -44,10 +44,15 @@ export default function ApplyPage() {
             <label htmlFor="comment">Комментарий</label>
             <textarea id="comment" name="comment" />
           </div>
-          <button className="button" type="button">
+          <button className="button" type="button" disabled>
             <Send size={17} />
             Отправить заявку
           </button>
+          <p className="muted">
+            Форма неактивна: это mock-страница Next.js-каркаса. Рабочая заявка —
+            на <a href="http://127.0.0.1:3000/apply">127.0.0.1:3000/apply</a> после{" "}
+            <code>npm run dev</code>.
+          </p>
         </form>
       </section>
     </main>

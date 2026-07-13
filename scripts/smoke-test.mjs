@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { loadLocalEnv } from "./env.mjs";
 import { loadPrismaDb, resolveConnectionString } from "./prisma-db.mjs";
 
@@ -8,6 +9,8 @@ const base = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const unique = Date.now();
 const storageDriver = (process.env.LMS_STORAGE ?? (process.env.DATABASE_URL ? "prisma" : "json")).toLowerCase();
 const usePrismaStorage = ["prisma", "postgres", "postgresql"].includes(storageDriver);
+const dbPath = resolve(process.env.LMS_DB_PATH ?? "data/db.json");
+const csrfTokens = new Map();
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -21,7 +24,7 @@ async function db() {
   if (usePrismaStorage) {
     return loadPrismaDb({ connectionString: resolveConnectionString() });
   }
-  return JSON.parse(readFileSync("data/db.json", "utf8"));
+  return JSON.parse(readFileSync(dbPath, "utf8"));
 }
 
 async function request(path, options = {}) {
@@ -39,10 +42,13 @@ async function request(path, options = {}) {
 async function postForm(path, fields, cookie = "") {
   const form = new URLSearchParams();
   for (const [key, value] of Object.entries(fields)) form.set(key, String(value));
+  const csrfToken = csrfTokens.get(cookie);
+  if (csrfToken && !form.has("_csrf")) form.set("_csrf", csrfToken);
   return request(path, {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
+      origin: base,
       ...(cookie ? { cookie } : {})
     },
     body: form
@@ -52,7 +58,10 @@ async function postForm(path, fields, cookie = "") {
 async function postMultipart(path, fields, file, cookie = "") {
   const boundary = `----marine-lms-smoke-${Date.now()}`;
   const parts = [];
-  for (const [key, value] of Object.entries(fields)) {
+  const protectedFields = { ...fields };
+  const csrfToken = csrfTokens.get(cookie);
+  if (csrfToken && !protectedFields._csrf) protectedFields._csrf = csrfToken;
+  for (const [key, value] of Object.entries(protectedFields)) {
     parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`));
   }
   if (file) {
@@ -65,10 +74,18 @@ async function postMultipart(path, fields, file, cookie = "") {
     method: "POST",
     headers: {
       cookie,
+      origin: base,
       "content-type": `multipart/form-data; boundary=${boundary}`
     },
     body: Buffer.concat(parts)
   });
+}
+
+async function cacheCsrfToken(path, cookie) {
+  const { response, body } = await request(path, { headers: { cookie } });
+  const match = body.match(/name="_csrf" value="([^"]+)"/);
+  assert(response.status === 200 && match, `CSRF token is unavailable on ${path}`);
+  csrfTokens.set(cookie, match[1]);
 }
 
 async function login(email, password) {
@@ -84,6 +101,8 @@ async function run() {
 
   const adminCookie = await login("admin@example.com", "Admin123!");
   const studentCookie = await login("student@example.com", "Student123!");
+  await cacheCsrfToken("/admin", adminCookie);
+  await cacheCsrfToken("/dashboard", studentCookie);
 
   const studentDashboard = await request("/dashboard", { headers: { cookie: studentCookie } });
   assert(studentDashboard.body.includes("photo-warning"), "Student should see certificate photo warning");
@@ -99,7 +118,7 @@ async function run() {
       position: "Deck Officer",
       company: "",
       phone: "+10000000000",
-      password: "Smoke123!"
+      password: "SmokeStudent123!"
     },
     adminCookie
   );

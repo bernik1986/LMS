@@ -17,8 +17,9 @@ loadLocalEnv();
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 3000);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? `http://${host}:${port}`;
-const dbPath = resolve("data/db.json");
+const dbPath = resolve(process.env.LMS_DB_PATH ?? "data/db.json");
 const uploadsDir = resolve("data/uploads");
+const publicAssetsDir = resolve("assets");
 const cssPath = resolve("src/app/globals.css");
 const databaseUrl = resolveConnectionString();
 const storageDriver = (process.env.LMS_STORAGE ?? (process.env.DATABASE_URL ? "prisma" : "json")).toLowerCase();
@@ -465,6 +466,13 @@ function normalizeDb(data) {
     if (course.newPrice === undefined) {
       course.newPrice = "";
       changed = true;
+    }
+    for (const priceKey of ["oldPrice", "newPrice"]) {
+      const normalizedPrice = normalizeCoursePrice(course[priceKey]);
+      if (course[priceKey] !== normalizedPrice) {
+        course[priceKey] = normalizedPrice;
+        changed = true;
+      }
     }
     if (!course.certificateTemplateHtml) {
       course.certificateTemplateHtml = defaultCertificateTemplate();
@@ -1587,6 +1595,10 @@ function defaultEmailTemplates() {
       subject: "New course application",
       body: "Marine LMS\n\nNew application received.\n\n{{payload}}\n\nDate: {{date}}"
     },
+    feedback_message: {
+      subject: "New feedback message",
+      body: "Marine LMS\n\nA message was sent from the website footer.\n\n{{payload}}\n\nDate: {{date}}"
+    },
     course_assigned: {
       subject: "Course assigned",
       body: "Marine LMS\n\nYou have been assigned to a course.\n\n{{payload}}\n\nLogin: {{platformUrl}}/login"
@@ -2252,6 +2264,31 @@ function serveUpload(request, response, user, fileName) {
   return true;
 }
 
+function servePublicAsset(response, fileName) {
+  let decoded = "";
+  try {
+    decoded = decodeURIComponent(fileName).replace(/^[/\\]+/, "");
+  } catch {
+    response.writeHead(404);
+    response.end("Not found");
+    return;
+  }
+  const path = resolve(publicAssetsDir, decoded);
+  const assetRelativePath = relative(publicAssetsDir, path);
+  if (assetRelativePath.startsWith("..") || isAbsolute(assetRelativePath) || !existsSync(path) || !statSync(path).isFile()) {
+    response.writeHead(404);
+    response.end("Not found");
+    return;
+  }
+  response.writeHead(200, {
+    "Content-Type": contentTypeFor(path),
+    "Content-Length": statSync(path).size,
+    "Cache-Control": "public, max-age=604800, immutable",
+    "X-Content-Type-Options": "nosniff"
+  });
+  createReadStream(path).pipe(response);
+}
+
 function requireUser(request, response) {
   const user = currentUser(request);
   if (!user) {
@@ -2328,14 +2365,27 @@ function assignmentFor(userId, courseId) {
 
 function materialContentHtml(material) {
   const content = material.content?.trim() ?? "";
-  if (!content) return "";
+  if (!content) return `<p class="muted">Материал еще не добавлен.</p>`;
   if (content.startsWith("/uploads/")) {
-    return `<p><a class="small-button primary" href="${escapeHtml(content)}" target="_blank" rel="noopener">Открыть файл</a></p>`;
+    const safeContent = escapeHtml(content);
+    const extension = extname(content).toLowerCase();
+    const title = escapeHtml(material.title || "Материал курса");
+
+    if (material.type === "video" || isVideoFile(content)) {
+      return `<div class="material-player"><video controls playsinline preload="metadata" aria-label="${title}"><source src="${safeContent}" />Ваш браузер не поддерживает воспроизведение видео.</video></div>`;
+    }
+    if (material.type === "pdf" || extension === ".pdf") {
+      return `<iframe class="material-pdf" src="${safeContent}#toolbar=1&navpanes=0" title="${title}"></iframe>`;
+    }
+    if ([".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(extension)) {
+      return `<img class="material-image" src="${safeContent}" alt="${title}" loading="lazy" />`;
+    }
+    return `<p><a class="small-button primary" href="${safeContent}" download>Скачать файл</a></p>`;
   }
   if (/^https?:\/\//i.test(content)) {
-    return `<p><a class="link-line" href="${escapeHtml(content)}" target="_blank" rel="noopener">${escapeHtml(content)}</a></p>`;
+    return `<p><a class="link-line" href="${escapeHtml(content)}" target="_blank" rel="noopener">Открыть внешний материал</a></p>`;
   }
-  return `<p>${escapeHtml(content)}</p>`;
+  return `<div class="material-text">${escapeHtml(content).replaceAll("\n", "<br />")}</div>`;
 }
 
 function courseCoverHtml(course, variant = "") {
@@ -2348,14 +2398,56 @@ function courseCoverHtml(course, variant = "") {
 
 function isPublicCourseImagePath(publicPath = "") {
   const normalized = publicPath.startsWith("/uploads/") ? publicPath : `/uploads/${publicPath}`;
-  return db.courses.some(
-    (course) => course.status === "active" && course.imageUrl === normalized
-  );
+  return db.courses.some((course) => course.status === "active" && course.imageUrl === normalized);
 }
 
 function courseHomeSortValue(course) {
   const value = Number(course?.homeSortOrder);
   return Number.isFinite(value) && value > 0 ? value : 999;
+}
+
+const courseCategories = ["Safety", "Soft Skills", "Navigation", "Engineering", "Environment", "Cargo operations"];
+const coursePositions = ["Master", "Chief Mate", "Engine Officer", "Deck Officer", "All Seafarers", "Chief Eng", "2nd Mate", "Electro-technical Officer", "Catering", "ETO"];
+
+function courseCatalogMetadata(course) {
+  const catalog = course?.source?.catalog;
+  return catalog && typeof catalog === "object" && !Array.isArray(catalog) ? catalog : {};
+}
+
+function courseCategory(course) {
+  const category = courseCatalogMetadata(course).category;
+  return courseCategories.includes(category) ? category : "";
+}
+
+function coursePositionsFor(course) {
+  const positions = courseCatalogMetadata(course).positions;
+  return Array.isArray(positions) ? positions.filter((position) => coursePositions.includes(position)) : [];
+}
+
+function courseAuthor(course) {
+  return String(courseCatalogMetadata(course).author ?? "").trim();
+}
+
+function updateCourseCatalogMetadata(course, { category = "", positions = [], author = "" }) {
+  course.source = {
+    ...(course.source && typeof course.source === "object" ? course.source : {}),
+    catalog: {
+      category: courseCategories.includes(category) ? category : "",
+      positions: [...new Set(positions.filter((position) => coursePositions.includes(position)))],
+      author: author.trim()
+    }
+  };
+}
+
+function courseCatalogFields(course) {
+  const category = courseCategory(course);
+  const positions = new Set(coursePositionsFor(course));
+  const author = courseAuthor(course);
+  return `<div class="admin-edit-grid">
+    <div class="field"><label>Категория</label><select name="catalogCategory"><option value="">Не выбрана</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></div>
+    <div class="field"><label>Автор</label><input name="catalogAuthor" value="${escapeHtml(author)}" placeholder="Например, Maritime Learning Academy" /></div>
+  </div>
+  <fieldset class="course-audience-fields"><legend>Подходит для должностей</legend><div class="course-audience-options">${coursePositions.map((position) => `<label class="checkbox-row"><input name="catalogPositions" type="checkbox" value="${escapeHtml(position)}" ${positions.has(position) ? "checked" : ""} /> ${escapeHtml(position)}</label>`).join("")}</div></fieldset>`;
 }
 
 function sortHomepageCourses(courses) {
@@ -2376,12 +2468,49 @@ function homepageCourses() {
     .slice(0, 6);
 }
 
+function homeFooterSettings() {
+  const saved = db.settings?.homeFooter;
+  return {
+    policiesTitle: String(saved?.policiesTitle ?? "Policies"),
+    termsLabel: String(saved?.termsLabel ?? "Terms & Conditions"),
+    termsUrl: String(saved?.termsUrl ?? "/terms"),
+    privacyLabel: String(saved?.privacyLabel ?? "Privacy"),
+    privacyUrl: String(saved?.privacyUrl ?? "/privacy"),
+    userPolicyLabel: String(saved?.userPolicyLabel ?? "User Policy"),
+    userPolicyUrl: String(saved?.userPolicyUrl ?? "/user-policy"),
+    feedbackTitle: String(saved?.feedbackTitle ?? "For any queries please use provided feedback form"),
+    namePlaceholder: String(saved?.namePlaceholder ?? "Your Name"),
+    emailPlaceholder: String(saved?.emailPlaceholder ?? "my.email@site.com"),
+    subjectPlaceholder: String(saved?.subjectPlaceholder ?? "Subject"),
+    messagePlaceholder: String(saved?.messagePlaceholder ?? "Your message"),
+    submitLabel: String(saved?.submitLabel ?? "Send message")
+  };
+}
+
+function safeFooterUrl(value) {
+  const url = String(value ?? "").trim();
+  return url.startsWith("/") || /^https?:\/\//i.test(url) ? url : "#";
+}
+
+function homeFooter(feedbackSent = false) {
+  const settings = homeFooterSettings();
+  return `<footer class="home-footer">
+    <div class="home-footer-inner">
+      <section class="home-footer-policies"><h2>${escapeHtml(settings.policiesTitle)}</h2><nav aria-label="Policies"><a href="${escapeHtml(safeFooterUrl(settings.termsUrl))}">${escapeHtml(settings.termsLabel)}</a><a href="${escapeHtml(safeFooterUrl(settings.privacyUrl))}">${escapeHtml(settings.privacyLabel)}</a><a href="${escapeHtml(safeFooterUrl(settings.userPolicyUrl))}">${escapeHtml(settings.userPolicyLabel)}</a></nav></section>
+      <section class="home-footer-feedback"><h2>${escapeHtml(settings.feedbackTitle)}</h2>${feedbackSent ? `<p class="home-footer-success">Thank you. Your message has been sent.</p>` : ""}<form method="post" action="/feedback" class="home-feedback-form"><input name="name" placeholder="${escapeHtml(settings.namePlaceholder)}" required /><input name="email" type="email" placeholder="${escapeHtml(settings.emailPlaceholder)}" required /><input name="subject" placeholder="${escapeHtml(settings.subjectPlaceholder)}" required /><textarea name="message" placeholder="${escapeHtml(settings.messagePlaceholder)}" required></textarea><button class="button" type="submit">${escapeHtml(settings.submitLabel)}</button></form></section>
+    </div>
+  </footer>`;
+}
+
 function coursePublicUrl(course) {
   return `/courses/${encodeURIComponent(course.id)}`;
 }
 
 function normalizeCoursePrice(value) {
-  return (value ?? "").toString().trim();
+  const text = (value ?? "").toString().trim();
+  if (!text) return "";
+  const amount = text.match(/\d[\d\s]*(?:[.,]\d+)?/)?.[0]?.trim();
+  return amount ? `${amount} USD` : "";
 }
 
 function coursePriceHtml(course, options = {}) {
@@ -2472,11 +2601,8 @@ function publicCourseDetail(user, course) {
 function publicCourseCard(course) {
   return `<article class="card">
     ${courseCoverHtml(course)}
-    ${badge(course.status)}
     <h3>${escapeHtml(course.title)}</h3>
     ${coursePriceHtml(course)}
-    <p class="muted">${escapeHtml(course.shortDescription)}</p>
-    <p class="muted">${courseTimingText(course)}</p>
     <div class="table-actions">
       <a class="small-button primary" href="${coursePublicUrl(course)}">Подробнее</a>
       <a class="small-button" href="/apply?courseId=${encodeURIComponent(course.id)}">Заявка</a>
@@ -2486,13 +2612,21 @@ function publicCourseCard(course) {
 
 function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
   const params = listParams(searchParams);
-  const catalogParams = { ...params, perPage: Math.min(24, Math.max(6, params.perPage)) };
-  const activeCourses = db.courses
-    .filter((course) => course.status === "active")
+  const sort = searchParams.get("sort") === "title_desc" ? "title_desc" : "title_asc";
+  const category = courseCategories.includes(searchParams.get("category")) ? searchParams.get("category") : "";
+  const position = coursePositions.includes(searchParams.get("position")) ? searchParams.get("position") : "";
+  const author = (searchParams.get("author") ?? "").trim();
+  const catalogParams = { ...params, sort, category, position, author, perPage: Math.min(24, Math.max(6, params.perPage)) };
+  const allActiveCourses = db.courses.filter((course) => course.status === "active");
+  const authors = [...new Set(allActiveCourses.map(courseAuthor).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+  const activeCourses = allActiveCourses
     .filter((course) =>
       matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.requirements, course.oldPrice, course.newPrice], params.q)
     )
-    .sort((a, b) => a.title.localeCompare(b.title, "ru"));
+    .filter((course) => !category || courseCategory(course) === category)
+    .filter((course) => !position || coursePositionsFor(course).includes(position) || (position !== "All Seafarers" && coursePositionsFor(course).includes("All Seafarers")))
+    .filter((course) => !author || courseAuthor(course) === author)
+    .sort((a, b) => (sort === "title_desc" ? -1 : 1) * a.title.localeCompare(b.title, "ru"));
   const pagination = paginateItems(activeCourses, catalogParams);
   return page(
     "Все курсы",
@@ -2505,13 +2639,17 @@ function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
         </div>
         <form class="inline-form" method="get" action="/courses">
           <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск по названию или описанию" />
-          <button class="small-button primary" type="submit">Найти</button>
+          <label class="field"><span>Подходит для</span><select name="position"><option value="">Все должности</option>${coursePositions.map((item) => `<option value="${escapeHtml(item)}" ${position === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
+          <label class="field"><span>Категория</span><select name="category"><option value="">Все категории</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
+          <label class="field"><span>Автор</span><select name="author"><option value="">Все авторы</option>${authors.map((item) => `<option value="${escapeHtml(item)}" ${author === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
+          <label class="field"><span>Сортировка</span><select name="sort"><option value="title_asc" ${sort === "title_asc" ? "selected" : ""}>Название: А-Я</option><option value="title_desc" ${sort === "title_desc" ? "selected" : ""}>Название: Я-А</option></select></label>
+          <button class="small-button primary" type="submit">Применить</button>
           <a class="small-button" href="/courses">Сбросить</a>
         </form>
         <div class="grid three">
           ${pagination.items.map(publicCourseCard).join("") || `<article class="card"><h3>Курсы не найдены</h3><p class="muted">Попробуйте изменить поисковый запрос.</p></article>`}
         </div>
-        ${paginationControls("/courses", catalogParams, pagination)}
+        ${paginationControls("/courses", { ...catalogParams, paginationLabel: "Курсы" }, pagination)}
       </section>
     </main>`
   );
@@ -2819,17 +2957,40 @@ function paginationControls(pathname, params, pagination) {
   if (pagination.totalPages <= 1) return "";
   const base = new URLSearchParams();
   if (params.q) base.set("q", params.q);
+  if (params.sort) base.set("sort", params.sort);
+  if (params.category) base.set("category", params.category);
+  if (params.position) base.set("position", params.position);
+  if (params.author) base.set("author", params.author);
   base.set("perPage", String(params.perPage));
   const link = (page, label) => {
     const next = new URLSearchParams(base);
     next.set("page", String(page));
     return `<a class="small-button" href="${pathname}?${next.toString()}">${label}</a>`;
   };
-  return `<div class="table-actions">
+  const pageNumbers = new Set([1, pagination.totalPages]);
+  const paginationLabel = params.paginationLabel ?? "Записи";
+  for (let page = pagination.page - 2; page <= pagination.page + 2; page += 1) {
+    if (page > 0 && page <= pagination.totalPages) pageNumbers.add(page);
+  }
+  const numbers = [...pageNumbers].sort((a, b) => a - b);
+  const numberLinks = [];
+  for (const [index, page] of numbers.entries()) {
+    const previous = numbers[index - 1];
+    if (previous && page - previous > 1) numberLinks.push(`<span class="pagination-gap" aria-hidden="true">...</span>`);
+    numberLinks.push(
+      page === pagination.page
+        ? `<span class="small-button pagination-current" aria-current="page">${page}</span>`
+        : link(page, String(page))
+    );
+  }
+  return `<nav class="pagination-controls" aria-label="Страницы списка">
+    <span class="pagination-summary">${escapeHtml(paginationLabel)}: страница ${pagination.page} из ${pagination.totalPages}, всего ${pagination.total}</span>
+    <div class="pagination-links">
     ${pagination.page > 1 ? link(pagination.page - 1, "Назад") : ""}
-    <span class="muted">Страница ${pagination.page} из ${pagination.totalPages}, всего ${pagination.total}</span>
+    ${numberLinks.join("")}
     ${pagination.page < pagination.totalPages ? link(pagination.page + 1, "Вперед") : ""}
-  </div>`;
+    </div>
+  </nav>`;
 }
 
 function attemptsFor(assignmentId) {
@@ -3172,12 +3333,16 @@ function roleLabel(role) {
 function topNav(user) {
   return `<header class="topbar">
     <a class="brand" href="/"><span class="brand-mark">M</span><span>Marine LMS</span></a>
-    <nav class="nav-links" aria-label="Основная навигация">
-      <a class="nav-link" href="/courses">Курсы</a>
+    <nav class="public-nav" aria-label="Основная навигация">
+      <a class="nav-link" href="/courses">Каталог</a>
+      <a class="nav-link" href="/blog">Блог</a>
+      <a class="nav-link" href="/contacts">Контакты</a>
+    </nav>
+    <div class="nav-account">
       ${user ? `<a class="nav-link" href="/dashboard">Кабинет</a>` : ""}
       ${canAccessAdminPanel(user) ? `<a class="nav-link" href="/admin">Админ</a>` : ""}
-      ${user ? `<form method="post" action="/logout"><button class="button secondary" type="submit">Выйти</button></form>` : `<a class="button secondary" href="/login">Войти</a>`}
-    </nav>
+      ${user ? `<form method="post" action="/logout"><button class="nav-link" type="submit">Выйти</button></form>` : `<a class="nav-link" href="/login">Войти</a>`}
+    </div>
   </header>`;
 }
 
@@ -3254,13 +3419,18 @@ function studentShell(user, title, body) {
   );
 }
 
-function homePage(user) {
+function homePage(user, feedbackSent = false) {
   const visibleCourses = homepageCourses();
   return page(
     "Главная",
     user,
     `<main class="home-page">
       <section class="hero">
+        <div class="hero-scenes" aria-hidden="true">
+          <span class="hero-scene hero-scene-bridge"></span>
+          <span class="hero-scene hero-scene-vessel"></span>
+          <span class="hero-scene hero-scene-safety"></span>
+        </div>
         <div class="hero-copy">
           <span class="eyebrow">Marine training platform</span>
           <h1>Marine LMS для обучения, тестов и сертификатов</h1>
@@ -3289,6 +3459,7 @@ function homePage(user) {
             : `<article class="card"><h3>Курсы скоро появятся</h3><p class="muted">Администратор еще не выбрал курсы для главной страницы.</p></article>`}
         </div>
       </section>
+      ${homeFooter(feedbackSent)}
     </main>`
   );
 }
@@ -3311,6 +3482,31 @@ function loginPage(user, notice = "") {
         </form>
       </section>
     </main>`
+  );
+}
+
+function blogPage(user) {
+  return page(
+    "Блог",
+    user,
+    `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">Блог</span><h1>Материалы Marine LMS</h1><p class="lead">Новости обучения и полезные материалы для морских специалистов.</p></div><a class="button secondary" href="/courses">Открыть каталог</a></div><article class="panel"><p class="muted">Первые публикации будут добавлены сюда.</p></article></section></main>`
+  );
+}
+
+function contactsPage(user) {
+  const email = process.env.SMTP_FROM || "info@maritimelearning.store";
+  return page(
+    "Контакты",
+    user,
+    `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">Контакты</span><h1>Связь с Marine LMS</h1><p class="lead">По вопросам обучения и заявок используйте электронную почту или оставьте заявку на нужный курс.</p></div><a class="button" href="/apply">Оставить заявку</a></div><article class="panel stack"><div><strong>E-mail</strong><br><a class="link-line" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></div></article></section></main>`
+  );
+}
+
+function policyPage(user, title) {
+  return page(
+    title,
+    user,
+    `<main class="page"><section class="section"><div><span class="eyebrow">Policies</span><h1>${escapeHtml(title)}</h1><p class="lead">The policy text will be published here.</p></div><a class="button secondary" href="/">Back to home</a></section></main>`
   );
 }
 
@@ -3355,19 +3551,20 @@ function redirectPage(location) {
 
 function applyPage(user, success = false, selectedCourseId = "") {
   const activeCourses = db.courses.filter((course) => course.status === "active");
+  const isStudentRequest = user?.role === "student";
   return page(
     "Заявка",
     user,
     `<main class="page">
       <section class="section">
-        <div><span class="eyebrow">Заявка на курс</span><h1>Оставить заявку</h1><p class="lead">Заявка не создает аккаунт автоматически. Администратор связывается с кандидатом и вручную создает пользователя.</p></div>
+        <div><span class="eyebrow">Заявка на курс</span><h1>Оставить заявку</h1><p class="lead">${isStudentRequest ? "Ваши данные из личного кабинета будут приложены к заявке. Выберите нужный курс." : "Заявка не создает аккаунт автоматически. Администратор связывается с кандидатом и вручную создает пользователя."}</p></div>
         ${success ? `<div class="notice">Заявка отправлена. Администратор увидит ее в панели управления.</div>` : ""}
         <form class="form-panel" method="post" action="/apply">
-          <div class="field"><label>Фамилия</label><input name="lastName" required /></div>
+          ${isStudentRequest ? "" : `<div class="field"><label>Фамилия</label><input name="lastName" required /></div>
           <div class="field"><label>Имя</label><input name="firstName" required /></div>
           <div class="field"><label>Номер телефона</label><input name="phone" required /></div>
-          <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>
-          <div class="field"><label>Курс</label><select name="courseId">${activeCourses.map((course) => `<option value="${course.id}" ${selectedCourseId === course.id ? "selected" : ""}>${escapeHtml(course.title)}</option>`).join("")}</select></div>
+          <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>`}
+          <div class="field"><label>Курс</label><select name="courseId" required>${activeCourses.map((course) => `<option value="${course.id}" ${selectedCourseId === course.id ? "selected" : ""}>${escapeHtml(course.title)}</option>`).join("")}</select></div>
           <div class="field"><label>Комментарий</label><textarea name="comment"></textarea></div>
           <button class="button" type="submit">Отправить заявку</button>
         </form>
@@ -4305,6 +4502,7 @@ function adminHomepage(user) {
       a.title.localeCompare(b.title, "ru")
   );
   const selectedCount = courses.filter((course) => course.showOnHome && course.status === "active").length;
+  const footer = homeFooterSettings();
   const selectionMode = db.settings?.homepageCourseSelectionEnabled
     ? `<div class="notice"><strong>Витрина настроена.</strong><br>На главной показываются только отмеченные активные курсы.</div>`
     : `<div class="notice"><strong>Витрина еще не сохранена.</strong><br>До первого сохранения главная показывает несколько активных курсов автоматически.</div>`;
@@ -4338,6 +4536,29 @@ function adminHomepage(user) {
         </table>
         <div class="table-actions"><button class="button" type="submit">Сохранить витрину</button><a class="button secondary" href="/">Открыть главную</a></div>
       </form>
+      <form class="form-panel" method="post" action="/admin/homepage/footer">
+        <h2>Подвал главной страницы</h2>
+        <div class="admin-edit-grid">
+          <div class="field"><label>Заголовок политик</label><input name="policiesTitle" value="${escapeHtml(footer.policiesTitle)}" required /></div>
+          <div class="field"><label>Заголовок формы</label><input name="feedbackTitle" value="${escapeHtml(footer.feedbackTitle)}" required /></div>
+        </div>
+        <div class="admin-edit-grid">
+          <div class="field"><label>Текст ссылки 1</label><input name="termsLabel" value="${escapeHtml(footer.termsLabel)}" required /></div>
+          <div class="field"><label>Ссылка 1</label><input name="termsUrl" value="${escapeHtml(footer.termsUrl)}" required /></div>
+          <div class="field"><label>Текст ссылки 2</label><input name="privacyLabel" value="${escapeHtml(footer.privacyLabel)}" required /></div>
+          <div class="field"><label>Ссылка 2</label><input name="privacyUrl" value="${escapeHtml(footer.privacyUrl)}" required /></div>
+          <div class="field"><label>Текст ссылки 3</label><input name="userPolicyLabel" value="${escapeHtml(footer.userPolicyLabel)}" required /></div>
+          <div class="field"><label>Ссылка 3</label><input name="userPolicyUrl" value="${escapeHtml(footer.userPolicyUrl)}" required /></div>
+        </div>
+        <div class="admin-edit-grid">
+          <div class="field"><label>Подсказка имени</label><input name="namePlaceholder" value="${escapeHtml(footer.namePlaceholder)}" required /></div>
+          <div class="field"><label>Подсказка e-mail</label><input name="emailPlaceholder" value="${escapeHtml(footer.emailPlaceholder)}" required /></div>
+          <div class="field"><label>Подсказка темы</label><input name="subjectPlaceholder" value="${escapeHtml(footer.subjectPlaceholder)}" required /></div>
+          <div class="field"><label>Подсказка сообщения</label><input name="messagePlaceholder" value="${escapeHtml(footer.messagePlaceholder)}" required /></div>
+          <div class="field"><label>Текст кнопки</label><input name="submitLabel" value="${escapeHtml(footer.submitLabel)}" required /></div>
+        </div>
+        <button class="button" type="submit">Сохранить подвал</button>
+      </form>
     </section>`
   );
 }
@@ -4369,6 +4590,7 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
           <div class="field"><label>Старая цена</label><input name="oldPrice" placeholder="например 250 EUR" /></div>
           <div class="field"><label>Новая цена</label><input name="newPrice" placeholder="например 199 EUR" /></div>
         </div>
+        ${courseCatalogFields({})}
         <div class="field"><label>Обложка курса</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
         <div class="admin-edit-grid">
           <label class="checkbox-row"><input name="showOnHome" type="checkbox" /> Показывать на главной</label>
@@ -4607,6 +4829,7 @@ function adminCourseDetail(user, course) {
         <div class="field"><label>Краткое описание</label><textarea name="shortDescription" required>${escapeHtml(course.shortDescription)}</textarea></div>
         <div class="field"><label>Полное описание</label><textarea name="fullDescription">${escapeHtml(course.fullDescription || "")}</textarea></div>
         <div class="field"><label>Цели</label><textarea name="goals">${escapeHtml(course.goals || "")}</textarea></div>
+        ${courseCatalogFields(course)}
         <div class="admin-edit-grid">
           <div class="field"><label>Старая цена</label><input name="oldPrice" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="например 250 EUR" /></div>
           <div class="field"><label>Новая цена</label><input name="newPrice" value="${escapeHtml(course.newPrice ?? "")}" placeholder="например 199 EUR" /></div>
@@ -5226,6 +5449,37 @@ function auditAdminAction(admin, pathname, form) {
   }
 }
 
+function auditActionLabel(action = "") {
+  const exact = {
+    "/admin/users/create": "Зарегистрирован новый пользователь",
+    "/admin/assignments/create": "Студенту назначен курс",
+    "/admin/course-prices/update": "Изменены цены курсов",
+    "/admin/courses/create": "Создан новый курс",
+    "/admin/homepage/courses": "Обновлена витрина курсов на главной",
+    "/admin/homepage/footer": "Изменен подвал главной страницы",
+    "/admin/notifications/send-pending": "Отправлена очередь писем",
+    "/admin/notifications/templates": "Изменены шаблоны писем",
+    "/admin/notifications/test-smtp": "Проверено подключение SMTP"
+  };
+  if (exact[action]) return exact[action];
+  if (/^\/admin\/users\/[^/]+\/update$/.test(action)) return "Изменены данные пользователя";
+  if (/^\/admin\/users\/[^/]+\/photo$/.test(action)) return "Обновлено фото пользователя";
+  if (/^\/admin\/users\/[^/]+\/delete$/.test(action)) return "Удален пользователь";
+  if (/^\/admin\/courses\/[^/]+\/update$/.test(action)) return "Изменена информация о курсе";
+  if (/^\/admin\/courses\/[^/]+\/certificate-template$/.test(action)) return "Изменен шаблон сертификата курса";
+  if (/^\/admin\/courses\/[^/]+\/certificate-designer$/.test(action)) return "Изменен визуальный шаблон сертификата";
+  if (/^\/admin\/courses\/[^/]+\/lessons\/create$/.test(action)) return "Добавлен урок";
+  if (/^\/admin\/courses\/[^/]+\/lessons\/[^/]+\/update$/.test(action)) return "Изменен урок";
+  if (/^\/admin\/courses\/[^/]+\/lessons\/[^/]+\/delete$/.test(action)) return "Удален урок";
+  if (/^\/admin\/courses\/[^/]+\/materials\/create$/.test(action)) return "Добавлен материал курса";
+  if (/^\/admin\/courses\/[^/]+\/materials\/[^/]+\/update$/.test(action)) return "Изменен материал курса";
+  if (/^\/admin\/courses\/[^/]+\/materials\/[^/]+\/delete$/.test(action)) return "Удален материал курса";
+  if (/^\/admin\/certificates\//.test(action)) return "Изменен статус сертификата";
+  if (/^\/admin\/assignments\//.test(action)) return "Изменен прогресс обучения";
+  if (/^\/admin\/checks\//.test(action)) return "Обновлены чеки или инвойсы";
+  return "Административное действие";
+}
+
 function adminCertificates(user, searchParams = new URLSearchParams()) {
   const filters = certificateFilterParams(searchParams);
   const selectedUserId = filters.userId;
@@ -5335,7 +5589,7 @@ function adminNotifications(user, searchParams = new URLSearchParams()) {
 function adminAudit(user, searchParams = new URLSearchParams()) {
   const params = listParams(searchParams);
   const events = (db.auditEvents ?? [])
-    .filter((event) => matchesQuery([event.adminEmail, event.action, JSON.stringify(event.details ?? {})], params.q))
+    .filter((event) => matchesQuery([event.adminEmail, auditActionLabel(event.action), event.action, JSON.stringify(event.details ?? {})], params.q))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const pagination = paginateItems(events, params);
   return adminShell(
@@ -5348,18 +5602,26 @@ function adminAudit(user, searchParams = new URLSearchParams()) {
         <button class="small-button primary" type="submit">Найти</button>
       </form>
       <table class="table">
-        <thead><tr><th>Дата</th><th>Админ</th><th>Действие</th><th>Детали</th></tr></thead>
+        <thead><tr><th>Дата</th><th>Админ</th><th>Действие</th><th></th></tr></thead>
         <tbody>${pagination.items
           .map((event) => `<tr>
             <td>${new Date(event.createdAt).toLocaleString("ru-RU")}</td>
             <td>${escapeHtml(event.adminEmail)}</td>
-            <td><span class="link-line">${escapeHtml(event.action)}</span></td>
-            <td><code>${escapeHtml(JSON.stringify(event.details ?? {}))}</code></td>
+            <td><strong>${escapeHtml(auditActionLabel(event.action))}</strong></td>
+            <td><a class="small-button" href="/admin/audit/${event.id}">Подробнее</a></td>
           </tr>`)
           .join("") || `<tr><td colspan="4"><span class="muted">Событий не найдено.</span></td></tr>`}</tbody>
       </table>
       ${paginationControls("/admin/audit", params, pagination)}
     </section>`
+  );
+}
+
+function adminAuditDetail(user, event) {
+  return adminShell(
+    user,
+    "Детали аудита",
+    `<section class="section"><div><span class="eyebrow">Аудит</span><h1>${escapeHtml(auditActionLabel(event.action))}</h1><p class="lead">${new Date(event.createdAt).toLocaleString("ru-RU")} · ${escapeHtml(event.adminEmail)}</p></div><article class="panel stack"><h2>Технические данные</h2><pre class="audit-details"><code>${escapeHtml(JSON.stringify({ action: event.action, details: event.details ?? {} }, null, 2))}</code></pre></article><a class="button secondary" href="/admin/audit">Назад к журналу</a></section>`
   );
 }
 
@@ -5383,6 +5645,7 @@ function studentDashboard(user) {
 
 function courseCard(assignment) {
   const course = courseById(assignment.courseId);
+  const certificate = activeCertificateForAssignment(assignment.id);
   return `<article class="card">
     ${courseCoverHtml(course)}
     ${badge(assignment.status)}
@@ -5390,7 +5653,10 @@ function courseCard(assignment) {
     <p class="muted">${escapeHtml(course?.shortDescription ?? "")}</p>
     <div class="progress-track"><div class="progress-bar" style="width:${assignment.progressPercent}%"></div></div>
     <p class="muted">Прогресс: ${assignment.progressPercent}%</p>
-    <a class="small-button primary" href="/dashboard/courses/${assignment.id}">Открыть курс</a>
+    <div class="table-actions">
+      <a class="small-button primary" href="/dashboard/courses/${assignment.id}">Открыть курс</a>
+      ${certificate ? `<a class="small-button" href="/certificates/${certificate.id}.pdf">Сертификат</a>` : ""}
+    </div>
   </article>`;
 }
 
@@ -5443,7 +5709,7 @@ function studentCourseDetail(user, assignment) {
               <div>
                 <strong>${escapeHtml(material.title)}</strong>
                 <p class="muted">${escapeHtml(material.lesson.title)} · ${escapeHtml(material.type)} · ${material.isRequired ? "обязательный" : "дополнительный"}</p>
-                ${materialContentHtml(material)}
+                ${unlocked ? materialContentHtml(material) : `<p class="muted">Материал откроется после прохождения предыдущего обязательного урока.</p>`}
               </div>
               <div>
                 ${progress === "completed" ? `<span class="status-pill">Пройдено</span>` : unlocked ? `<form method="post" action="/dashboard/materials/complete"><input type="hidden" name="assignmentId" value="${assignment.id}" /><input type="hidden" name="materialId" value="${material.id}" /><button class="small-button primary" type="submit">Отметить пройденным</button></form>` : `<span class="status-pill">Закрыто</span>`}
@@ -5452,7 +5718,7 @@ function studentCourseDetail(user, assignment) {
           })
           .join("")}
       </article>
-      <article class="panel stack">
+      <article id="test-result" class="panel stack">
         <h2>Финальный тест</h2>
         <p class="muted">Попыток использовано: ${attempts.length} из ${course.test.attemptsLimit + (assignment.extraTestAttempts ?? 0)}. Проходной процент: ${course.test.passingPercent}%.</p>
         ${latestAttempt && course.test.showResultToUser ? `<div class="notice"><strong>Последний результат:</strong> ${latestAttempt.scorePercent}% · попытка ${latestAttempt.attemptNumber} · ${badge(latestAttempt.status === "passed" ? "test_passed" : "test_failed")}</div>` : ""}
@@ -5731,30 +5997,70 @@ async function handlePost(request, response, pathname, user) {
     return redirect(response, "/login?notice=password_reset");
   }
 
+  if (pathname === "/feedback") {
+    const name = form.get("name")?.toString().trim() ?? "";
+    const email = form.get("email")?.toString().trim() ?? "";
+    const subject = form.get("subject")?.toString().trim() ?? "";
+    const message = form.get("message")?.toString().trim() ?? "";
+    if (!name || !email || !subject || !message) {
+      redirect(response, "/");
+      return;
+    }
+    const notes = db.users
+      .filter((item) => item.role === "admin" && item.status === "active")
+      .map((admin) => ({
+        id: id("note"),
+        recipientUserId: admin.id,
+        recipientEmail: admin.email,
+        type: "feedback_message",
+        status: notificationInitialStatus(),
+        payload: `Feedback from ${name} (${email}). Subject: ${subject}. Message: ${message}`,
+        createdAt: now(),
+        sentAt: ""
+      }));
+    db.notifications.push(...notes);
+    if (smtpConfigured()) await Promise.all(notes.map((note) => deliverNotification(note)));
+    saveDb(db);
+    redirect(response, "/?feedback=1");
+    return;
+  }
+
   if (pathname === "/apply") {
+    const student = user?.role === "student" ? user : null;
+    const courseId = form.get("courseId")?.toString() ?? "";
+    const course = db.courses.find((item) => item.id === courseId && item.status === "active");
+    if (!course) {
+      redirect(response, "/apply");
+      return;
+    }
     const application = {
       id: id("app"),
-      lastName: form.get("lastName")?.toString() ?? "",
-      firstName: form.get("firstName")?.toString() ?? "",
-      phone: form.get("phone")?.toString() ?? "",
-      email: form.get("email")?.toString() ?? "",
-      courseId: form.get("courseId")?.toString() ?? "",
+      lastName: student?.lastNameEn ?? form.get("lastName")?.toString() ?? "",
+      firstName: student?.firstNameEn ?? form.get("firstName")?.toString() ?? "",
+      phone: student?.phone ?? form.get("phone")?.toString() ?? "",
+      email: student?.email ?? form.get("email")?.toString() ?? "",
+      courseId,
       comment: form.get("comment")?.toString() ?? "",
       status: "new",
       adminNote: "",
       createdAt: now()
     };
     db.applications.unshift(application);
-    db.notifications.push({
-      id: id("note"),
-      recipientUserId: "user_admin",
-      recipientEmail: "admin@example.com",
-      type: "new_application",
-      status: notificationInitialStatus(),
-      payload: `New application from ${application.email}`,
-      createdAt: now(),
-      sentAt: now()
-    });
+    const applicantName = `${application.firstName} ${application.lastName}`.trim() || application.email;
+    const adminNotes = db.users
+      .filter((item) => item.role === "admin" && item.status === "active")
+      .map((admin) => ({
+        id: id("note"),
+        recipientUserId: admin.id,
+        recipientEmail: admin.email,
+        type: "new_application",
+        status: notificationInitialStatus(),
+        payload: `${student ? "Student course request" : "New application"}: ${applicantName} (${application.email}) requested ${course.title}.`,
+        createdAt: now(),
+        sentAt: ""
+      }));
+    db.notifications.push(...adminNotes);
+    if (smtpConfigured()) await Promise.all(adminNotes.map((note) => deliverNotification(note)));
     saveDb(db);
     redirect(response, "/apply?success=1");
     return;
@@ -5963,6 +6269,32 @@ async function handlePost(request, response, pathname, user) {
         const sortOrder = Number(form.get(`homeSortOrder:${course.id}`));
         course.homeSortOrder = Number.isFinite(sortOrder) && sortOrder > 0 ? Math.round(sortOrder) : 999;
       }
+      saveDb(db);
+      redirect(response, "/admin/homepage");
+      return;
+    }
+
+    if (pathname === "/admin/homepage/footer") {
+      if (!isFullAdmin(admin)) {
+        redirect(response, "/admin");
+        return;
+      }
+      db.settings ??= {};
+      db.settings.homeFooter = {
+        policiesTitle: form.get("policiesTitle")?.toString().trim() ?? "",
+        termsLabel: form.get("termsLabel")?.toString().trim() ?? "",
+        termsUrl: form.get("termsUrl")?.toString().trim() ?? "",
+        privacyLabel: form.get("privacyLabel")?.toString().trim() ?? "",
+        privacyUrl: form.get("privacyUrl")?.toString().trim() ?? "",
+        userPolicyLabel: form.get("userPolicyLabel")?.toString().trim() ?? "",
+        userPolicyUrl: form.get("userPolicyUrl")?.toString().trim() ?? "",
+        feedbackTitle: form.get("feedbackTitle")?.toString().trim() ?? "",
+        namePlaceholder: form.get("namePlaceholder")?.toString().trim() ?? "",
+        emailPlaceholder: form.get("emailPlaceholder")?.toString().trim() ?? "",
+        subjectPlaceholder: form.get("subjectPlaceholder")?.toString().trim() ?? "",
+        messagePlaceholder: form.get("messagePlaceholder")?.toString().trim() ?? "",
+        submitLabel: form.get("submitLabel")?.toString().trim() ?? ""
+      };
       saveDb(db);
       redirect(response, "/admin/homepage");
       return;
@@ -6317,6 +6649,11 @@ async function handlePost(request, response, pathname, user) {
         send(response, adminShell(admin, "Курсы", `<section class="section"><div class="notice danger">${escapeHtml(savedImage.message)}</div><a class="button" href="/admin/courses">Вернуться к курсам</a></section>`), 400);
         return;
       }
+      updateCourseCatalogMetadata(course, {
+        category: form.get("catalogCategory")?.toString() ?? "",
+        positions: form.getAll("catalogPositions").map((value) => value.toString()),
+        author: form.get("catalogAuthor")?.toString() ?? ""
+      });
       if (course.showOnHome) {
         db.settings ??= {};
         db.settings.homepageCourseSelectionEnabled = true;
@@ -6335,6 +6672,11 @@ async function handlePost(request, response, pathname, user) {
         course.shortDescription = form.get("shortDescription")?.toString() ?? course.shortDescription;
         course.fullDescription = form.get("fullDescription")?.toString() ?? "";
         course.goals = form.get("goals")?.toString() ?? "";
+        updateCourseCatalogMetadata(course, {
+          category: form.get("catalogCategory")?.toString() ?? "",
+          positions: form.getAll("catalogPositions").map((value) => value.toString()),
+          author: form.get("catalogAuthor")?.toString() ?? ""
+        });
         course.oldPrice = normalizeCoursePrice(form.get("oldPrice"));
         course.newPrice = normalizeCoursePrice(form.get("newPrice"));
         course.status = form.get("status")?.toString() ?? course.status;
@@ -6805,7 +7147,7 @@ async function handlePost(request, response, pathname, user) {
       assignment.status = "test_failed";
     }
     saveDb(db);
-    redirect(response, `/dashboard/courses/${assignment.id}`);
+    redirect(response, `/dashboard/courses/${assignment.id}#test-result`);
     return;
   }
 
@@ -6822,6 +7164,11 @@ async function handleRequest(request, response) {
 
   if (request.method === "GET" && pathname.startsWith("/uploads/")) {
     serveUpload(request, response, user, pathname.slice("/uploads/".length));
+    return;
+  }
+
+  if (request.method === "GET" && pathname.startsWith("/assets/")) {
+    servePublicAsset(response, pathname.slice("/assets/".length));
     return;
   }
 
@@ -6843,10 +7190,15 @@ async function handleRequest(request, response) {
     return;
   }
 
-  if (pathname === "/") return send(response, homePage(user));
+  if (pathname === "/") return send(response, homePage(user, url.searchParams.get("feedback") === "1"));
   if (pathname === "/login") return send(response, loginPage(user, url.searchParams.get("notice") ?? ""));
   if (pathname === "/forgot-password") return send(response, forgotPasswordPage(user, url.searchParams.get("success") === "1"));
   if (pathname === "/reset-password") return send(response, resetPasswordPage(url.searchParams.get("token") ?? "", url.searchParams.get("error") ?? ""));
+  if (pathname === "/blog") return send(response, blogPage(user));
+  if (pathname === "/contacts") return send(response, contactsPage(user));
+  if (pathname === "/terms") return send(response, policyPage(user, homeFooterSettings().termsLabel));
+  if (pathname === "/privacy") return send(response, policyPage(user, homeFooterSettings().privacyLabel));
+  if (pathname === "/user-policy") return send(response, policyPage(user, homeFooterSettings().userPolicyLabel));
   if (pathname === "/apply") return send(response, applyPage(user, url.searchParams.get("success") === "1", url.searchParams.get("courseId") ?? ""));
   if (pathname === "/courses") return send(response, publicCoursesCatalog(user, url.searchParams));
   const publicCourseMatch = pathname.match(/^\/courses\/([^/]+)$/);
@@ -6918,6 +7270,11 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/certificates") return send(response, adminCertificates(admin, url.searchParams));
     if (pathname === "/admin/notifications") return send(response, adminNotifications(admin, url.searchParams));
     if (pathname === "/admin/audit") return send(response, adminAudit(admin, url.searchParams));
+    const auditDetailMatch = pathname.match(/^\/admin\/audit\/([^/]+)$/);
+    if (auditDetailMatch) {
+      const event = (db.auditEvents ?? []).find((item) => item.id === auditDetailMatch[1]);
+      return send(response, event ? adminAuditDetail(admin, event) : adminShell(admin, "Не найдено", `<section class="section"><div class="notice">Запись аудита не найдена.</div></section>`), event ? 200 : 404);
+    }
     const adminUserMatch = pathname.match(/^\/admin\/users\/([^/]+)$/);
     if (adminUserMatch) {
       const student = db.users.find((item) => item.id === decodeURIComponent(adminUserMatch[1]) && item.role === "student");

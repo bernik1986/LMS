@@ -18,6 +18,7 @@ prisma/dev.db-journal
 imports/wordpress/output/
 data/db.json
 data/uploads
+data/test-artifacts
 .deploy-keys
 .deploy-tools
 .deploy
