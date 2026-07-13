@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { once } from "node:events";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -8,8 +8,18 @@ const suppliedBaseUrl = process.env.TEST_BASE_URL?.replace(/\/$/, "");
 const port = Number(process.env.TEST_PORT ?? 4300 + (Date.now() % 1000));
 const baseUrl = suppliedBaseUrl ?? `http://127.0.0.1:${port}`;
 const dbPath = resolve(process.env.LMS_DB_PATH ?? resolve("data/test-artifacts", `regression-${runId}.json`));
+const imoFixturePath = resolve("data/test-artifacts", `imo-news-${runId}.html`);
 const csrfTokens = new Map();
 let assertions = 0;
+
+function createImoNewsFixture() {
+  const cards = Array.from({ length: 22 }, (_, index) => {
+    const day = String(index + 1).padStart(2, "0");
+    return `<div><img src="https://wwwcdn.imo.org/localresources/test-${index + 1}.jpg"><span class="badge badge-primary">${day} January 2026</span><h3 class="card-title"><a href="/en/MediaCentre/PressBriefings/pages/test-${index + 1}.aspx">IMO fixture news ${index + 1}</a></h3><p class="card-text">Official fixture summary ${index + 1}</p></div>`;
+  }).reverse().join("\n");
+  mkdirSync(resolve("data/test-artifacts"), { recursive: true });
+  writeFileSync(imoFixturePath, cards, "utf8");
+}
 
 function assert(condition, message) {
   assertions += 1;
@@ -84,6 +94,7 @@ async function stopServer(server) {
 }
 
 async function run() {
+  createImoNewsFixture();
   const server = suppliedBaseUrl ? null : spawn(process.execPath, ["scripts/lms-server.mjs"], {
     cwd: resolve("."),
     env: {
@@ -93,6 +104,7 @@ async function run() {
       PUBLIC_BASE_URL: baseUrl,
       LMS_STORAGE: "json",
       LMS_DB_PATH: dbPath,
+      IMO_NEWS_FIXTURE_PATH: imoFixturePath,
       SMTP_HOST: "",
       SMTP_FROM: ""
     },
@@ -112,6 +124,14 @@ async function run() {
     for (const path of ["/blog", "/contacts", "/terms", "/privacy", "/user-policy"]) {
       const page = await request(path);
       assert(page.response.status === 200, `${path} is unavailable`);
+    }
+    if (!suppliedBaseUrl) {
+      const blog = await request("/blog");
+      const cardCount = (blog.body.match(/class="imo-news-card"/g) ?? []).length;
+      assert(cardCount === 20, `Blog should show 20 IMO news cards, got ${cardCount}`);
+      assert(blog.body.includes("22 January 2026") && blog.body.includes("IMO fixture news 22"), "Latest IMO news is missing from the blog");
+      assert(!blog.body.includes(">IMO fixture news 2</h2>"), "Blog includes news outside the latest 20");
+      assert(blog.body.indexOf("IMO fixture news 22") < blog.body.indexOf("IMO fixture news 21"), "IMO news is not ordered newest first");
     }
     const anonymousDashboard = await request("/dashboard");
     assert(anonymousDashboard.response.status === 303 && anonymousDashboard.response.headers.get("location")?.startsWith("/login"), "Anonymous user can access the dashboard");
@@ -133,30 +153,41 @@ async function run() {
 
     const alphaTitle = `Regression Navigation ${runId}`;
     const betaTitle = `Regression Safety ${runId}`;
-    for (const title of [alphaTitle, betaTitle]) {
-      const { response } = await postForm("/admin/courses/create", { title, shortDescription: "Regression course", goals: "Regression" }, adminCookie);
+    const removableTitle = `Regression Removable ${runId}`;
+    const alphaDescription = `Course list description ${runId}`;
+    for (const title of [alphaTitle, betaTitle, removableTitle]) {
+      const { response } = await postForm("/admin/courses/create", { title, shortDescription: title === alphaTitle ? alphaDescription : "Regression course", goals: "Regression" }, adminCookie);
       assert(response.status === 303, `Course creation did not redirect for ${title}`);
     }
     let database = readDb();
     const alpha = database.courses.find((course) => course.title === alphaTitle);
     const beta = database.courses.find((course) => course.title === betaTitle);
-    assert(alpha && beta, "Regression courses were not created");
+    const removable = database.courses.find((course) => course.title === removableTitle);
+    assert(alpha && beta && removable, "Regression courses were not created");
+    const courseList = await request("/admin/courses", { headers: { cookie: adminCookie } });
+    assert(courseList.body.includes("admin-course-avatar") && !courseList.body.includes(alphaDescription), "Course list should show compact avatars and titles without descriptions");
+    const homepageEditor = await request("/admin/homepage", { headers: { cookie: adminCookie } });
+    assert(homepageEditor.body.includes("admin-course-avatar") && !homepageEditor.body.includes(alphaDescription), "Homepage editor should show compact course avatars without descriptions");
+    const removableEditor = await request(`/admin/courses/${removable.id}`, { headers: { cookie: adminCookie } });
+    assert(removableEditor.body.includes(`/admin/courses/${removable.id}/delete`), "Course editor does not offer deletion for an unused course");
+    await expectRedirect(postForm(`/admin/courses/${removable.id}/delete`, {}, adminCookie), "/admin/courses");
+    assert(!readDb().courses.some((course) => course.id === removable.id), "Unused course was not deleted");
 
     await expectRedirect(postForm(`/admin/courses/${alpha.id}/update`, {
       title: alpha.title, shortDescription: alpha.shortDescription, fullDescription: "", goals: alpha.goals,
       oldPrice: "100", newPrice: "80", status: "active", catalogCategory: "Navigation",
-      catalogPositions: ["Master", "Deck Officer"], catalogAuthor: "Regression Academy", homeSortOrder: 999
+      catalogPositions: ["Master", "Deck Officer"], homeSortOrder: 999
     }, adminCookie), `/admin/courses/${alpha.id}`);
     await expectRedirect(postForm(`/admin/courses/${beta.id}/update`, {
       title: beta.title, shortDescription: beta.shortDescription, fullDescription: "", goals: beta.goals,
       oldPrice: "100", newPrice: "90", status: "active", catalogCategory: "Safety",
-      catalogPositions: ["Engine Officer"], catalogAuthor: "Other Academy", homeSortOrder: 999
+      catalogPositions: ["Engine Officer"], homeSortOrder: 999
     }, adminCookie), `/admin/courses/${beta.id}`);
 
-    const catalog = await request(`/courses?position=Master&category=Navigation&author=${encodeURIComponent("Regression Academy")}`);
+    const catalog = await request("/courses?position=Master&category=Navigation");
     assert(catalog.body.includes(alphaTitle), "Catalog does not show a matching filtered course");
     assert(!catalog.body.includes(betaTitle), "Catalog shows a course outside its filters");
-    assert(catalog.body.includes('name="position"') && catalog.body.includes('name="category"') && catalog.body.includes('name="author"'), "Catalog filters are missing");
+    assert(catalog.body.includes('name="position"') && catalog.body.includes('name="category"') && !catalog.body.includes('name="author"'), "Catalog filters are incorrect");
 
     const applicationsBefore = readDb().applications.length;
     await expectRedirect(postForm("/apply", { courseId: alpha.id, comment: "Request from dashboard" }, studentCookie), "/apply?success=1");
@@ -165,14 +196,19 @@ async function run() {
     assert(database.applications.length === applicationsBefore + 1, "Student application was not saved");
     assert(application.email === "student@example.com" && application.courseId === alpha.id, "Student application did not use profile data");
     assert(database.notifications.some((note) => note.type === "new_application"), "Admin notification was not created for student application");
+    const blockedDelete = await postForm(`/admin/courses/${alpha.id}/delete`, {}, adminCookie);
+    assert(blockedDelete.response.status === 409 && readDb().courses.some((course) => course.id === alpha.id), "Course with a student application can be deleted");
 
     await expectRedirect(postForm("/admin/homepage/footer", {
       policiesTitle: "Regression policies", termsLabel: "Terms", termsUrl: "/terms", privacyLabel: "Privacy", privacyUrl: "/privacy",
       userPolicyLabel: "User policy", userPolicyUrl: "/user-policy", feedbackTitle: "Regression feedback title",
+      termsContent: "Regression terms\nSecond line", privacyContent: "Regression privacy", userPolicyContent: "Regression user policy",
       namePlaceholder: "Name", emailPlaceholder: "Email", subjectPlaceholder: "Subject", messagePlaceholder: "Message", submitLabel: "Send"
     }, adminCookie), "/admin/homepage");
     const configuredHome = await request("/");
     assert(configuredHome.body.includes("Regression feedback title"), "Footer settings were not rendered");
+    const termsPage = await request("/terms");
+    assert(termsPage.body.includes("Regression terms") && termsPage.body.includes("Second line"), "Policy page content was not rendered");
     await expectRedirect(postForm("/feedback", { name: "Regression", email: "feedback@example.com", subject: "Smoke", message: "Footer message" }), "/?feedback=1");
     assert(readDb().notifications.some((note) => note.type === "feedback_message"), "Footer feedback did not notify admins");
 

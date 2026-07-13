@@ -49,7 +49,7 @@ function responseSecurityHeaders(nonce = "") {
   const scriptSource = nonce ? `'self' 'nonce-${nonce}'` : "'self'";
   return {
     ...securityHeaders,
-    "Content-Security-Policy": `default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src ${scriptSource}`
+    "Content-Security-Policy": `default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https://wwwcdn.imo.org; media-src 'self'; font-src 'self' data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src ${scriptSource}`
   };
 }
 const loginAttempts = new Map();
@@ -59,6 +59,7 @@ let saveQueue = Promise.resolve();
 let lastSaveError = null;
 let requestQueue = Promise.resolve();
 let persistedDb = null;
+let imoNewsCache = { items: [], fetchedAt: 0 };
 
 const baseCss = readFileSync(cssPath, "utf8");
 const productCss = `
@@ -80,10 +81,20 @@ const productCss = `
 .course-cover.thumb { width: 104px; min-width: 104px; }
 .course-cover.editor { max-width: 420px; }
 .course-title-cell { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; align-items: center; }
+.course-cover.admin-course-avatar { width: 64px; min-width: 64px; aspect-ratio: 1; border-radius: 50%; }
+.course-title-cell.admin-course-title-cell { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; min-width: 220px; }
 .course-price { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin: 4px 0; }
 .course-price-old { color: var(--muted); text-decoration: line-through; font-weight: 800; }
 .course-price-new { color: var(--accent); font-size: 20px; font-weight: 900; }
 .course-price.empty { color: var(--muted); font-weight: 800; }
+.imo-news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; }
+.imo-news-card { display: grid; grid-template-rows: auto 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.imo-news-image { width: 100%; aspect-ratio: 16 / 8.5; object-fit: cover; background: var(--primary-soft); }
+.imo-news-content { display: grid; align-content: start; gap: 16px; padding: 22px; }
+.imo-news-meta { color: var(--accent); font-size: 14px; font-weight: 850; }
+.imo-news-card h2 { margin: 0; font-size: 26px; line-height: 1.22; }
+.imo-news-card p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
+.imo-news-card .small-button { justify-self: start; margin-top: 4px; }
 .course-prices-table th, .course-prices-table td { padding: 8px 10px; }
 .course-prices-table input { min-width: 120px; min-height: 34px; padding: 7px 9px; }
 .course-prices-table .course-name-cell { font-weight: 850; color: var(--primary-strong); min-width: 220px; }
@@ -2332,6 +2343,18 @@ function courseById(courseId) {
   return db.courses.find((course) => course.id === courseId);
 }
 
+function courseDeletionUsage(courseId) {
+  return {
+    assignments: (db.assignments ?? []).filter((assignment) => assignment.courseId === courseId).length,
+    applications: (db.applications ?? []).filter((application) => application.courseId === courseId).length,
+    certificates: (db.certificates ?? []).filter((certificate) => certificate.courseId === courseId).length
+  };
+}
+
+function courseDeletionBlocked(usage) {
+  return usage.assignments > 0 || usage.applications > 0 || usage.certificates > 0;
+}
+
 function lessonById(course, lessonId) {
   return course?.lessons.find((lesson) => lesson.id === lessonId) ?? null;
 }
@@ -2424,17 +2447,12 @@ function coursePositionsFor(course) {
   return Array.isArray(positions) ? positions.filter((position) => coursePositions.includes(position)) : [];
 }
 
-function courseAuthor(course) {
-  return String(courseCatalogMetadata(course).author ?? "").trim();
-}
-
-function updateCourseCatalogMetadata(course, { category = "", positions = [], author = "" }) {
+function updateCourseCatalogMetadata(course, { category = "", positions = [] }) {
   course.source = {
     ...(course.source && typeof course.source === "object" ? course.source : {}),
     catalog: {
       category: courseCategories.includes(category) ? category : "",
-      positions: [...new Set(positions.filter((position) => coursePositions.includes(position)))],
-      author: author.trim()
+      positions: [...new Set(positions.filter((position) => coursePositions.includes(position)))]
     }
   };
 }
@@ -2442,10 +2460,8 @@ function updateCourseCatalogMetadata(course, { category = "", positions = [], au
 function courseCatalogFields(course) {
   const category = courseCategory(course);
   const positions = new Set(coursePositionsFor(course));
-  const author = courseAuthor(course);
   return `<div class="admin-edit-grid">
     <div class="field"><label>Категория</label><select name="catalogCategory"><option value="">Не выбрана</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></div>
-    <div class="field"><label>Автор</label><input name="catalogAuthor" value="${escapeHtml(author)}" placeholder="Например, Maritime Learning Academy" /></div>
   </div>
   <fieldset class="course-audience-fields"><legend>Подходит для должностей</legend><div class="course-audience-options">${coursePositions.map((position) => `<label class="checkbox-row"><input name="catalogPositions" type="checkbox" value="${escapeHtml(position)}" ${positions.has(position) ? "checked" : ""} /> ${escapeHtml(position)}</label>`).join("")}</div></fieldset>`;
 }
@@ -2474,10 +2490,13 @@ function homeFooterSettings() {
     policiesTitle: String(saved?.policiesTitle ?? "Policies"),
     termsLabel: String(saved?.termsLabel ?? "Terms & Conditions"),
     termsUrl: String(saved?.termsUrl ?? "/terms"),
+    termsContent: String(saved?.termsContent ?? "The terms and conditions for using this platform will be published here."),
     privacyLabel: String(saved?.privacyLabel ?? "Privacy"),
     privacyUrl: String(saved?.privacyUrl ?? "/privacy"),
+    privacyContent: String(saved?.privacyContent ?? "The privacy policy for this platform will be published here."),
     userPolicyLabel: String(saved?.userPolicyLabel ?? "User Policy"),
     userPolicyUrl: String(saved?.userPolicyUrl ?? "/user-policy"),
+    userPolicyContent: String(saved?.userPolicyContent ?? "The user policy for this platform will be published here."),
     feedbackTitle: String(saved?.feedbackTitle ?? "For any queries please use provided feedback form"),
     namePlaceholder: String(saved?.namePlaceholder ?? "Your Name"),
     emailPlaceholder: String(saved?.emailPlaceholder ?? "my.email@site.com"),
@@ -2615,17 +2634,14 @@ function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
   const sort = searchParams.get("sort") === "title_desc" ? "title_desc" : "title_asc";
   const category = courseCategories.includes(searchParams.get("category")) ? searchParams.get("category") : "";
   const position = coursePositions.includes(searchParams.get("position")) ? searchParams.get("position") : "";
-  const author = (searchParams.get("author") ?? "").trim();
-  const catalogParams = { ...params, sort, category, position, author, perPage: Math.min(24, Math.max(6, params.perPage)) };
+  const catalogParams = { ...params, sort, category, position, perPage: Math.min(24, Math.max(6, params.perPage)) };
   const allActiveCourses = db.courses.filter((course) => course.status === "active");
-  const authors = [...new Set(allActiveCourses.map(courseAuthor).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
   const activeCourses = allActiveCourses
     .filter((course) =>
       matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.requirements, course.oldPrice, course.newPrice], params.q)
     )
     .filter((course) => !category || courseCategory(course) === category)
     .filter((course) => !position || coursePositionsFor(course).includes(position) || (position !== "All Seafarers" && coursePositionsFor(course).includes("All Seafarers")))
-    .filter((course) => !author || courseAuthor(course) === author)
     .sort((a, b) => (sort === "title_desc" ? -1 : 1) * a.title.localeCompare(b.title, "ru"));
   const pagination = paginateItems(activeCourses, catalogParams);
   return page(
@@ -2641,7 +2657,6 @@ function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
           <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск по названию или описанию" />
           <label class="field"><span>Подходит для</span><select name="position"><option value="">Все должности</option>${coursePositions.map((item) => `<option value="${escapeHtml(item)}" ${position === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
           <label class="field"><span>Категория</span><select name="category"><option value="">Все категории</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
-          <label class="field"><span>Автор</span><select name="author"><option value="">Все авторы</option>${authors.map((item) => `<option value="${escapeHtml(item)}" ${author === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
           <label class="field"><span>Сортировка</span><select name="sort"><option value="title_asc" ${sort === "title_asc" ? "selected" : ""}>Название: А-Я</option><option value="title_desc" ${sort === "title_desc" ? "selected" : ""}>Название: Я-А</option></select></label>
           <button class="small-button primary" type="submit">Применить</button>
           <a class="small-button" href="/courses">Сбросить</a>
@@ -2960,7 +2975,6 @@ function paginationControls(pathname, params, pagination) {
   if (params.sort) base.set("sort", params.sort);
   if (params.category) base.set("category", params.category);
   if (params.position) base.set("position", params.position);
-  if (params.author) base.set("author", params.author);
   base.set("perPage", String(params.perPage));
   const link = (page, label) => {
     const next = new URLSearchParams(base);
@@ -3332,7 +3346,7 @@ function roleLabel(role) {
 
 function topNav(user) {
   return `<header class="topbar">
-    <a class="brand" href="/"><span class="brand-mark">M</span><span>Marine LMS</span></a>
+    <a class="brand" href="/" aria-label="Maritime Portal"><img class="brand-logo" src="/assets/brand/maritime-portal-logo.png" alt="Maritime Portal" /></a>
     <nav class="public-nav" aria-label="Основная навигация">
       <a class="nav-link" href="/courses">Каталог</a>
       <a class="nav-link" href="/blog">Блог</a>
@@ -3485,11 +3499,73 @@ function loginPage(user, notice = "") {
   );
 }
 
-function blogPage(user) {
+const imoOfficialRssUrl = "https://www.imo.org/en/Pages/PressBriefingsRSS.aspx";
+const imoPressBriefingsUrl = "https://www.imo.org/en/mediacentre/pressbriefings/default.aspx";
+const imoArchiveUrls = [
+  "https://www.imo.org/en/mediacentre/pressbriefings/pages/2025-archives.aspx?page=1",
+  "https://www.imo.org/en/mediacentre/pressbriefings/pages/2025-archives.aspx?page=2"
+];
+const imoNewsCacheTtlMs = 15 * 60 * 1000;
+const imoNewsFixturePath = process.env.IMO_NEWS_FIXTURE_PATH ?? "";
+
+function imoNewsItemsFromPage(html) {
+  const items = [];
+  const pattern = /<img\b[^>]*\bsrc="([^"]+)"[^>]*>[\s\S]*?<span[^>]*class="badge[^"]*"[^>]*>([\s\S]*?)<\/span>[\s\S]*?<h3[^>]*class="card-title"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<p[^>]*class="card-text"[^>]*>([\s\S]*?)<\/p>/gi;
+  for (const match of html.matchAll(pattern)) {
+    const imageUrl = new URL(match[1], imoPressBriefingsUrl).toString();
+    const url = new URL(match[3], imoPressBriefingsUrl).toString();
+    if (!imageUrl.startsWith("https://wwwcdn.imo.org/") || !url.startsWith("https://www.imo.org/")) continue;
+    const title = decodeHtmlText(match[4]);
+    if (!title) continue;
+    items.push({ imageUrl, date: decodeHtmlText(match[2]), title, summary: decodeHtmlText(match[5]), url });
+  }
+  return items;
+}
+
+function latestImoNews(items) {
+  const byUrl = new Map();
+  for (const item of items) byUrl.set(item.url, item);
+  return [...byUrl.values()]
+    .sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0))
+    .slice(0, 20);
+}
+
+async function fetchImoNews() {
+  if (imoNewsCache.items.length && Date.now() - imoNewsCache.fetchedAt < imoNewsCacheTtlMs) return imoNewsCache.items;
+  try {
+    if (imoNewsFixturePath) {
+      const items = latestImoNews(imoNewsItemsFromPage(readFileSync(imoNewsFixturePath, "utf8")));
+      if (!items.length) throw new Error("IMO fixture cards were not found");
+      imoNewsCache = { items, fetchedAt: Date.now() };
+      return items;
+    }
+    // IMO still publishes this official RSS URL, but it can temporarily return 404 after site updates.
+    await fetch(imoOfficialRssUrl, { signal: AbortSignal.timeout(4000), headers: { "user-agent": "Marine-LMS/1.0" } }).catch(() => null);
+    const responses = await Promise.allSettled(
+      [imoPressBriefingsUrl, ...imoArchiveUrls].map(async (url) => {
+        const response = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { "user-agent": "Marine-LMS/1.0" } });
+        if (!response.ok) throw new Error(`IMO response ${response.status}`);
+        return imoNewsItemsFromPage(await response.text());
+      })
+    );
+    const items = latestImoNews(responses.flatMap((response) => (response.status === "fulfilled" ? response.value : [])));
+    if (!items.length) throw new Error("IMO news cards were not found");
+    imoNewsCache = { items, fetchedAt: Date.now() };
+  } catch {
+    // Keep the last successful news set visible during a temporary IMO outage.
+  }
+  return imoNewsCache.items;
+}
+
+async function blogPage(user) {
+  const items = await fetchImoNews();
+  const cards = items
+    .map((item) => `<article class="imo-news-card"><img class="imo-news-image" src="${escapeHtml(item.imageUrl)}" alt="" /><div class="imo-news-content"><div class="imo-news-meta">IMO Press Briefing · ${escapeHtml(item.date)}</div><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p><a class="small-button primary" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Read on IMO</a></div></article>`)
+    .join("");
   return page(
     "Блог",
     user,
-    `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">Блог</span><h1>Материалы Marine LMS</h1><p class="lead">Новости обучения и полезные материалы для морских специалистов.</p></div><a class="button secondary" href="/courses">Открыть каталог</a></div><article class="panel"><p class="muted">Первые публикации будут добавлены сюда.</p></article></section></main>`
+    `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">International Maritime Organization</span><h1>Maritime news</h1><p class="lead">Latest official IMO press briefings on shipping, safety, seafarers and the marine environment.</p></div><a class="button secondary" href="${imoPressBriefingsUrl}" target="_blank" rel="noopener noreferrer">IMO Press Briefings</a></div>${cards ? `<div class="imo-news-grid">${cards}</div>` : `<article class="panel"><p class="muted">Official IMO news is temporarily unavailable. Please try again shortly.</p></article>`}</section></main>`
   );
 }
 
@@ -3502,11 +3578,17 @@ function contactsPage(user) {
   );
 }
 
-function policyPage(user, title) {
+function policyPage(user, title, content) {
+  const paragraphs = String(content ?? "")
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`)
+    .join("");
   return page(
     title,
     user,
-    `<main class="page"><section class="section"><div><span class="eyebrow">Policies</span><h1>${escapeHtml(title)}</h1><p class="lead">The policy text will be published here.</p></div><a class="button secondary" href="/">Back to home</a></section></main>`
+    `<main class="page"><section class="section"><div><span class="eyebrow">Policies</span><h1>${escapeHtml(title)}</h1></div><article class="panel stack policy-content">${paragraphs || "<p>Policy text has not been added yet.</p>"}</article><a class="button secondary" href="/">Back to home</a></section></main>`
   );
 }
 
@@ -4527,7 +4609,7 @@ function adminHomepage(user) {
             .map(
               (course) => `<tr>
                 <td><label class="checkbox-row"><input name="showOnHome" type="checkbox" value="${course.id}" ${course.showOnHome ? "checked" : ""} /> На главной</label></td>
-                <td><div class="course-title-cell">${courseCoverHtml(course, "thumb")}<div><strong>${escapeHtml(course.title)}</strong><br><span class="muted">${escapeHtml(course.shortDescription)}</span></div></div></td>
+                <td><div class="course-title-cell admin-course-title-cell">${courseCoverHtml(course, "admin-course-avatar")}<strong>${escapeHtml(course.title)}</strong></div></td>
                 <td>${badge(course.status)}</td>
                 <td><input name="homeSortOrder:${course.id}" type="number" min="1" value="${courseHomeSortValue(course)}" /></td>
               </tr>`
@@ -4550,6 +4632,9 @@ function adminHomepage(user) {
           <div class="field"><label>Текст ссылки 3</label><input name="userPolicyLabel" value="${escapeHtml(footer.userPolicyLabel)}" required /></div>
           <div class="field"><label>Ссылка 3</label><input name="userPolicyUrl" value="${escapeHtml(footer.userPolicyUrl)}" required /></div>
         </div>
+        <div class="field"><label>Текст страницы «${escapeHtml(footer.termsLabel)}»</label><textarea name="termsContent" rows="8">${escapeHtml(footer.termsContent)}</textarea></div>
+        <div class="field"><label>Текст страницы «${escapeHtml(footer.privacyLabel)}»</label><textarea name="privacyContent" rows="8">${escapeHtml(footer.privacyContent)}</textarea></div>
+        <div class="field"><label>Текст страницы «${escapeHtml(footer.userPolicyLabel)}»</label><textarea name="userPolicyContent" rows="8">${escapeHtml(footer.userPolicyContent)}</textarea></div>
         <div class="admin-edit-grid">
           <div class="field"><label>Подсказка имени</label><input name="namePlaceholder" value="${escapeHtml(footer.namePlaceholder)}" required /></div>
           <div class="field"><label>Подсказка e-mail</label><input name="emailPlaceholder" value="${escapeHtml(footer.emailPlaceholder)}" required /></div>
@@ -4602,7 +4687,7 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
         <thead><tr><th>Курс</th><th>Цена</th><th>Главная</th><th>Статус</th><th>Материалы</th><th>Тест</th><th>Действия</th></tr></thead>
         <tbody>${pagination.items
           .map((course) => `<tr>
-            <td><div class="course-title-cell">${courseCoverHtml(course, "thumb")}<div><strong>${escapeHtml(course.title)}</strong><br><span class="muted">${escapeHtml(course.shortDescription)}</span></div></div></td>
+            <td><div class="course-title-cell admin-course-title-cell">${courseCoverHtml(course, "admin-course-avatar")}<strong>${escapeHtml(course.title)}</strong></div></td>
             <td>${coursePriceHtml(course, { showEmpty: true })}</td>
             <td>${course.showOnHome ? `<span class="status-pill">Показ</span><br><span class="muted">#${courseHomeSortValue(course)}</span>` : `<span class="muted">Нет</span>`}</td>
             <td>${badge(course.status)}</td>
@@ -4816,6 +4901,12 @@ function adminFiles(user, searchParams = new URLSearchParams()) {
 function adminCourseDetail(user, course) {
   const previewCertificate = sampleCertificateForCourse(course);
   const certificateDesignerBlock = certificateDesignerEditorHtml(course, previewCertificate);
+  const deletionUsage = courseDeletionUsage(course.id);
+  const deletionDetails = [
+    deletionUsage.assignments ? `назначений: ${deletionUsage.assignments}` : "",
+    deletionUsage.applications ? `заявок: ${deletionUsage.applications}` : "",
+    deletionUsage.certificates ? `сертификатов: ${deletionUsage.certificates}` : ""
+  ].filter(Boolean).join(", ");
   return adminShell(
     user,
     course.title,
@@ -4845,6 +4936,12 @@ function adminCourseDetail(user, course) {
         <div class="field"><label>Статус</label><select name="status"><option value="active" ${course.status === "active" ? "selected" : ""}>Активен</option><option value="inactive" ${course.status === "inactive" ? "selected" : ""}>Отключен</option></select></div>
         <button class="button" type="submit">Сохранить</button>
       </form>
+      ${isFullAdmin(user) ? `<article class="panel stack">
+        <h2>Удаление курса</h2>
+        ${courseDeletionBlocked(deletionUsage)
+          ? `<p class="muted">Курс нельзя удалить: ${escapeHtml(deletionDetails)}. Сначала удалите или перенесите связанные данные.</p>`
+          : `<p class="muted">Удаление безвозвратно удалит курс, уроки, материалы и тест.</p><form method="post" action="/admin/courses/${course.id}/delete" onsubmit="return confirm('Удалить курс безвозвратно?');"><button class="small-button danger" type="submit">Удалить курс</button></form>`}
+      </article>` : ""}
       <article class="panel certificate-template">
         <h2>Шаблон сертификата</h2>
         <p class="muted">Срок действия сертификата всегда рассчитывается автоматически: дата выдачи плюс 5 лет.</p>
@@ -5466,6 +5563,7 @@ function auditActionLabel(action = "") {
   if (/^\/admin\/users\/[^/]+\/photo$/.test(action)) return "Обновлено фото пользователя";
   if (/^\/admin\/users\/[^/]+\/delete$/.test(action)) return "Удален пользователь";
   if (/^\/admin\/courses\/[^/]+\/update$/.test(action)) return "Изменена информация о курсе";
+  if (/^\/admin\/courses\/[^/]+\/delete$/.test(action)) return "Удален курс";
   if (/^\/admin\/courses\/[^/]+\/certificate-template$/.test(action)) return "Изменен шаблон сертификата курса";
   if (/^\/admin\/courses\/[^/]+\/certificate-designer$/.test(action)) return "Изменен визуальный шаблон сертификата";
   if (/^\/admin\/courses\/[^/]+\/lessons\/create$/.test(action)) return "Добавлен урок";
@@ -6284,10 +6382,13 @@ async function handlePost(request, response, pathname, user) {
         policiesTitle: form.get("policiesTitle")?.toString().trim() ?? "",
         termsLabel: form.get("termsLabel")?.toString().trim() ?? "",
         termsUrl: form.get("termsUrl")?.toString().trim() ?? "",
+        termsContent: form.get("termsContent")?.toString().trim() ?? "",
         privacyLabel: form.get("privacyLabel")?.toString().trim() ?? "",
         privacyUrl: form.get("privacyUrl")?.toString().trim() ?? "",
+        privacyContent: form.get("privacyContent")?.toString().trim() ?? "",
         userPolicyLabel: form.get("userPolicyLabel")?.toString().trim() ?? "",
         userPolicyUrl: form.get("userPolicyUrl")?.toString().trim() ?? "",
+        userPolicyContent: form.get("userPolicyContent")?.toString().trim() ?? "",
         feedbackTitle: form.get("feedbackTitle")?.toString().trim() ?? "",
         namePlaceholder: form.get("namePlaceholder")?.toString().trim() ?? "",
         emailPlaceholder: form.get("emailPlaceholder")?.toString().trim() ?? "",
@@ -6651,8 +6752,7 @@ async function handlePost(request, response, pathname, user) {
       }
       updateCourseCatalogMetadata(course, {
         category: form.get("catalogCategory")?.toString() ?? "",
-        positions: form.getAll("catalogPositions").map((value) => value.toString()),
-        author: form.get("catalogAuthor")?.toString() ?? ""
+        positions: form.getAll("catalogPositions").map((value) => value.toString())
       });
       if (course.showOnHome) {
         db.settings ??= {};
@@ -6674,8 +6774,7 @@ async function handlePost(request, response, pathname, user) {
         course.goals = form.get("goals")?.toString() ?? "";
         updateCourseCatalogMetadata(course, {
           category: form.get("catalogCategory")?.toString() ?? "",
-          positions: form.getAll("catalogPositions").map((value) => value.toString()),
-          author: form.get("catalogAuthor")?.toString() ?? ""
+          positions: form.getAll("catalogPositions").map((value) => value.toString())
         });
         course.oldPrice = normalizeCoursePrice(form.get("oldPrice"));
         course.newPrice = normalizeCoursePrice(form.get("newPrice"));
@@ -6697,6 +6796,33 @@ async function handlePost(request, response, pathname, user) {
       }
       saveDb(db);
       redirect(response, `/admin/courses/${courseUpdateMatch[1]}`);
+      return;
+    }
+
+    const courseDeleteMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/delete$/);
+    if (courseDeleteMatch) {
+      if (!isFullAdmin(admin)) {
+        send(response, adminShell(admin, "Нет доступа", `<section class="section"><div class="notice danger">Удалять курсы может только администратор.</div></section>`), 403);
+        return;
+      }
+      const course = courseById(courseDeleteMatch[1]);
+      if (!course) {
+        redirect(response, "/admin/courses");
+        return;
+      }
+      const usage = courseDeletionUsage(course.id);
+      if (courseDeletionBlocked(usage)) {
+        const details = [
+          usage.assignments ? `назначений: ${usage.assignments}` : "",
+          usage.applications ? `заявок: ${usage.applications}` : "",
+          usage.certificates ? `сертификатов: ${usage.certificates}` : ""
+        ].filter(Boolean).join(", ");
+        send(response, adminShell(admin, "Удаление курса", `<section class="section"><div class="notice danger">Курс «${escapeHtml(course.title)}» нельзя удалить: ${escapeHtml(details)}.</div><a class="button" href="/admin/courses/${course.id}">Вернуться к курсу</a></section>`), 409);
+        return;
+      }
+      db.courses = db.courses.filter((item) => item.id !== course.id);
+      saveDb(db);
+      redirect(response, "/admin/courses");
       return;
     }
 
@@ -7194,11 +7320,11 @@ async function handleRequest(request, response) {
   if (pathname === "/login") return send(response, loginPage(user, url.searchParams.get("notice") ?? ""));
   if (pathname === "/forgot-password") return send(response, forgotPasswordPage(user, url.searchParams.get("success") === "1"));
   if (pathname === "/reset-password") return send(response, resetPasswordPage(url.searchParams.get("token") ?? "", url.searchParams.get("error") ?? ""));
-  if (pathname === "/blog") return send(response, blogPage(user));
+  if (pathname === "/blog") return send(response, await blogPage(user));
   if (pathname === "/contacts") return send(response, contactsPage(user));
-  if (pathname === "/terms") return send(response, policyPage(user, homeFooterSettings().termsLabel));
-  if (pathname === "/privacy") return send(response, policyPage(user, homeFooterSettings().privacyLabel));
-  if (pathname === "/user-policy") return send(response, policyPage(user, homeFooterSettings().userPolicyLabel));
+  if (pathname === "/terms") { const footer = homeFooterSettings(); return send(response, policyPage(user, footer.termsLabel, footer.termsContent)); }
+  if (pathname === "/privacy") { const footer = homeFooterSettings(); return send(response, policyPage(user, footer.privacyLabel, footer.privacyContent)); }
+  if (pathname === "/user-policy") { const footer = homeFooterSettings(); return send(response, policyPage(user, footer.userPolicyLabel, footer.userPolicyContent)); }
   if (pathname === "/apply") return send(response, applyPage(user, url.searchParams.get("success") === "1", url.searchParams.get("courseId") ?? ""));
   if (pathname === "/courses") return send(response, publicCoursesCatalog(user, url.searchParams));
   const publicCourseMatch = pathname.match(/^\/courses\/([^/]+)$/);

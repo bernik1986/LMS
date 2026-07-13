@@ -71,21 +71,15 @@ textarea {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  color: var(--primary-strong);
+  min-width: 0;
 }
 
-.brand-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: var(--radius);
-  background:
-    linear-gradient(135deg, var(--primary-strong), var(--accent));
-  color: white;
-  font-size: 15px;
+.brand-logo {
+  display: block;
+  width: clamp(150px, 18vw, 220px);
+  height: 52px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .nav-links {
@@ -642,6 +636,11 @@ h3 {
     display: flex;
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .brand-logo {
+    width: 170px;
+    height: 44px;
   }
 
   .public-nav,
