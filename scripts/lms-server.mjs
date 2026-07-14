@@ -817,6 +817,30 @@ function cleanCertificateDesignerText(value, fallback = "") {
   return text.slice(0, 500);
 }
 
+function isCustomCertificateDesignerFieldKey(value) {
+  return /^custom_text_[a-z0-9_]{1,48}$/i.test(String(value ?? ""));
+}
+
+function normalizeCustomCertificateDesignerField(field, index) {
+  const fallbackLabel = `Text field ${index + 1}`;
+  return {
+    key: String(field.key),
+    label: cleanCertificateDesignerText(field.label, fallbackLabel).slice(0, 80) || fallbackLabel,
+    x: clampNumber(field.x, 0, 98, 18),
+    y: clampNumber(field.y, 0, 98, 20 + index * 6),
+    width: clampNumber(field.width, 2, 100, 50),
+    height: clampNumber(field.height, 2, 100, 6),
+    fontSize: clampNumber(field.fontSize, 6, 96, 18),
+    color: cleanColor(field.color, "#0d1b2a"),
+    align: cleanAlign(field.align),
+    fontWeight: cleanFontWeight(field.fontWeight),
+    visible: field.visible === undefined ? true : Boolean(field.visible),
+    editableText: true,
+    isCustomText: true,
+    text: cleanCertificateDesignerText(field.text, "New text")
+  };
+}
+
 function cleanBackgroundUrl(value = "") {
   const text = String(value ?? "").trim();
   return text.startsWith("/uploads/") ? text : "";
@@ -853,7 +877,13 @@ function normalizeCertificateDesigner(input = {}) {
   const existing = input && typeof input === "object" ? input : {};
   const backgroundUrl = cleanBackgroundUrl(existing.backgroundUrl);
   const stampUrl = cleanStampUrl(existing.stampUrl);
-  const fieldsByKey = new Map((Array.isArray(existing.fields) ? existing.fields : []).map((field) => [field.key, field]));
+  const inputFields = Array.isArray(existing.fields) ? existing.fields : [];
+  const fieldsByKey = new Map(inputFields.map((field) => [field.key, field]));
+  const customFields = inputFields
+    .filter((field) => isCustomCertificateDesignerFieldKey(field?.key))
+    .filter((field, index, fields) => fields.findIndex((item) => item.key === field.key) === index)
+    .slice(0, 30)
+    .map(normalizeCustomCertificateDesignerField);
   return {
     version: 2,
     backgroundUrl,
@@ -861,7 +891,7 @@ function normalizeCertificateDesigner(input = {}) {
     stampUrl,
     pageWidth: clampNumber(existing.pageWidth, 100, 5000, 1123),
     pageHeight: clampNumber(existing.pageHeight, 100, 5000, 794),
-    fields: certificateDesignerFieldDefinitions().map((definition) => {
+    fields: [...certificateDesignerFieldDefinitions().map((definition) => {
       const field = fieldsByKey.get(definition.key) ?? {};
       return {
         key: definition.key,
@@ -878,7 +908,7 @@ function normalizeCertificateDesigner(input = {}) {
         editableText: Boolean(definition.editableText),
         ...(definition.editableText ? { text: cleanCertificateDesignerText(field.text, definition.text) } : {})
       };
-    })
+    }), ...customFields]
   };
 }
 
@@ -1102,8 +1132,10 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
                 <div class="field"><label>Align</label><select data-field-align><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
                 <div class="field"><label>Weight</label><select data-field-weight><option value="400">400</option><option value="500">500</option><option value="600">600</option><option value="700">700</option><option value="800">800</option><option value="900">900</option></select></div>
               </div>
+              <div class="field" data-custom-text-panel hidden><label>Text content</label><textarea rows="3" maxlength="500" data-field-text placeholder="Enter text for this field"></textarea></div>
               <div class="field"><label>Header text</label><input type="text" maxlength="500" data-designer-header-text placeholder="Enter certificate header" /></div>
               <div class="field"><label>Convention reference</label><textarea rows="3" maxlength="500" data-designer-convention-text placeholder="Enter the convention or standard reference"></textarea></div>
+              <div class="table-actions"><button class="small-button" type="button" data-add-text-field>Add text field</button><button class="small-button danger" type="button" data-remove-text-field disabled>Remove selected text field</button></div>
               <div class="field"><label>PDF or background image</label><input name="backgroundFile" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/gif" /></div>
               <div class="field"><label>Stamp image, always top layer</label><input name="stampFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
               <label class="checkbox-row"><input name="removeStamp" type="checkbox" /> Remove stamp</label>
@@ -1134,6 +1166,9 @@ function certificateDesignerScript() {
   const jsonInput = root.querySelector("[data-designer-json]");
   const canvas = root.querySelector("[data-designer-canvas]");
   const select = root.querySelector("[data-field-select]");
+  const customTextPanel = root.querySelector("[data-custom-text-panel]");
+  const addTextField = root.querySelector("[data-add-text-field]");
+  const removeTextField = root.querySelector("[data-remove-text-field]");
   const inputs = {
     visible: root.querySelector("[data-field-visible]"),
     x: root.querySelector("[data-field-x]"),
@@ -1144,6 +1179,7 @@ function certificateDesignerScript() {
     color: root.querySelector("[data-field-color]"),
     align: root.querySelector("[data-field-align]"),
     fontWeight: root.querySelector("[data-field-weight]"),
+    text: root.querySelector("[data-field-text]"),
     headerText: root.querySelector("[data-designer-header-text]"),
     conventionText: root.querySelector("[data-designer-convention-text]")
   };
@@ -1153,6 +1189,20 @@ function certificateDesignerScript() {
   const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
   function selected() { return byKey(selectedKey) || designer.fields[0]; }
   function fieldNode(key) { return canvas.querySelector('[data-designer-field="' + CSS.escape(key) + '"]'); }
+  function isCustomTextField(field) { return Boolean(field?.isCustomText); }
+  function addOption(field) {
+    const option = document.createElement("option");
+    option.value = field.key;
+    option.textContent = field.label;
+    select.append(option);
+  }
+  function appendFieldNode(field) {
+    const node = document.createElement("div");
+    node.className = "certificate-designer-field align-center";
+    node.dataset.designerField = field.key;
+    canvas.append(node);
+    applyField(field);
+  }
   function applyField(field) {
     const node = fieldNode(field.key);
     if (!node) return;
@@ -1184,6 +1234,9 @@ function certificateDesignerScript() {
     inputs.color.value = field.color;
     inputs.align.value = field.align;
     inputs.fontWeight.value = field.fontWeight;
+    customTextPanel.hidden = !isCustomTextField(field);
+    inputs.text.value = isCustomTextField(field) ? field.text || "" : "";
+    removeTextField.disabled = !isCustomTextField(field);
     inputs.headerText.value = byKey("header")?.text || "";
     inputs.conventionText.value = byKey("convention")?.text || "";
     for (const item of designer.fields) applyField(item);
@@ -1217,6 +1270,19 @@ function certificateDesignerScript() {
     for (const item of designer.fields) applyField(item);
     jsonInput.value = JSON.stringify(designer);
   }
+  function updateCustomText() {
+    const field = selected();
+    if (!isCustomTextField(field)) return;
+    field.text = inputs.text.value.slice(0, 500);
+    field.visible = Boolean(field.text.trim());
+    applyField(field);
+    jsonInput.value = JSON.stringify(designer);
+  }
+  function nextCustomTextKey() {
+    let index = 1;
+    while (byKey("custom_text_" + index)) index += 1;
+    return "custom_text_" + index;
+  }
   select.addEventListener("change", () => { selectedKey = select.value; syncPanel(); });
   const fieldStyleInputs = [
     inputs.visible,
@@ -1231,8 +1297,44 @@ function certificateDesignerScript() {
   ];
   fieldStyleInputs.forEach((input) => input.addEventListener("input", updateFromPanel));
   fieldStyleInputs.forEach((input) => input.addEventListener("change", updateFromPanel));
+  inputs.text.addEventListener("input", updateCustomText);
   inputs.headerText.addEventListener("input", updateStaticText);
   inputs.conventionText.addEventListener("input", updateStaticText);
+  addTextField.addEventListener("click", () => {
+    const number = designer.fields.filter(isCustomTextField).length + 1;
+    const field = {
+      key: nextCustomTextKey(),
+      label: "Text field " + number,
+      x: 18,
+      y: Math.min(90, 20 + number * 6),
+      width: 50,
+      height: 6,
+      fontSize: 18,
+      color: "#0d1b2a",
+      align: "center",
+      fontWeight: "500",
+      visible: true,
+      editableText: true,
+      isCustomText: true,
+      text: "New text"
+    };
+    designer.fields.push(field);
+    addOption(field);
+    appendFieldNode(field);
+    selectedKey = field.key;
+    syncPanel();
+    inputs.text.focus();
+    inputs.text.select();
+  });
+  removeTextField.addEventListener("click", () => {
+    const field = selected();
+    if (!isCustomTextField(field)) return;
+    designer.fields = designer.fields.filter((item) => item.key !== field.key);
+    fieldNode(field.key)?.remove();
+    select.querySelector('option[value="' + CSS.escape(field.key) + '"]')?.remove();
+    selectedKey = designer.fields[0]?.key || "";
+    syncPanel();
+  });
   canvas.addEventListener("pointerdown", (event) => {
     const node = event.target.closest("[data-designer-field]");
     if (!node) return;
