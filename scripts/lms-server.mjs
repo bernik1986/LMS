@@ -170,8 +170,8 @@ const productCss = `
 @media print { .topbar, .sidebar, .actions, .button { display: none !important; } body { background: white; } .certificate { box-shadow: none; } }
 `;
 
-// Price data remains stored for invoices and future re-enablement, but is not shown in the course UI.
-const SHOW_COURSE_PRICES = false;
+// Prices are temporarily hidden only from public visitors while administrators configure them.
+const SHOW_PUBLIC_COURSE_PRICES = false;
 
 function now() {
   return new Date().toISOString();
@@ -2536,7 +2536,7 @@ function normalizeCoursePrice(value) {
 }
 
 function coursePriceHtml(course, options = {}) {
-  if (!SHOW_COURSE_PRICES) return "";
+  if (options.public && !SHOW_PUBLIC_COURSE_PRICES) return "";
   const oldPrice = normalizeCoursePrice(course.oldPrice);
   const newPrice = normalizeCoursePrice(course.newPrice);
   if (!oldPrice && !newPrice) {
@@ -2570,7 +2570,7 @@ function publicCourseDetail(user, course) {
           <div>
             <span class="eyebrow">Course</span>
             <h1>${escapeHtml(course.title)}</h1>
-            ${coursePriceHtml(course)}
+            ${coursePriceHtml(course, { public: true })}
             <p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p>
             <div class="actions">
               <a class="button" href="/apply?courseId=${encodeURIComponent(course.id)}">Apply now</a>
@@ -2625,7 +2625,7 @@ function publicCourseCard(course) {
   return `<article class="card">
     ${courseCoverHtml(course)}
     <h3>${escapeHtml(course.title)}</h3>
-    ${coursePriceHtml(course)}
+    ${coursePriceHtml(course, { public: true })}
     <div class="table-actions">
       <a class="small-button primary" href="${coursePublicUrl(course)}">Details</a>
       <a class="small-button" href="/apply?courseId=${encodeURIComponent(course.id)}">Apply</a>
@@ -3393,7 +3393,7 @@ function adminShell(user, title, body) {
           <a href="/admin/checks">Invoices</a>
           <a href="/admin/tests">Tests</a>
           <a href="/admin/courses">Courses</a>
-          ${SHOW_COURSE_PRICES ? `<a href="/admin/course-prices">Prices</a>` : ""}
+          <a href="/admin/course-prices">Prices</a>
           <a href="/admin/homepage">Home</a>
           <a href="/admin/files">Files</a>
           <a href="/admin/certificates">Certificates</a>
@@ -4664,7 +4664,7 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
     `<section class="section">
       <div class="section-heading">
         <div><span class="eyebrow">Courses</span><h1>Course management</h1><p class="lead">A course consists of lessons, required materials, and a final test.</p></div>
-        <div class="table-actions">${SHOW_COURSE_PRICES ? `<a class="button secondary" href="/admin/course-prices">Course prices</a>` : ""}<a class="button secondary" href="/admin/homepage">Configure home page</a></div>
+        <div class="table-actions"><a class="button secondary" href="/admin/course-prices">Course prices</a><a class="button secondary" href="/admin/homepage">Configure home page</a></div>
       </div>
       <form class="inline-form" method="get" action="/admin/courses">
         <input name="q" value="${escapeHtml(params.q)}" placeholder="Search courses" />
@@ -4675,10 +4675,10 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
         <div class="field"><label>Title</label><input name="title" required /></div>
         <div class="field"><label>Short description</label><textarea name="shortDescription" required></textarea></div>
         <div class="field"><label>Learning objectives</label><textarea name="goals"></textarea></div>
-        ${SHOW_COURSE_PRICES ? `<div class="admin-edit-grid">
+        <div class="admin-edit-grid">
           <div class="field"><label>Old price</label><input name="oldPrice" placeholder="e.g. 250 USD" /></div>
           <div class="field"><label>New price</label><input name="newPrice" placeholder="e.g. 199 USD" /></div>
-        </div>` : ""}
+        </div>
         ${courseCatalogFields({})}
         <div class="field"><label>Course cover</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
         <div class="admin-edit-grid">
@@ -4688,18 +4688,18 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
         <button class="button" type="submit">Create course</button>
       </form>
       <table class="table">
-        <thead><tr><th>Course</th>${SHOW_COURSE_PRICES ? "<th>Price</th>" : ""}<th>Home page</th><th>Status</th><th>Materials</th><th>Test</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Course</th><th>Price</th><th>Home page</th><th>Status</th><th>Materials</th><th>Test</th><th>Actions</th></tr></thead>
         <tbody>${pagination.items
           .map((course) => `<tr>
             <td><div class="course-title-cell admin-course-title-cell">${courseCoverHtml(course, "admin-course-avatar")}<strong>${escapeHtml(course.title)}</strong></div></td>
-            ${SHOW_COURSE_PRICES ? `<td>${coursePriceHtml(course, { showEmpty: true })}</td>` : ""}
+            <td>${coursePriceHtml(course, { showEmpty: true })}</td>
             <td>${course.showOnHome ? `<span class="status-pill">Shown</span><br><span class="muted">#${courseHomeSortValue(course)}</span>` : `<span class="muted">No</span>`}</td>
             <td>${badge(course.status)}</td>
             <td>${requiredMaterials(course).length} required</td>
             <td>${course.test?.questions.length ?? 0} questions, pass mark ${course.test?.passingPercent ?? 0}%</td>
             <td><a class="small-button primary" href="/admin/courses/${course.id}">Edit</a></td>
           </tr>`)
-          .join("") || `<tr><td colspan="${SHOW_COURSE_PRICES ? 7 : 6}"><span class="muted">No courses found.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="7"><span class="muted">No courses found.</span></td></tr>`}</tbody>
       </table>
       ${paginationControls("/admin/courses", params, pagination)}
     </section>`
@@ -4925,10 +4925,10 @@ function adminCourseDetail(user, course) {
         <div class="field"><label>Full description</label><textarea name="fullDescription">${escapeHtml(course.fullDescription || "")}</textarea></div>
         <div class="field"><label>Learning objectives</label><textarea name="goals">${escapeHtml(course.goals || "")}</textarea></div>
         ${courseCatalogFields(course)}
-        ${SHOW_COURSE_PRICES ? `<div class="admin-edit-grid">
+        <div class="admin-edit-grid">
           <div class="field"><label>Old price</label><input name="oldPrice" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="e.g. 250 USD" /></div>
           <div class="field"><label>New price</label><input name="newPrice" value="${escapeHtml(course.newPrice ?? "")}" placeholder="e.g. 199 USD" /></div>
-        </div>` : ""}
+        </div>
         <div class="admin-edit-grid">
           <div class="field"><label>Replace cover image</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
           <label class="checkbox-row"><input name="removeImage" type="checkbox" /> Remove cover image</label>
@@ -6408,10 +6408,6 @@ async function handlePost(request, response, pathname, user) {
     }
 
     if (pathname === "/admin/course-prices/update") {
-      if (!SHOW_COURSE_PRICES) {
-        redirect(response, "/admin/courses");
-        return;
-      }
       if (!isFullAdmin(admin)) {
         redirect(response, "/admin");
         return;
@@ -6786,8 +6782,8 @@ async function handlePost(request, response, pathname, user) {
           category: form.get("catalogCategory")?.toString() ?? "",
           positions: form.getAll("catalogPositions").map((value) => value.toString())
         });
-        if (SHOW_COURSE_PRICES && form.has("oldPrice")) course.oldPrice = normalizeCoursePrice(form.get("oldPrice"));
-        if (SHOW_COURSE_PRICES && form.has("newPrice")) course.newPrice = normalizeCoursePrice(form.get("newPrice"));
+        if (form.has("oldPrice")) course.oldPrice = normalizeCoursePrice(form.get("oldPrice"));
+        if (form.has("newPrice")) course.newPrice = normalizeCoursePrice(form.get("newPrice"));
         course.status = form.get("status")?.toString() ?? course.status;
         const requestedShowOnHome = form.get("showOnHome") === "on";
         const requestedHomeSortOrder = Number(form.get("homeSortOrder")) > 0 ? Math.round(Number(form.get("homeSortOrder"))) : 999;
@@ -7396,8 +7392,8 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
     if (pathname === "/admin/courses") return send(response, adminCourses(admin, url.searchParams));
-    if (pathname === "/admin/course-prices/export.xls") return SHOW_COURSE_PRICES && isFullAdmin(admin) ? sendCoursePricesExcel(response, url.searchParams) : redirect(response, "/admin/courses");
-    if (pathname === "/admin/course-prices") return SHOW_COURSE_PRICES && isFullAdmin(admin) ? send(response, adminCoursePrices(admin, url.searchParams)) : redirect(response, "/admin/courses");
+    if (pathname === "/admin/course-prices/export.xls") return isFullAdmin(admin) ? sendCoursePricesExcel(response, url.searchParams) : send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
+    if (pathname === "/admin/course-prices") return send(response, isFullAdmin(admin) ? adminCoursePrices(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/homepage") return send(response, adminHomepage(admin));
     if (pathname === "/admin/files/import-report.csv") return sendImportQualityCsv(response);
     if (pathname === "/admin/files") return send(response, adminFiles(admin, url.searchParams));
