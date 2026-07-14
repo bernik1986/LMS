@@ -113,6 +113,7 @@ const productCss = `
 .checkbox-row { display: inline-flex; gap: 8px; align-items: center; font-weight: 800; color: var(--primary-strong); }
 .checkbox-list { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); }
 .checkbox-list .checkbox-row { font-size: 13px; }
+.checkbox-list input[type="checkbox"] { width: auto; min-width: 16px; min-height: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--primary); }
 .link-line { color: var(--primary); font-weight: 800; word-break: break-word; }
 .table-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .small-button { display: inline-flex; min-height: 34px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); background: white; color: var(--primary-strong); font-weight: 800; padding: 7px 10px; cursor: pointer; }
