@@ -775,6 +775,8 @@ function renderCertificateTemplate(certificate, template = "") {
 
 function certificateDesignerFieldDefinitions() {
   return [
+    { key: "header", label: "Header", text: "", editableText: true, x: 12, y: 10, width: 76, height: 7, fontSize: 22, color: "#0b4f7a", align: "center", fontWeight: "800", visible: false },
+    { key: "convention", label: "Convention reference", text: "", editableText: true, x: 12, y: 19, width: 76, height: 6, fontSize: 14, color: "#0d1b2a", align: "center", fontWeight: "500", visible: false },
     { key: "fullName", label: "Full name", x: 18, y: 34, width: 64, height: 8, fontSize: 42, color: "#0b4f7a", align: "center", fontWeight: "800", visible: true },
     { key: "courseTitle", label: "Course title", x: 19, y: 52, width: 62, height: 8, fontSize: 28, color: "#06395d", align: "center", fontWeight: "800", visible: true },
     { key: "birthDate", label: "Birth date", x: 24, y: 44, width: 24, height: 4, fontSize: 15, color: "#0d1b2a", align: "center", fontWeight: "500", visible: true },
@@ -808,6 +810,11 @@ function cleanAlign(value) {
 
 function cleanFontWeight(value) {
   return ["400", "500", "600", "700", "800", "900"].includes(String(value)) ? String(value) : "700";
+}
+
+function cleanCertificateDesignerText(value, fallback = "") {
+  const text = String(value ?? fallback).replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  return text.slice(0, 500);
 }
 
 function cleanBackgroundUrl(value = "") {
@@ -867,7 +874,9 @@ function normalizeCertificateDesigner(input = {}) {
         color: cleanColor(field.color, definition.color),
         align: cleanAlign(field.align ?? definition.align),
         fontWeight: cleanFontWeight(field.fontWeight ?? definition.fontWeight),
-        visible: field.visible === undefined ? definition.visible : Boolean(field.visible)
+        visible: field.visible === undefined ? definition.visible : Boolean(field.visible),
+        editableText: Boolean(definition.editableText),
+        ...(definition.editableText ? { text: cleanCertificateDesignerText(field.text, definition.text) } : {})
       };
     })
   };
@@ -931,6 +940,7 @@ function certificateDesignerToken(field, designer = {}) {
   if (field.key === "stampImage") {
     return designer.stampUrl ? `<img class="certificate-stamp" src="${escapeHtml(designer.stampUrl)}" alt="Stamp" />` : "";
   }
+  if (field.editableText) return escapeHtml(field.text || "");
   return `{{${field.key}}}`;
 }
 
@@ -1051,7 +1061,8 @@ function saveCertificateDesignerStamp(course, file) {
 }
 
 function certificateDesignerEditorFieldHtml(field) {
-  return `<div class="${certificateDesignerFieldClasses(field, "certificate-designer-field")} ${field.visible ? "" : "is-hidden"}" data-designer-field="${escapeHtml(field.key)}" style="${certificateDesignerFieldStyle(field)}">${escapeHtml(field.label)}</div>`;
+  const editorText = field.editableText ? field.text || field.label : field.label;
+  return `<div class="${certificateDesignerFieldClasses(field, "certificate-designer-field")} ${field.visible ? "" : "is-hidden"}" data-designer-field="${escapeHtml(field.key)}" style="${certificateDesignerFieldStyle(field)}">${escapeHtml(editorText)}</div>`;
 }
 
 function certificateDesignerEditorHtml(course, previewCertificate) {
@@ -1066,7 +1077,7 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
   const previewClass = certificateShellClass(previewCertificate.certificateHtml, "certificate-preview");
   return `<article class="panel certificate-template">
         <h2>Visual certificate designer</h2>
-        <p class="muted">Upload a certificate PDF or image, drag fields on the canvas, tune size and color, then save.</p>
+        <p class="muted">Upload a certificate PDF or image, add the header and convention reference, drag fields on the canvas, tune size and color, then save.</p>
         <form class="stack" method="post" action="/admin/courses/${course.id}/certificate-designer" enctype="multipart/form-data" data-certificate-designer>
           <textarea name="designerJson" data-designer-json hidden>${designerJson}</textarea>
           <div class="certificate-designer-layout">
@@ -1091,6 +1102,8 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
                 <div class="field"><label>Align</label><select data-field-align><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
                 <div class="field"><label>Weight</label><select data-field-weight><option value="400">400</option><option value="500">500</option><option value="600">600</option><option value="700">700</option><option value="800">800</option><option value="900">900</option></select></div>
               </div>
+              <div class="field"><label>Header text</label><input type="text" maxlength="500" data-designer-header-text placeholder="Enter certificate header" /></div>
+              <div class="field"><label>Convention reference</label><textarea rows="3" maxlength="500" data-designer-convention-text placeholder="Enter the convention or standard reference"></textarea></div>
               <div class="field"><label>PDF or background image</label><input name="backgroundFile" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/gif" /></div>
               <div class="field"><label>Stamp image, always top layer</label><input name="stampFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
               <label class="checkbox-row"><input name="removeStamp" type="checkbox" /> Remove stamp</label>
@@ -1130,7 +1143,9 @@ function certificateDesignerScript() {
     fontSize: root.querySelector("[data-field-font-size]"),
     color: root.querySelector("[data-field-color]"),
     align: root.querySelector("[data-field-align]"),
-    fontWeight: root.querySelector("[data-field-weight]")
+    fontWeight: root.querySelector("[data-field-weight]"),
+    headerText: root.querySelector("[data-designer-header-text]"),
+    conventionText: root.querySelector("[data-designer-convention-text]")
   };
   let designer = JSON.parse(jsonInput.value || "{}");
   let selectedKey = designer.fields?.[0]?.key || "";
@@ -1149,6 +1164,7 @@ function certificateDesignerScript() {
     node.style.color = field.color;
     node.style.fontWeight = field.fontWeight;
     node.style.textAlign = field.align;
+    if (field.editableText) node.textContent = field.text || field.label;
     node.classList.toggle("is-hidden", !field.visible);
     node.classList.toggle("is-selected", field.key === selectedKey);
     node.classList.toggle("align-left", field.align === "left");
@@ -1168,6 +1184,8 @@ function certificateDesignerScript() {
     inputs.color.value = field.color;
     inputs.align.value = field.align;
     inputs.fontWeight.value = field.fontWeight;
+    inputs.headerText.value = byKey("header")?.text || "";
+    inputs.conventionText.value = byKey("convention")?.text || "";
     for (const item of designer.fields) applyField(item);
     jsonInput.value = JSON.stringify(designer);
   }
@@ -1185,9 +1203,36 @@ function certificateDesignerScript() {
     field.fontWeight = inputs.fontWeight.value;
     syncPanel();
   }
+  function updateStaticText() {
+    const header = byKey("header");
+    const convention = byKey("convention");
+    if (header) {
+      header.text = inputs.headerText.value.slice(0, 500);
+      header.visible = Boolean(header.text.trim());
+    }
+    if (convention) {
+      convention.text = inputs.conventionText.value.slice(0, 500);
+      convention.visible = Boolean(convention.text.trim());
+    }
+    for (const item of designer.fields) applyField(item);
+    jsonInput.value = JSON.stringify(designer);
+  }
   select.addEventListener("change", () => { selectedKey = select.value; syncPanel(); });
-  Object.values(inputs).forEach((input) => input.addEventListener("input", updateFromPanel));
-  Object.values(inputs).forEach((input) => input.addEventListener("change", updateFromPanel));
+  const fieldStyleInputs = [
+    inputs.visible,
+    inputs.x,
+    inputs.y,
+    inputs.width,
+    inputs.height,
+    inputs.fontSize,
+    inputs.color,
+    inputs.align,
+    inputs.fontWeight
+  ];
+  fieldStyleInputs.forEach((input) => input.addEventListener("input", updateFromPanel));
+  fieldStyleInputs.forEach((input) => input.addEventListener("change", updateFromPanel));
+  inputs.headerText.addEventListener("input", updateStaticText);
+  inputs.conventionText.addEventListener("input", updateStaticText);
   canvas.addEventListener("pointerdown", (event) => {
     const node = event.target.closest("[data-designer-field]");
     if (!node) return;
@@ -5850,10 +5895,13 @@ function studentTestPage(user, assignment) {
     `<section class="section">
       <div><span class="eyebrow">Test</span><h1>${escapeHtml(course.test.title)}</h1><p class="lead">Choose one correct answer for each question.</p></div>
       ${timeLimitNotice}
-      <form class="stack" method="post" action="/dashboard/tests/${assignment.id}">
+      <form class="stack" method="post" action="/dashboard/tests/${assignment.id}" data-test-wizard>
+        <p class="muted" data-test-progress aria-live="polite"></p>
         ${course.test.questions
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder)
           .map(
-            (question) => `<article class="panel stack">
+            (question, index) => `<article class="panel stack test-step" data-test-step="${index}" ${index ? "hidden" : ""}>
               <h2>${escapeHtml(question.questionText)}</h2>
               ${sortedQuestionOptions(question)
                 .map((option) => `<label class="quiz-option"><input type="${question.type === "multiple_choice" ? "checkbox" : "radio"}" name="${question.id}" value="${option.id}" ${question.type === "multiple_choice" ? "" : "required"} /> ${escapeHtml(option.optionText)}</label>`)
@@ -5861,8 +5909,50 @@ function studentTestPage(user, assignment) {
             </article>`
           )
           .join("")}
-        <button class="button" type="submit">Submit test</button>
+        <div class="table-actions">
+          <button class="small-button" type="button" data-test-previous hidden>Previous</button>
+          <button class="button" type="button" data-test-next>Next</button>
+          <button class="button" type="submit" data-test-submit hidden>Submit test</button>
+        </div>
       </form>
+      <script nonce="{{CSP_NONCE}}">
+        (() => {
+          const form = document.querySelector("[data-test-wizard]");
+          if (!form) return;
+          const steps = [...form.querySelectorAll("[data-test-step]")];
+          const previous = form.querySelector("[data-test-previous]");
+          const next = form.querySelector("[data-test-next]");
+          const submit = form.querySelector("[data-test-submit]");
+          const progress = form.querySelector("[data-test-progress]");
+          let current = 0;
+
+          const showStep = () => {
+            steps.forEach((step, index) => { step.hidden = index !== current; });
+            progress.textContent = "Question " + (current + 1) + " of " + steps.length;
+            previous.hidden = current === 0;
+            next.hidden = current === steps.length - 1;
+            submit.hidden = current !== steps.length - 1;
+            const heading = steps[current]?.querySelector("h2");
+            if (heading) heading.scrollIntoView({ behavior: "smooth", block: "start" });
+          };
+
+          const currentStepIsValid = () => {
+            const required = [...steps[current].querySelectorAll("input[required]")];
+            const invalid = required.find((input) => !input.checkValidity());
+            if (!invalid) return true;
+            invalid.reportValidity();
+            return false;
+          };
+
+          previous.addEventListener("click", () => { current = Math.max(0, current - 1); showStep(); });
+          next.addEventListener("click", () => {
+            if (!currentStepIsValid()) return;
+            current = Math.min(steps.length - 1, current + 1);
+            showStep();
+          });
+          showStep();
+        })();
+      </script>
     </section>`
   );
 }
