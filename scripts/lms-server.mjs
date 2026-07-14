@@ -76,6 +76,7 @@ const productCss = `
 .admin-user-card { display: grid; grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.45fr); gap: 18px; align-items: start; }
 .admin-user-summary { display: grid; gap: 10px; }
 .admin-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.admin-edit-grid .field-wide { grid-column: 1 / -1; }
 .course-cover { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(135deg, var(--primary-soft), var(--surface-muted)); }
 .course-cover.placeholder { display: grid; place-items: center; color: var(--primary-strong); font-weight: 850; }
 .course-cover.thumb { width: 104px; min-width: 104px; }
@@ -4592,6 +4593,45 @@ function adminChecksLegacy(user, searchParams = new URLSearchParams()) {
 
 const invoiceStatuses = ["draft", "issued", "sent", "viewed", "partially_paid", "paid", "overdue", "cancelled"];
 
+function defaultInvoiceTemplate() {
+  return {
+    academyName: "MARITIME LEARNING ACADEMY",
+    academySubtitle: "INSTITUTE OF POSTGRADUATE EDUCATION",
+    address: "Lyustdorfska road 140A, Odesa, Ukraine, 65000",
+    contacts: "Tel: +38 (048) 7933-245-79; E-mail: info@maritimelearning.store",
+    iban: "UA5467556555644443467626354",
+    paymentDetails: "",
+    beneficiaryBank: "JSC CB PRIVATBANK, Kyiv, Ukraine, SWIFT code: PBANUA2X",
+    correspondentBank: "The Bank of New York Mellon, New York, USA, SWIFT/BIC: IRVTUS3N",
+    directorName: "Director",
+    accountantName: "Accountant",
+    footerNote: ""
+  };
+}
+
+function invoiceTemplateValue(value, fallback = "", limit = 500) {
+  const text = String(value ?? fallback).replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  return text.slice(0, limit);
+}
+
+function invoiceTemplateSettings() {
+  db.settings ??= {};
+  const defaults = defaultInvoiceTemplate();
+  const source = db.settings.invoiceTemplate && typeof db.settings.invoiceTemplate === "object" ? db.settings.invoiceTemplate : {};
+  const template = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, invoiceTemplateValue(source[key], fallback)]));
+  db.settings.invoiceTemplate = template;
+  return template;
+}
+
+function updateInvoiceTemplateSettings(form) {
+  const template = invoiceTemplateSettings();
+  for (const key of Object.keys(template)) {
+    template[key] = invoiceTemplateValue(form.get(key)?.toString(), template[key]);
+  }
+  db.settings.invoiceTemplate = template;
+  return template;
+}
+
 function invoiceStatusLabel(status) {
   return {
     draft: "Draft", issued: "Issued", sent: "Sent", viewed: "Viewed",
@@ -4787,9 +4827,35 @@ function invoicePdfPath(invoice) {
   return resolve(uploadsDir, "invoices", `${invoice.id}.pdf`);
 }
 
+function invoiceAmountInWords(amount, currency = "USD") {
+  const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  const underThousand = (value) => {
+    const number = Math.max(0, Math.floor(value));
+    if (number < 20) return ones[number];
+    if (number < 100) return `${tens[Math.floor(number / 10)]}${number % 10 ? `-${ones[number % 10]}` : ""}`;
+    return `${ones[Math.floor(number / 100)]} hundred${number % 100 ? ` ${underThousand(number % 100)}` : ""}`;
+  };
+  const whole = Math.max(0, Math.floor(Number(amount) || 0));
+  const groups = [[1000000000, "billion"], [1000000, "million"], [1000, "thousand"]];
+  let rest = whole;
+  const words = [];
+  for (const [divisor, label] of groups) {
+    if (rest >= divisor) {
+      const group = Math.floor(rest / divisor);
+      words.push(`${underThousand(group)} ${label}`);
+      rest %= divisor;
+    }
+  }
+  if (rest || !words.length) words.push(underThousand(rest));
+  const cents = Math.round(((Number(amount) || 0) - whole) * 100);
+  return `${words.join(" ")} ${currency}${cents ? ` and ${String(Math.abs(cents)).padStart(2, "0")}/100` : ""}`;
+}
+
 function invoicePdfBuffer(invoice) {
   const totals = invoiceTotals(invoice);
   const reportColumns = invoiceSelectedColumns(invoice.columns ?? []);
+  const template = invoiceTemplateSettings();
   return new Promise((resolvePdf, rejectPdf) => {
     const doc = new PDFDocument({ size: "A4", layout: reportColumns.length > 6 ? "landscape" : "portrait", margin: 34 });
     const chunks = [];
@@ -4798,15 +4864,33 @@ function invoicePdfBuffer(invoice) {
     doc.on("error", rejectPdf);
     const font = ["C:/Windows/Fonts/arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"].find(existsSync);
     if (font) doc.font(font);
-    doc.fillColor("#06395d").fontSize(24).text("MARINE LMS", { align: "right" });
-    doc.fillColor("#0d1b2a").fontSize(20).text(`INVOICE ${invoice.number}`);
-    doc.fontSize(10).fillColor("#587087").text(`Issue date: ${formatDate(invoice.issueDate)}    Due date: ${formatDate(invoice.dueDate)}`);
-    doc.text(`Status: ${invoiceStatusLabel(invoice.status)}    Period: ${invoice.period?.from || "-"} - ${invoice.period?.to || "-"}`);
-    doc.moveDown();
-    doc.fillColor("#0d1b2a").fontSize(12).text(`Recipient: ${invoice.recipientName || "Not specified"}`);
+    doc.fillColor("#06395d").fontSize(17).text(template.academyName, { align: "center" });
+    if (template.academySubtitle) doc.fontSize(10).text(template.academySubtitle, { align: "center" });
+    doc.fillColor("#587087").fontSize(8).text(template.address, { align: "center" });
+    doc.text(template.contacts, { align: "center" });
+    doc.moveDown(0.6);
+    doc.fillColor("#0d1b2a").fontSize(20).text("INVOICE", { align: "right" });
+    doc.fontSize(10).text(`INVOICE No: ${invoice.number}`, { align: "right" });
+    doc.text(`DATE: ${formatDate(invoice.issueDate)}`, { align: "right" });
+    doc.moveDown(0.4);
+    if (template.iban) doc.fontSize(9).text(`IBAN: ${template.iban}`);
+    doc.fontSize(12).fillColor("#0d1b2a").text(`INVOICE TO: ${invoice.recipientName || invoice.recipientCompany || "Not specified"}`);
     if (invoice.recipientEmail) doc.text(`E-mail: ${invoice.recipientEmail}`);
     if (invoice.recipientCompany) doc.text(`Company: ${invoice.recipientCompany}`);
-    doc.moveDown(0.7);
+    doc.fontSize(8).fillColor("#587087").text(`Status: ${invoiceStatusLabel(invoice.status)}    Period: ${invoice.period?.from || "-"} - ${invoice.period?.to || "-"}`);
+    doc.moveDown(0.55);
+    const paymentRows = [
+      ["Details of payment", template.paymentDetails],
+      ["Beneficiary's bank", template.beneficiaryBank],
+      ["Correspondent bank", template.correspondentBank]
+    ].filter(([, value]) => value);
+    for (const [label, value] of paymentRows) {
+      const paymentY = doc.y;
+      doc.fillColor("#06395d").fontSize(8).text(label, 34, paymentY, { width: 125 });
+      doc.fillColor("#0d1b2a").text(value, 162, paymentY, { width: doc.page.width - 196 });
+      doc.y = Math.max(doc.y, paymentY + 15);
+    }
+    if (paymentRows.length) doc.moveDown(0.45);
     const tableLeft = 34;
     const tableWidth = doc.page.width - tableLeft * 2;
     const columnWidth = tableWidth / reportColumns.length;
@@ -4833,7 +4917,14 @@ function invoicePdfBuffer(invoice) {
     for (const [label, amount] of [["Subtotal", totals.subtotal], ["Discount", -(totals.lineDiscount + totals.invoiceDiscount)], ["Extra charge", totals.extraCharge], [`VAT ${invoice.vatRate || 0}%`, totals.vatAmount], ["TOTAL", totals.total]]) {
       doc.text(label, 350, doc.y, { width: 120 }).text(formatReportMoney(amount, new Set(invoice.currency ? [invoice.currency] : [])), 470, doc.y - 12, { width: 82, align: "right" });
     }
-    if (invoice.comment) { doc.moveDown(); doc.fillColor("#587087").fontSize(9).text(`Comment: ${pdfText(invoice.comment)}`); }
+    doc.moveDown(0.6);
+    doc.fillColor("#0d1b2a").fontSize(9).text(`Sum in words: ${invoiceAmountInWords(totals.total, invoice.currency || "USD")}`);
+    if (invoice.comment) { doc.moveDown(0.25); doc.fillColor("#587087").fontSize(8).text(`Comment: ${pdfText(invoice.comment)}`); }
+    if (template.footerNote) { doc.moveDown(0.25); doc.fillColor("#587087").fontSize(8).text(template.footerNote); }
+    doc.moveDown(1.2);
+    doc.fillColor("#0d1b2a").fontSize(9).text(`${template.directorName} __________________________`);
+    doc.moveDown(0.6);
+    doc.text(`${template.accountantName} ________________________`);
     doc.end();
   });
 }
@@ -4865,7 +4956,7 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
     })
     .join("");
   return adminShell(user, "Invoices", `<section class="section stack">
-    <div><span class="eyebrow">Invoices and reports</span><h1>Invoices</h1><p class="lead">Select assignments, prepare a draft invoice, and save it to the history.</p></div>
+    <div class="toolbar"><div><span class="eyebrow">Invoices and reports</span><h1>Invoices</h1><p class="lead">Select assignments, prepare a draft invoice, and save it to the history.</p></div><a class="small-button" href="/admin/checks/template">Edit invoice template</a></div>
     <form class="form-panel" method="get" action="/admin/checks"><h2>Filters</h2><div class="admin-edit-grid">
       <div class="field"><label>User / manager</label><select name="staffId"><option value="">All users</option>${staffSelectOptions(params.staffId)}</select></div>
       <div class="field"><label>Company</label><select name="company"><option value="">All companies</option>${companies.map((company) => `<option value="${escapeHtml(company)}" ${params.company === company ? "selected" : ""}>${escapeHtml(company)}</option>`).join("")}</select></div>
@@ -4887,7 +4978,7 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
 
 function adminInvoiceDetail(user, invoice) {
   const totals = invoiceTotals(invoice);
-  return adminShell(user, `Invoice ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Invoice</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Edit items before sending. Changes are saved in the history.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">Back to list</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF and print</a></div></div>
+  return adminShell(user, `Invoice ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Invoice</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Edit items before sending. Changes are saved in the history.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">Back to list</a><a class="small-button" href="/admin/checks/template">Template</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF and print</a></div></div>
     <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Recipient</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Company</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>Email</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Issue date</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Currency</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Invoice discount</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Extra charge</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Status</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Payment date</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div>${invoiceReportColumnSelector(invoiceSelectedColumns(invoice.columns ?? []))}<div class="field"><label>Comment</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
       <article class="panel stack"><h2>Items</h2><table class="table"><thead><tr><th>Include</th><th>Student</th><th>Course</th><th>Status / certificate</th><th>Price</th><th>Discount</th></tr></thead><tbody>${(invoice.lines ?? []).map((line) => `<tr><td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td><td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.courseTitle)}<br><span class="muted">${formatDate(line.assignedAt)}</span></td><td>${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "No certificate")}</span></td><td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td><td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td></tr>`).join("")}</tbody></table></article>
       <article class="panel"><div class="grid four"><article class="metric"><span class="muted">Subtotal</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.subtotal, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Discounts</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.lineDiscount + totals.invoiceDiscount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">VAT</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.vatAmount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Total</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article></div></article><div class="table-actions"><button class="button" type="submit">Save and update PDF</button><button class="small-button warning" type="submit" name="sendEmail" value="1">Send by email</button></div></form>
@@ -5878,6 +5969,12 @@ function sendChecksExcel(response, searchParams = new URLSearchParams()) {
   response.end(searchParams.get("legacy") === "1" ? checksExcel(searchParams) : invoiceReportExcel(searchParams));
 }
 
+function adminInvoiceTemplate(user) {
+  const template = invoiceTemplateSettings();
+  const field = (name, label, options = {}) => `<div class="field${options.wide ? " field-wide" : ""}"><label>${label}</label>${options.textarea ? `<textarea name="${name}" rows="${options.rows || 3}">${escapeHtml(template[name] || "")}</textarea>` : `<input name="${name}" value="${escapeHtml(template[name] || "")}" />`}</div>`;
+  return adminShell(user, "Invoice template", `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Invoices</span><h1>Invoice template</h1><p class="lead">The values below are used for every newly generated invoice and PDF. Existing invoices can be re-generated from their page.</p></div><a class="small-button" href="/admin/checks">Back to invoices</a></div><form class="form-panel stack" method="post" action="/admin/checks/template"><div class="admin-edit-grid">${field("academyName", "Organisation name", { wide: true })}${field("academySubtitle", "Organisation subtitle", { wide: true })}${field("address", "Address", { wide: true, textarea: true, rows: 2 })}${field("contacts", "Contact line", { wide: true, textarea: true, rows: 2 })}${field("iban", "IBAN")}${field("paymentDetails", "Details of payment", { textarea: true, rows: 3 })}${field("beneficiaryBank", "Beneficiary's bank", { wide: true, textarea: true, rows: 3 })}${field("correspondentBank", "Correspondent bank", { wide: true, textarea: true, rows: 3 })}${field("directorName", "Director signature label")}${field("accountantName", "Accountant signature label")}${field("footerNote", "Footer note", { wide: true, textarea: true, rows: 2 })}</div><div class="table-actions"><button class="button" type="submit">Save invoice template</button><a class="small-button" href="/admin/checks">Cancel</a></div></form></section>`);
+}
+
 function invoiceReportExcel(searchParams = new URLSearchParams()) {
   const params = invoiceFilterParams(searchParams);
   const lines = invoiceAssignmentData(params).map(invoiceLineFromAssignment);
@@ -6730,6 +6827,14 @@ async function handlePost(request, response, pathname, user) {
     auditAdminAction(admin, pathname, form);
     if (isInstructor(admin) && !["/admin/users/create", "/admin/users/update", "/admin/users/photo", "/admin/assignments/create"].includes(pathname)) {
       send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">An instructor can create a student, edit their details, upload a photo, and assign a course. This action is not permitted.</div><a class="button" href="/admin/users">Users</a></section>`), 403);
+      return;
+    }
+
+    if (pathname === "/admin/checks/template") {
+      if (!isFullAdmin(admin)) return send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
+      updateInvoiceTemplateSettings(form);
+      saveDb(db);
+      redirect(response, "/admin/checks/template");
       return;
     }
 
@@ -7863,6 +7968,7 @@ async function handleRequest(request, response) {
       const invoice = invoiceById(invoiceMatch[1]);
       return send(response, invoice ? adminInvoiceDetail(admin, invoice) : adminShell(admin, "Not found", `<section class="section"><div class="notice">Invoice not found.</div></section>`), invoice ? 200 : 404);
     }
+    if (pathname === "/admin/checks/template") return send(response, isFullAdmin(admin) ? adminInvoiceTemplate(admin) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/checks/export.xls") return isFullAdmin(admin) ? sendChecksExcel(response, url.searchParams) : send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
     if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
