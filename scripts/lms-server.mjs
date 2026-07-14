@@ -2277,6 +2277,17 @@ async function parseBody(request) {
 function parseMultipart(buffer, contentType) {
   const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[1] ?? contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[2];
   const form = new Map();
+  // Keep the same repeated-field contract as URLSearchParams/FormData.
+  form.getAll = (name) => {
+    const value = form.get(name);
+    return value === undefined ? [] : (Array.isArray(value) ? value : [value]);
+  };
+  const append = (name, value) => {
+    const current = form.get(name);
+    if (current === undefined) form.set(name, value);
+    else if (Array.isArray(current)) current.push(value);
+    else form.set(name, [current, value]);
+  };
   if (!boundary) return form;
 
   const raw = buffer.toString("binary");
@@ -2295,13 +2306,13 @@ function parseMultipart(buffer, contentType) {
     const filename = disposition.match(/filename="([^"]*)"/)?.[1];
     const contentTypeHeader = headerBlock.match(/content-type:\s*([^\r\n]+)/i)?.[1] ?? "application/octet-stream";
     if (filename) {
-      form.set(name, {
+      append(name, {
         filename,
         contentType: contentTypeHeader,
         buffer: Buffer.from(content, "binary")
       });
     } else {
-      form.set(name, Buffer.from(content, "binary").toString("utf8"));
+      append(name, Buffer.from(content, "binary").toString("utf8"));
     }
   }
   return form;
