@@ -77,6 +77,8 @@ const productCss = `
 .admin-user-summary { display: grid; gap: 10px; }
 .admin-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 .admin-edit-grid .field-wide { grid-column: 1 / -1; }
+.course-editor-heading { margin-bottom: 16px; }
+.course-editor-heading h1 { margin: 2px 0 0; max-width: none; font-size: 30px; line-height: 1.18; }
 .course-cover { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(135deg, var(--primary-soft), var(--surface-muted)); }
 .course-cover.placeholder { display: grid; place-items: center; color: var(--primary-strong); font-weight: 850; }
 .course-cover.thumb { width: 104px; min-width: 104px; }
@@ -5406,7 +5408,7 @@ function adminCourseDetail(user, course) {
     user,
     course.title,
     `<section class="section">
-      <div><span class="eyebrow">Course editor</span><h1>${escapeHtml(course.title)}</h1><p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p></div>
+      <div class="course-editor-heading"><span class="eyebrow">Course editor</span><h1>${escapeHtml(course.title)}</h1></div>
       ${certificateDesignerBlock}
       <form class="form-panel" method="post" action="/admin/courses/${course.id}/update" enctype="multipart/form-data">
         <h2>Course details</h2>
