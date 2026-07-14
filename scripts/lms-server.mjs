@@ -111,6 +111,8 @@ const productCss = `
 .material-editor { display: grid; gap: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); padding: 12px; }
 .material-edit-grid { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(120px, 0.45fr) minmax(180px, 1fr); gap: 10px; align-items: end; }
 .checkbox-row { display: inline-flex; gap: 8px; align-items: center; font-weight: 800; color: var(--primary-strong); }
+.checkbox-list { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); }
+.checkbox-list .checkbox-row { font-size: 13px; }
 .link-line { color: var(--primary); font-weight: 800; word-break: break-word; }
 .table-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .small-button { display: inline-flex; min-height: 34px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); background: white; color: var(--primary-strong); font-weight: 800; padding: 7px 10px; cursor: pointer; }
@@ -149,6 +151,7 @@ const productCss = `
 .certificate-designer-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 18px; border: 1px dashed rgba(11, 79, 122, 0.6); background: rgba(255, 255, 255, 0.58); cursor: move; line-height: 1.1; overflow: hidden; user-select: none; }
 .certificate-designer-field.is-stamp { z-index: 5; }
 .certificate-designer-field.is-selected { border: 2px solid var(--accent); background: rgba(255, 255, 255, 0.78); box-shadow: 0 0 0 3px rgba(14, 159, 189, 0.18); }
+.certificate-designer-field.is-selected::after { content: ""; position: absolute; right: -7px; bottom: -7px; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: var(--accent); box-shadow: 0 1px 3px rgba(13, 27, 42, 0.3); pointer-events: none; }
 .certificate-designer-field.is-hidden { opacity: 0.35; }
 .certificate-designer-field.align-left { justify-content: flex-start; text-align: left; }
 .certificate-designer-field.align-center { justify-content: center; text-align: center; }
@@ -821,6 +824,10 @@ function isCustomCertificateDesignerFieldKey(value) {
   return /^custom_text_[a-z0-9_]{1,48}$/i.test(String(value ?? ""));
 }
 
+function isCustomCertificateDesignerImageKey(value) {
+  return /^custom_image_[a-z0-9_]{1,48}$/i.test(String(value ?? ""));
+}
+
 function normalizeCustomCertificateDesignerField(field, index) {
   const fallbackLabel = `Text field ${index + 1}`;
   return {
@@ -838,6 +845,27 @@ function normalizeCustomCertificateDesignerField(field, index) {
     editableText: true,
     isCustomText: true,
     text: cleanCertificateDesignerText(field.text, "New text")
+  };
+}
+
+function normalizeCustomCertificateDesignerImage(field, index) {
+  const fallbackLabel = `Image ${index + 1}`;
+  const pendingImageIndex = Number(field.pendingImageIndex);
+  return {
+    key: String(field.key),
+    label: cleanCertificateDesignerText(field.label, fallbackLabel).slice(0, 80) || fallbackLabel,
+    x: clampNumber(field.x, 0, 98, 20),
+    y: clampNumber(field.y, 0, 98, 20 + index * 5),
+    width: clampNumber(field.width, 2, 100, 20),
+    height: clampNumber(field.height, 2, 100, 20),
+    fontSize: 12,
+    color: "#0d1b2a",
+    align: "center",
+    fontWeight: "500",
+    visible: field.visible === undefined ? true : Boolean(field.visible),
+    isCustomImage: true,
+    imageUrl: cleanBackgroundUrl(field.imageUrl),
+    ...(Number.isInteger(pendingImageIndex) && pendingImageIndex >= 0 ? { pendingImageIndex } : {})
   };
 }
 
@@ -880,10 +908,14 @@ function normalizeCertificateDesigner(input = {}) {
   const inputFields = Array.isArray(existing.fields) ? existing.fields : [];
   const fieldsByKey = new Map(inputFields.map((field) => [field.key, field]));
   const customFields = inputFields
-    .filter((field) => isCustomCertificateDesignerFieldKey(field?.key))
+    .filter((field) => isCustomCertificateDesignerFieldKey(field?.key) || isCustomCertificateDesignerImageKey(field?.key))
     .filter((field, index, fields) => fields.findIndex((item) => item.key === field.key) === index)
     .slice(0, 30)
-    .map(normalizeCustomCertificateDesignerField);
+    .map((field, index) =>
+      isCustomCertificateDesignerImageKey(field.key)
+        ? normalizeCustomCertificateDesignerImage(field, index)
+        : normalizeCustomCertificateDesignerField(field, index)
+    );
   return {
     version: 2,
     backgroundUrl,
@@ -970,6 +1002,7 @@ function certificateDesignerToken(field, designer = {}) {
   if (field.key === "stampImage") {
     return designer.stampUrl ? `<img class="certificate-stamp" src="${escapeHtml(designer.stampUrl)}" alt="Stamp" />` : "";
   }
+  if (field.isCustomImage) return field.imageUrl ? `<img src="${escapeHtml(field.imageUrl)}" alt="${escapeHtml(field.label)}" />` : "";
   if (field.editableText) return escapeHtml(field.text || "");
   return `{{${field.key}}}`;
 }
@@ -1090,9 +1123,24 @@ function saveCertificateDesignerStamp(course, file) {
   return { ok: true, stampUrl: `/uploads/${fileName}` };
 }
 
+function saveCertificateDesignerOverlayImage(course, file, index = 0) {
+  if (!file || typeof file === "string" || !file.buffer?.length) return { ok: true, skipped: true };
+  if (!imageUploadAllowed(file)) {
+    return { ok: false, message: "Upload image elements as JPG, PNG, WebP or GIF. Transparent PNG is supported." };
+  }
+  if (file.buffer.length > maxCourseImageUploadBytes) {
+    return { ok: false, message: `Image element is too large. Maximum size: ${Math.round(maxCourseImageUploadBytes / 1024 / 1024)} MB.` };
+  }
+  mkdirSync(uploadsDir, { recursive: true });
+  const fileName = `certificate_element_${course.id}-${Date.now()}-${index}${imageExtension(file)}`;
+  writeFileSync(resolve(uploadsDir, fileName), file.buffer);
+  return { ok: true, imageUrl: `/uploads/${fileName}` };
+}
+
 function certificateDesignerEditorFieldHtml(field) {
   const editorText = field.editableText ? field.text || field.label : field.label;
-  return `<div class="${certificateDesignerFieldClasses(field, "certificate-designer-field")} ${field.visible ? "" : "is-hidden"}" data-designer-field="${escapeHtml(field.key)}" style="${certificateDesignerFieldStyle(field)}">${escapeHtml(editorText)}</div>`;
+  const editorContent = field.isCustomImage && field.imageUrl ? `<img src="${escapeHtml(field.imageUrl)}" alt="${escapeHtml(field.label)}" />` : escapeHtml(editorText);
+  return `<div class="${certificateDesignerFieldClasses(field, "certificate-designer-field")} ${field.visible ? "" : "is-hidden"}" data-designer-field="${escapeHtml(field.key)}" style="${certificateDesignerFieldStyle(field)}">${editorContent}</div>`;
 }
 
 function certificateDesignerEditorHtml(course, previewCertificate) {
@@ -1107,7 +1155,7 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
   const previewClass = certificateShellClass(previewCertificate.certificateHtml, "certificate-preview");
   return `<article class="panel certificate-template">
         <h2>Visual certificate designer</h2>
-        <p class="muted">Upload a certificate PDF or image, add the header and convention reference, drag fields on the canvas, tune size and color, then save.</p>
+        <p class="muted">Upload a certificate PDF or image, add text or image elements, drag fields on the canvas, tune size and color, then save.</p>
         <form class="stack" method="post" action="/admin/courses/${course.id}/certificate-designer" enctype="multipart/form-data" data-certificate-designer>
           <textarea name="designerJson" data-designer-json hidden>${designerJson}</textarea>
           <div class="certificate-designer-layout">
@@ -1135,7 +1183,8 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
               <div class="field" data-custom-text-panel hidden><label>Text content</label><textarea rows="3" maxlength="500" data-field-text placeholder="Enter text for this field"></textarea></div>
               <div class="field"><label>Header text</label><input type="text" maxlength="500" data-designer-header-text placeholder="Enter certificate header" /></div>
               <div class="field"><label>Convention reference</label><textarea rows="3" maxlength="500" data-designer-convention-text placeholder="Enter the convention or standard reference"></textarea></div>
-              <div class="table-actions"><button class="small-button" type="button" data-add-text-field>Add text field</button><button class="small-button danger" type="button" data-remove-text-field disabled>Remove selected text field</button></div>
+              <input name="overlayImageFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden data-overlay-image-files />
+              <div class="table-actions"><button class="small-button" type="button" data-add-text-field>Add text field</button><button class="small-button" type="button" data-add-image-field>Add image</button><button class="small-button danger" type="button" data-remove-custom-field disabled>Remove selected custom element</button></div>
               <div class="field"><label>PDF or background image</label><input name="backgroundFile" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/gif" /></div>
               <div class="field"><label>Stamp image, always top layer</label><input name="stampFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
               <label class="checkbox-row"><input name="removeStamp" type="checkbox" /> Remove stamp</label>
@@ -1143,7 +1192,7 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
               <label class="checkbox-row"><input name="resetDesigner" type="checkbox" /> Reset layout</label>
               <label class="checkbox-row"><input name="applyToAllCourses" type="checkbox" /> Apply this template to all courses and new courses</label>
               <button class="button" type="submit">Save visual template</button>
-              <div class="certificate-designer-help">Drag fields with the mouse. Stamp is always rendered above text, photo and QR. Existing issued certificates keep their old snapshot.</div>
+              <div class="certificate-designer-help">Use Add image for JPG, PNG, WebP or GIF. Transparent PNG overlays are supported. Drag fields with the mouse; drag the blue corner marker to resize. Stamp is always rendered above text, photo and QR. Existing issued certificates keep their old snapshot.</div>
             </div>
           </div>
         </form>
@@ -1168,7 +1217,9 @@ function certificateDesignerScript() {
   const select = root.querySelector("[data-field-select]");
   const customTextPanel = root.querySelector("[data-custom-text-panel]");
   const addTextField = root.querySelector("[data-add-text-field]");
-  const removeTextField = root.querySelector("[data-remove-text-field]");
+  const addImageField = root.querySelector("[data-add-image-field]");
+  const imageFiles = root.querySelector("[data-overlay-image-files]");
+  const removeCustomField = root.querySelector("[data-remove-custom-field]");
   const inputs = {
     visible: root.querySelector("[data-field-visible]"),
     x: root.querySelector("[data-field-x]"),
@@ -1185,11 +1236,14 @@ function certificateDesignerScript() {
   };
   let designer = JSON.parse(jsonInput.value || "{}");
   let selectedKey = designer.fields?.[0]?.key || "";
+  const localImageUrls = new Map();
   const byKey = (key) => designer.fields.find((field) => field.key === key);
   const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
   function selected() { return byKey(selectedKey) || designer.fields[0]; }
   function fieldNode(key) { return canvas.querySelector('[data-designer-field="' + CSS.escape(key) + '"]'); }
   function isCustomTextField(field) { return Boolean(field?.isCustomText); }
+  function isCustomImageField(field) { return Boolean(field?.isCustomImage); }
+  function isCustomField(field) { return isCustomTextField(field) || isCustomImageField(field); }
   function addOption(field) {
     const option = document.createElement("option");
     option.value = field.key;
@@ -1203,6 +1257,16 @@ function certificateDesignerScript() {
     canvas.append(node);
     applyField(field);
   }
+  function fitTextToField(field, node) {
+    if (node.querySelector("img, svg")) return;
+    const maximum = Number(field.fontSize) || 12;
+    let size = maximum;
+    node.style.fontSize = size + "px";
+    while ((node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight) && size > 6) {
+      size = Math.max(6, size - 0.5);
+      node.style.fontSize = size + "px";
+    }
+  }
   function applyField(field) {
     const node = fieldNode(field.key);
     if (!node) return;
@@ -1214,7 +1278,21 @@ function certificateDesignerScript() {
     node.style.color = field.color;
     node.style.fontWeight = field.fontWeight;
     node.style.textAlign = field.align;
-    if (field.editableText) node.textContent = field.text || field.label;
+    if (isCustomImageField(field)) {
+      const imageUrl = localImageUrls.get(field.key) || field.imageUrl;
+      node.replaceChildren();
+      if (imageUrl) {
+        const image = document.createElement("img");
+        image.src = imageUrl;
+        image.alt = field.label;
+        node.append(image);
+      } else {
+        node.textContent = field.label;
+      }
+    } else if (field.editableText) {
+      node.textContent = field.text || field.label;
+    }
+    fitTextToField(field, node);
     node.classList.toggle("is-hidden", !field.visible);
     node.classList.toggle("is-selected", field.key === selectedKey);
     node.classList.toggle("align-left", field.align === "left");
@@ -1236,7 +1314,7 @@ function certificateDesignerScript() {
     inputs.fontWeight.value = field.fontWeight;
     customTextPanel.hidden = !isCustomTextField(field);
     inputs.text.value = isCustomTextField(field) ? field.text || "" : "";
-    removeTextField.disabled = !isCustomTextField(field);
+    removeCustomField.disabled = !isCustomField(field);
     inputs.headerText.value = byKey("header")?.text || "";
     inputs.conventionText.value = byKey("convention")?.text || "";
     for (const item of designer.fields) applyField(item);
@@ -1283,6 +1361,19 @@ function certificateDesignerScript() {
     while (byKey("custom_text_" + index)) index += 1;
     return "custom_text_" + index;
   }
+  function nextCustomImageKey() {
+    let index = 1;
+    while (byKey("custom_image_" + index)) index += 1;
+    return "custom_image_" + index;
+  }
+  function removePendingImageFields() {
+    for (const field of designer.fields.filter((item) => isCustomImageField(item) && Number.isInteger(item.pendingImageIndex))) {
+      localImageUrls.delete(field.key);
+      fieldNode(field.key)?.remove();
+      select.querySelector('option[value="' + CSS.escape(field.key) + '"]')?.remove();
+    }
+    designer.fields = designer.fields.filter((item) => !(isCustomImageField(item) && Number.isInteger(item.pendingImageIndex)));
+  }
   select.addEventListener("change", () => { selectedKey = select.value; syncPanel(); });
   const fieldStyleInputs = [
     inputs.visible,
@@ -1326,9 +1417,41 @@ function certificateDesignerScript() {
     inputs.text.focus();
     inputs.text.select();
   });
-  removeTextField.addEventListener("click", () => {
+  addImageField.addEventListener("click", () => imageFiles.click());
+  imageFiles.addEventListener("change", () => {
+    const files = [...imageFiles.files];
+    if (!files.length) return;
+    removePendingImageFields();
+    files.forEach((file, index) => {
+      const number = designer.fields.filter(isCustomImageField).length + 1;
+      const field = {
+        key: nextCustomImageKey(),
+        label: file.name.replace(/\\.[^.]+$/, "") || "Image " + number,
+        x: 20,
+        y: Math.min(86, 20 + index * 5),
+        width: 20,
+        height: 20,
+        fontSize: 12,
+        color: "#0d1b2a",
+        align: "center",
+        fontWeight: "500",
+        visible: true,
+        isCustomImage: true,
+        imageUrl: "",
+        pendingImageIndex: index
+      };
+      localImageUrls.set(field.key, URL.createObjectURL(file));
+      designer.fields.push(field);
+      addOption(field);
+      appendFieldNode(field);
+      selectedKey = field.key;
+    });
+    syncPanel();
+  });
+  removeCustomField.addEventListener("click", () => {
     const field = selected();
-    if (!isCustomTextField(field)) return;
+    if (!isCustomField(field)) return;
+    localImageUrls.delete(field.key);
     designer.fields = designer.fields.filter((item) => item.key !== field.key);
     fieldNode(field.key)?.remove();
     select.querySelector('option[value="' + CSS.escape(field.key) + '"]')?.remove();
@@ -1345,11 +1468,26 @@ function certificateDesignerScript() {
     const startY = event.clientY;
     const startLeft = field.x;
     const startTop = field.y;
+    const startWidth = field.width;
+    const startHeight = field.height;
+    const startFontSize = field.fontSize;
+    const resizeZone = 18;
+    const isResizing =
+      node.classList.contains("is-selected") &&
+      event.clientX >= rect.right - resizeZone &&
+      event.clientY >= rect.bottom - resizeZone;
     node.setPointerCapture(event.pointerId);
     syncPanel();
     const move = (moveEvent) => {
-      field.x = clamp(startLeft + ((moveEvent.clientX - startX) / rect.width) * 100, 0, 98);
-      field.y = clamp(startTop + ((moveEvent.clientY - startY) / rect.height) * 100, 0, 98);
+      if (isResizing) {
+        field.width = clamp(startWidth + ((moveEvent.clientX - startX) / rect.width) * 100, 2, 100 - startLeft);
+        field.height = clamp(startHeight + ((moveEvent.clientY - startY) / rect.height) * 100, 2, 100 - startTop);
+        const scale = Math.min(field.width / startWidth, field.height / startHeight);
+        field.fontSize = clamp(startFontSize * scale, 6, 96);
+      } else {
+        field.x = clamp(startLeft + ((moveEvent.clientX - startX) / rect.width) * 100, 0, 98);
+        field.y = clamp(startTop + ((moveEvent.clientY - startY) / rect.height) * 100, 0, 98);
+      }
       syncPanel();
     };
     const up = () => {
@@ -1434,6 +1572,24 @@ function renderedCertificateBackgroundType(html = "", backgroundUrl = "") {
   const type = htmlAttributeValue(html, "data-background-type").toLowerCase();
   if (type === "pdf" || type === "image") return type;
   return certificateDesignerBackgroundIsPdf(backgroundUrl) ? "pdf" : "image";
+}
+
+function renderedCertificateCanvasSize(html = "") {
+  const width = Number(htmlAttributeValue(html, "data-page-width"));
+  const height = Number(htmlAttributeValue(html, "data-page-height"));
+  if (Number.isFinite(width) && Number.isFinite(height) && width >= 100 && height >= 100) {
+    return { width, height };
+  }
+  return { width: 1123, height: 794 };
+}
+
+function renderedCertificatePdfPageSize(html = "") {
+  const canvas = renderedCertificateCanvasSize(html);
+  const ratio = canvas.width / canvas.height;
+  const longSide = 841.89;
+  const shortSide = 595.28;
+  if (ratio >= 1) return [longSide, longSide / ratio];
+  return [shortSide, shortSide / ratio];
 }
 
 function pdfLibColor(value = "#0d1b2a") {
@@ -1547,7 +1703,8 @@ async function visualCertificatePdfBufferFromPdfTemplate(certificate, html, back
   const page = pdfDoc.getPageCount() > 0 ? pdfDoc.getPage(0) : pdfDoc.addPage([841.89, 595.28]);
   const { regularFont, boldFont } = await pdfLibCertificateFonts(pdfDoc);
   const { x: pageX, y: pageY, width: pageWidth, height: pageHeight } = page.getCropBox();
-  const fontScale = Math.min(pageWidth / 1123, pageHeight / 794);
+  const canvas = renderedCertificateCanvasSize(html);
+  const fontScale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
 
   const fieldPattern = /<div class="visual-cert-field[^"]*" style="([^"]+)">([\s\S]*?)<\/div>/g;
   for (const match of html.matchAll(fieldPattern)) {
@@ -1585,7 +1742,7 @@ async function visualCertificatePdfBufferFromPdfTemplate(certificate, html, back
 
 function visualCertificatePdfKitBuffer(certificate, html) {
   return new Promise((resolvePdf, rejectPdf) => {
-    const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 0 });
+    const doc = new PDFDocument({ size: renderedCertificatePdfPageSize(html), margin: 0 });
     const chunks = [];
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => resolvePdf(Buffer.concat(chunks)));
@@ -1597,6 +1754,8 @@ function visualCertificatePdfKitBuffer(certificate, html) {
 
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
+    const canvas = renderedCertificateCanvasSize(html);
+    const fontScale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
     const backgroundUrl = renderedCertificateBackgroundUrl(html);
     const backgroundPath = renderedCertificateBackgroundType(html, backgroundUrl) === "image" ? uploadPathForRenderedUrl(backgroundUrl) : "";
     if (backgroundPath && existsSync(backgroundPath)) {
@@ -1617,7 +1776,7 @@ function visualCertificatePdfKitBuffer(certificate, html) {
       const y = (styleNumber(style, "top") / 100) * pageHeight;
       const width = (styleNumber(style, "width", 10) / 100) * pageWidth;
       const height = (styleNumber(style, "height", 5) / 100) * pageHeight;
-      const fontSize = styleNumber(style, "font-size", 12);
+      const fontSize = styleNumber(style, "font-size", 12) * fontScale;
       const color = styleText(style, "color", "#0d1b2a");
       const align = styleText(style, "text-align", "center");
       const fontWeight = Number(styleText(style, "font-weight", "500"));
@@ -4455,6 +4614,67 @@ function checkDateForEvent(assignment, event) {
   return assignment.assignedAt;
 }
 
+const invoiceReportColumns = [
+  { key: "student", label: "Student" },
+  { key: "email", label: "Student e-mail" },
+  { key: "company", label: "Company" },
+  { key: "creator", label: "Created / assigned by" },
+  { key: "registeredAt", label: "Registration date" },
+  { key: "course", label: "Course" },
+  { key: "oldPrice", label: "Old price" },
+  { key: "newPrice", label: "New price" },
+  { key: "amount", label: "Included price" },
+  { key: "assignedAt", label: "Assignment date" },
+  { key: "startedAt", label: "Learning started" },
+  { key: "completedAt", label: "Completion date" },
+  { key: "status", label: "Course status" },
+  { key: "certificateNumber", label: "Certificate number" }
+];
+
+const defaultInvoiceReportColumns = ["student", "company", "creator", "course", "assignedAt", "startedAt", "completedAt", "status", "certificateNumber", "amount"];
+
+function invoiceSelectedColumns(values = []) {
+  const allowed = new Set(invoiceReportColumns.map((column) => column.key));
+  const selected = [...new Set(values.filter((value) => allowed.has(value)))];
+  return selected.length ? selected : [...defaultInvoiceReportColumns];
+}
+
+function invoiceColumnLabel(key) {
+  return invoiceReportColumns.find((column) => column.key === key)?.label ?? key;
+}
+
+function invoiceColumnText(line, key) {
+  const currency = new Set(line.currency ? [line.currency] : []);
+  const values = {
+    student: line.studentName,
+    email: line.studentEmail,
+    company: line.company,
+    creator: line.creatorName,
+    registeredAt: formatDate(line.registeredAt),
+    course: line.courseTitle,
+    oldPrice: line.oldPrice || "-",
+    newPrice: line.newPrice || "-",
+    amount: formatReportMoney(Math.max(0, Number(line.amount) || 0), currency),
+    assignedAt: formatDate(line.assignedAt),
+    startedAt: formatDate(line.startedAt),
+    completedAt: formatDate(line.completedAt),
+    status: statusLabel(line.status),
+    certificateNumber: line.certificateNumber || "-"
+  };
+  return values[key] ?? "";
+}
+
+function invoiceColumnCell(line, key) {
+  if (key === "student") return `<a class="link-line" href="/admin/users/${encodeURIComponent(line.studentId)}">${escapeHtml(line.studentName)}</a>`;
+  return escapeHtml(invoiceColumnText(line, key));
+}
+
+function invoiceReportColumnSelector(columns) {
+  return `<div class="field"><label>Report columns</label><div class="checkbox-list">${invoiceReportColumns
+    .map((column) => `<label class="checkbox-row"><input name="column" type="checkbox" value="${column.key}" ${columns.includes(column.key) ? "checked" : ""} /> ${escapeHtml(column.label)}</label>`)
+    .join("")}</div></div>`;
+}
+
 function invoiceFilterParams(searchParams = new URLSearchParams()) {
   const basic = checkParams(searchParams);
   const today = new Date();
@@ -4472,6 +4692,7 @@ function invoiceFilterParams(searchParams = new URLSearchParams()) {
     period: preset,
     event: ["assigned", "started", "completed"].includes(searchParams.get("event")) ? searchParams.get("event") : "assigned",
     studentIds: searchParams.getAll("studentId").filter(Boolean),
+    columns: invoiceSelectedColumns(searchParams.getAll("column")),
     company: (searchParams.get("company") ?? "").trim(),
     status: searchParams.get("status") ?? "",
     groupBy: ["student", "course", "company", "staff", "date", "status"].includes(searchParams.get("groupBy")) ? searchParams.get("groupBy") : "student"
@@ -4483,6 +4704,8 @@ function invoiceFilterQuery(params) {
   for (const [key, value] of Object.entries(params)) {
     if (key === "studentIds") {
       for (const studentId of value ?? []) query.append("studentId", studentId);
+    } else if (key === "columns") {
+      for (const column of value ?? []) query.append("column", column);
     } else if (value) {
       query.set(key, String(value));
     }
@@ -4529,7 +4752,9 @@ function invoiceLineFromAssignment(assignment) {
     studentName: displayUserName(student) || student?.email || "Student deleted",
     studentEmail: student?.email || "", company: student?.company || "",
     creatorName: displayUserName(creator) || creator?.email || "Not specified",
+    registeredAt: student?.createdAt || "",
     courseId: assignment.courseId, courseTitle: course?.title || "Course deleted",
+    oldPrice: course?.oldPrice || "", newPrice: course?.newPrice || "",
     assignedAt: assignment.assignedAt || "", startedAt: assignment.startedAt || "", completedAt: assignment.completedAt || "",
     status: assignment.status, certificateNumber: certificate?.certificateNumber || "",
     baseAmount: price.amount, discount: 0, amount: price.amount, currency: price.currency || ""
@@ -4563,8 +4788,9 @@ function invoicePdfPath(invoice) {
 
 function invoicePdfBuffer(invoice) {
   const totals = invoiceTotals(invoice);
+  const reportColumns = invoiceSelectedColumns(invoice.columns ?? []);
   return new Promise((resolvePdf, rejectPdf) => {
-    const doc = new PDFDocument({ size: "A4", margin: 42 });
+    const doc = new PDFDocument({ size: "A4", layout: reportColumns.length > 6 ? "landscape" : "portrait", margin: 34 });
     const chunks = [];
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => resolvePdf(Buffer.concat(chunks)));
@@ -4580,18 +4806,26 @@ function invoicePdfBuffer(invoice) {
     if (invoice.recipientEmail) doc.text(`E-mail: ${invoice.recipientEmail}`);
     if (invoice.recipientCompany) doc.text(`Company: ${invoice.recipientCompany}`);
     doc.moveDown(0.7);
-    const columns = [42, 245, 355, 425, 495];
-    doc.fillColor("#06395d").fontSize(8).text("Student", columns[0]).text("Course", columns[1]).text("Status", columns[2]).text("Date", columns[3]).text("Amount", columns[4], { width: 60, align: "right" });
-    doc.moveTo(42, doc.y + 3).lineTo(553, doc.y + 3).stroke("#8aaac1");
+    const tableLeft = 34;
+    const tableWidth = doc.page.width - tableLeft * 2;
+    const columnWidth = tableWidth / reportColumns.length;
+    const drawTableHeader = () => {
+      const headerY = doc.y;
+      doc.fillColor("#06395d").fontSize(7);
+      reportColumns.forEach((key, index) => doc.text(invoiceColumnLabel(key), tableLeft + index * columnWidth, headerY, { width: columnWidth - 4, height: 18 }));
+      doc.moveTo(tableLeft, headerY + 20).lineTo(tableLeft + tableWidth, headerY + 20).stroke("#8aaac1");
+      doc.y = headerY + 24;
+    };
+    drawTableHeader();
     for (const line of (invoice.lines ?? []).filter((item) => item.included !== false)) {
-      if (doc.y > 700) doc.addPage();
-      const y = doc.y + 8;
-      doc.fillColor("#0d1b2a").fontSize(8).text(pdfText(line.studentName), columns[0], y, { width: 195, height: 24 });
-      doc.text(pdfText(line.courseTitle), columns[1], y, { width: 104, height: 24 });
-      doc.text(statusLabel(line.status), columns[2], y, { width: 65, height: 24 });
-      doc.text(formatDate(line.assignedAt), columns[3], y, { width: 64, height: 24 });
-      doc.text(`${formatReportMoney(Math.max(0, Number(line.amount) || 0), new Set(invoice.currency ? [invoice.currency] : []))}`, columns[4], y, { width: 60, align: "right" });
-      doc.y = y + 26;
+      if (doc.y > doc.page.height - 80) {
+        doc.addPage();
+        drawTableHeader();
+      }
+      const y = doc.y + 4;
+      doc.fillColor("#0d1b2a").fontSize(7);
+      reportColumns.forEach((key, index) => doc.text(pdfText(invoiceColumnText(line, key)), tableLeft + index * columnWidth, y, { width: columnWidth - 4, height: 26 }));
+      doc.y = y + 30;
     }
     doc.moveDown();
     doc.fontSize(10).fillColor("#0d1b2a");
@@ -4622,6 +4856,13 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
   const companies = [...new Set(students.map((item) => item.company).filter(Boolean))].sort();
   const query = invoiceFilterQuery(params);
   const selectedStaff = userById(params.staffId);
+  const draftHeaders = params.columns.map((key) => `<th>${escapeHtml(invoiceColumnLabel(key))}</th>`).join("");
+  const draftRows = assignments
+    .map((assignment) => {
+      const line = invoiceLineFromAssignment(assignment);
+      return `<tr><td><input form="invoice-create-form" type="checkbox" name="assignmentId" value="${assignment.id}" checked aria-label="Add to invoice" /></td>${params.columns.map((key) => `<td>${invoiceColumnCell(line, key)}</td>`).join("")}</tr>`;
+    })
+    .join("");
   return adminShell(user, "Invoices", `<section class="section stack">
     <div><span class="eyebrow">Invoices and reports</span><h1>Invoices</h1><p class="lead">Select assignments, prepare a draft invoice, and save it to the history.</p></div>
     <form class="form-panel" method="get" action="/admin/checks"><h2>Filters</h2><div class="admin-edit-grid">
@@ -4633,11 +4874,11 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
       <div class="field"><label>From</label><input name="from" type="date" value="${escapeHtml(params.from)}" /></div><div class="field"><label>To</label><input name="to" type="date" value="${escapeHtml(params.to)}" /></div>
       <div class="field"><label>Course status</label><select name="status">${assignmentStatusOptions(params.status)}</select></div>
       <div class="field"><label>Group by</label><select name="groupBy"><option value="student" ${params.groupBy === "student" ? "selected" : ""}>Student</option><option value="course" ${params.groupBy === "course" ? "selected" : ""}>Course</option><option value="company" ${params.groupBy === "company" ? "selected" : ""}>Company</option><option value="staff" ${params.groupBy === "staff" ? "selected" : ""}>User</option><option value="date" ${params.groupBy === "date" ? "selected" : ""}>Date</option><option value="status" ${params.groupBy === "status" ? "selected" : ""}>Status</option></select></div>
-    </div><div class="table-actions"><button class="small-button primary">Show</button><a class="small-button" href="/admin/checks">Reset</a><a class="small-button warning" href="/admin/checks/export.xls?${query}">Export Excel</a></div></form>
+    </div>${invoiceReportColumnSelector(params.columns)}<div class="table-actions"><button class="small-button primary">Show</button><a class="small-button" href="/admin/checks">Reset</a><a class="small-button warning" href="/admin/checks/export.xls?${query}">Export Excel</a></div></form>
     <div class="grid four"><article class="metric"><span class="muted">Courses in selection</span><strong class="metric-value">${assignments.length}</strong></article><article class="metric"><span class="muted">Students</span><strong class="metric-value">${new Set(assignments.map((item) => item.userId)).size}</strong></article><article class="metric"><span class="muted">Recipient</span><strong class="metric-value">${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.email || params.company || "All")}</strong></article><article class="metric"><span class="muted">Estimated total</span><strong class="metric-value">${escapeHtml(formatReportMoney(total))}</strong></article></div>
     <article class="panel stack"><div class="section-heading"><div><h2>Draft calculation</h2><p class="muted">Select the items to include in the document. Prices can be changed in the draft.</p></div></div>
       <form id="invoice-create-form" method="post" action="/admin/checks/invoices/create" class="inline-form"><input type="hidden" name="filterQuery" value="${escapeHtml(query)}" /><input type="hidden" name="recipientName" value="${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.company || params.company)}" /><input type="hidden" name="recipientEmail" value="${escapeHtml(selectedStaff?.email || "")}" /><input type="hidden" name="recipientCompany" value="${escapeHtml(params.company || selectedStaff?.company || "")}" /><button class="button" type="submit">Create invoice draft</button></form>
-      <table class="table"><thead><tr><th>Include</th><th>Student / company</th><th>Created / assigned by</th><th>Course</th><th>Assigned</th><th>Started</th><th>Completed</th><th>Status</th><th>Certificate</th><th>Amount</th></tr></thead><tbody>${assignments.map((assignment) => { const line = invoiceLineFromAssignment(assignment); return `<tr><td><input form="invoice-create-form" type="checkbox" name="assignmentId" value="${assignment.id}" checked aria-label="Add to invoice" /></td><td><a class="link-line" href="/admin/users/${assignment.userId}">${escapeHtml(line.studentName)}</a><br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.creatorName)}</td><td>${escapeHtml(line.courseTitle)}</td><td>${formatDate(line.assignedAt)}</td><td>${formatDate(line.startedAt)}</td><td>${formatDate(line.completedAt)}</td><td>${badge(line.status)}</td><td>${line.certificateNumber ? escapeHtml(line.certificateNumber) : "-"}</td><td>${escapeHtml(formatReportMoney(line.amount, new Set(line.currency ? [line.currency] : [])))}</td></tr>`; }).join("") || `<tr><td colspan="10"><span class="muted">No assignments in this selection.</span></td></tr>`}</tbody></table>
+      <table class="table"><thead><tr><th>Include</th>${draftHeaders}</tr></thead><tbody>${draftRows || `<tr><td colspan="${params.columns.length + 1}"><span class="muted">No assignments in this selection.</span></td></tr>`}</tbody></table>
     </article>
     <article class="panel stack"><div class="section-heading"><div><h2>Invoice history</h2><p class="muted">All amounts and items are fixed when the document is created.</p></div></div><table class="table"><thead><tr><th>Number</th><th>Recipient</th><th>Period</th><th>Amount</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>${invoiceHistoryRows().map((invoice) => { const totals = invoiceTotals(invoice); return `<tr><td>${escapeHtml(invoice.number)}</td><td>${escapeHtml(invoice.recipientName || invoice.recipientCompany || "Not specified")}</td><td>${escapeHtml(invoice.period?.from || "-")} - ${escapeHtml(invoice.period?.to || "-")}</td><td>${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</td><td>${badge(invoiceStatusLabel(invoice.status))}</td><td>${formatDate(invoice.createdAt)}</td><td><a class="small-button" href="/admin/checks/invoices/${invoice.id}">Open</a></td></tr>`; }).join("") || `<tr><td colspan="7"><span class="muted">No invoices yet.</span></td></tr>`}</tbody></table></article>
   </section>`);
@@ -4646,7 +4887,7 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
 function adminInvoiceDetail(user, invoice) {
   const totals = invoiceTotals(invoice);
   return adminShell(user, `Invoice ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Invoice</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Edit items before sending. Changes are saved in the history.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">Back to list</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF and print</a></div></div>
-    <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Recipient</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Company</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>Email</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Issue date</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Currency</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Invoice discount</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Extra charge</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Status</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Payment date</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div><div class="field"><label>Comment</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
+    <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Recipient</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Company</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>Email</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Issue date</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Currency</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Invoice discount</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Extra charge</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Status</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Payment date</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div>${invoiceReportColumnSelector(invoiceSelectedColumns(invoice.columns ?? []))}<div class="field"><label>Comment</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
       <article class="panel stack"><h2>Items</h2><table class="table"><thead><tr><th>Include</th><th>Student</th><th>Course</th><th>Status / certificate</th><th>Price</th><th>Discount</th></tr></thead><tbody>${(invoice.lines ?? []).map((line) => `<tr><td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td><td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.courseTitle)}<br><span class="muted">${formatDate(line.assignedAt)}</span></td><td>${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "No certificate")}</span></td><td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td><td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td></tr>`).join("")}</tbody></table></article>
       <article class="panel"><div class="grid four"><article class="metric"><span class="muted">Subtotal</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.subtotal, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Discounts</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.lineDiscount + totals.invoiceDiscount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">VAT</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.vatAmount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Total</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article></div></article><div class="table-actions"><button class="button" type="submit">Save and update PDF</button><button class="small-button warning" type="submit" name="sendEmail" value="1">Send by email</button></div></form>
     <article class="panel stack"><h2>Change history</h2><table class="table"><thead><tr><th>Date</th><th>User</th><th>Event</th></tr></thead><tbody>${(invoice.changes ?? []).slice().reverse().map((change) => `<tr><td>${new Date(change.at).toLocaleString("en-GB")}</td><td>${escapeHtml(change.byName || "")}</td><td>${escapeHtml(change.action)}</td></tr>`).join("") || `<tr><td colspan="3"><span class="muted">No changes yet.</span></td></tr>`}</tbody></table></article></section>`);
@@ -5633,7 +5874,28 @@ function sendChecksExcel(response, searchParams = new URLSearchParams()) {
     "Content-Type": "application/vnd.ms-excel; charset=utf-8",
     "Content-Disposition": `attachment; filename="checks-${fileDate}.xls"`
   });
-  response.end(checksExcel(searchParams));
+  response.end(searchParams.get("legacy") === "1" ? checksExcel(searchParams) : invoiceReportExcel(searchParams));
+}
+
+function invoiceReportExcel(searchParams = new URLSearchParams()) {
+  const params = invoiceFilterParams(searchParams);
+  const lines = invoiceAssignmentData(params).map(invoiceLineFromAssignment);
+  const rows = [
+    params.columns.map(invoiceColumnLabel),
+    ...lines.map((line) => params.columns.map((key) => invoiceColumnText(line, key)))
+  ];
+  const filterRows = [
+    ["Parameter", "Value"],
+    ["Period", `${params.from || "-"} - ${params.to || "-"}`],
+    ["Period event", params.event],
+    ["Grouping", params.groupBy],
+    ["Columns", params.columns.map(invoiceColumnLabel).join(", ")],
+    ["Courses in export", lines.length]
+  ];
+  return excelDocument("Invoice report", [
+    { title: "Filters", rows: filterRows },
+    { title: "Invoice report", rows }
+  ]);
 }
 
 function coursePricesExcel(searchParams = new URLSearchParams()) {
@@ -6478,7 +6740,7 @@ async function handlePost(request, response, pathname, user) {
       const invoice = {
         id: id("invoice"), number: invoiceNumber(), createdAt: now(), createdById: admin.id,
         recipientName: form.get("recipientName")?.toString().trim() ?? "", recipientEmail: form.get("recipientEmail")?.toString().trim() ?? "", recipientCompany: form.get("recipientCompany")?.toString().trim() ?? "",
-        period: { from: filterParams.from, to: filterParams.to, event: filterParams.event }, lines, currency: lines.map((line) => line.currency).find(Boolean) ?? "",
+        period: { from: filterParams.from, to: filterParams.to, event: filterParams.event }, columns: filterParams.columns, lines, currency: lines.map((line) => line.currency).find(Boolean) ?? "",
         discount: 0, extraCharge: 0, vatRate: 0, comment: "", issueDate: new Date().toISOString().slice(0, 10), dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), status: "draft", paidAt: "", pdfUrl: "", shareToken: opaqueToken(),
         changes: [{ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: `Lines created: ${lines.length}` }]
       };
@@ -6494,6 +6756,7 @@ async function handlePost(request, response, pathname, user) {
       const invoice = invoiceById(invoiceUpdateMatch[1]);
       if (!invoice) return redirect(response, "/admin/checks");
       for (const key of ["recipientName", "recipientCompany", "recipientEmail", "issueDate", "dueDate", "currency", "comment", "paidAt"]) invoice[key] = form.get(key)?.toString().trim() ?? "";
+      invoice.columns = invoiceSelectedColumns(form.getAll("column").map((value) => value.toString()));
       for (const key of ["discount", "extraCharge", "vatRate"]) invoice[key] = Math.max(0, Number(form.get(key)) || 0);
       const requestedStatus = form.get("status")?.toString() ?? "draft";
       invoice.status = invoiceStatuses.includes(requestedStatus) ? requestedStatus : "draft";
@@ -7073,6 +7336,25 @@ async function handlePost(request, response, pathname, user) {
           const stampField = designer.fields.find((field) => field.key === "stampImage");
           if (stampField) stampField.visible = true;
         }
+
+        const overlayImages = [];
+        for (const [index, file] of form.getAll("overlayImageFiles").entries()) {
+          const savedImage = saveCertificateDesignerOverlayImage(course, file, index);
+          if (!savedImage.ok) {
+            send(response, adminShell(admin, "Certificate designer", `<section class="section"><div class="notice danger">${escapeHtml(savedImage.message)}</div><a class="button" href="/admin/courses/${course.id}">Back to course</a></section>`), 400);
+            return;
+          }
+          overlayImages[index] = savedImage.imageUrl || "";
+        }
+        designer.fields = designer.fields
+          .filter((field) => !field.isCustomImage || !Number.isInteger(field.pendingImageIndex) || Boolean(overlayImages[field.pendingImageIndex]))
+          .map((field) => {
+            if (!field.isCustomImage || !Number.isInteger(field.pendingImageIndex)) return field;
+            const imageUrl = overlayImages[field.pendingImageIndex];
+            const storedField = { ...field };
+            delete storedField.pendingImageIndex;
+            return { ...storedField, imageUrl };
+          });
 
         const normalizedDesigner = normalizeCertificateDesigner(designer);
         applyCertificateDesignerToCourse(course, normalizedDesigner);
