@@ -4,11 +4,11 @@ export default function StudentProfilePage() {
   return (
     <section className="section">
       <div>
-        <span className="eyebrow">Профиль</span>
-        <h1>Персональные данные</h1>
+        <span className="eyebrow">Profile</span>
+        <h1>Personal details</h1>
         <p className="lead">
-          Здесь студент будет видеть данные, которые администратор использует
-          для обучения и сертификатов.
+          Students can view the details that an administrator uses
+          for training and certificates here.
         </p>
       </div>
       <article className="panel">
@@ -17,7 +17,7 @@ export default function StudentProfilePage() {
         </span>
         <h2>Alex Student</h2>
         <p className="muted">E-mail: student@example.com</p>
-        <p className="muted">Статус: активный</p>
+        <p className="muted">Status: active</p>
       </article>
     </section>
   );

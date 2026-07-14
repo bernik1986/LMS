@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Marine LMS",
-  description: "Закрытая морская учебная платформа с личным кабинетом и админ-панелью"
+  description: "Private maritime learning platform with student and admin accounts"
 };
 
 export default function RootLayout({
@@ -15,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru">
+    <html lang="en">
       <body>
         <div className="app-shell">
           <ScaffoldNotice />
@@ -24,17 +24,17 @@ export default function RootLayout({
               <span className="brand-mark">M</span>
               <span>Marine LMS</span>
             </Link>
-            <nav className="nav-links" aria-label="Основная навигация">
+            <nav className="nav-links" aria-label="Main navigation">
               <Link className="nav-link" href="/dashboard">
-                Кабинет
+                My account
               </Link>
               <Link className="nav-link" href="/admin">
                 <ShieldCheck size={17} />
-                Админ
+                Admin
               </Link>
               <Link className="button secondary" href="/login">
                 <LogIn size={17} />
-                Войти
+                Sign in
               </Link>
             </nav>
           </header>

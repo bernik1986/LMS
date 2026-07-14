@@ -5,11 +5,11 @@ export default function StudentCoursesPage() {
   return (
     <section className="section">
       <div>
-        <span className="eyebrow">Мои курсы</span>
-        <h1>Назначенные курсы</h1>
+        <span className="eyebrow">My courses</span>
+        <h1>Assigned courses</h1>
         <p className="lead">
-          Тест открывается только после прохождения обязательных материалов.
-          Здесь уже заложена будущая логика статусов и прогресса.
+          The test becomes available only after the required materials are completed.
+          This page already models the future status and progress workflow.
         </p>
       </div>
       <div className="grid three">
@@ -23,7 +23,7 @@ export default function StudentCoursesPage() {
               {getAssignmentStatusLabel(assignment.status)}
             </span>
             <h3>{assignment.courseTitle}</h3>
-            <p className="muted">Назначен: {assignment.assignedAt}</p>
+            <p className="muted">Assigned: {assignment.assignedAt}</p>
             <div className="progress-track">
               <div
                 className="progress-bar"
@@ -31,7 +31,7 @@ export default function StudentCoursesPage() {
               />
             </div>
             <p className="muted">
-              Тест: {assignment.testAvailable ? "доступен" : "закрыт"}
+              Test: {assignment.testAvailable ? "available" : "locked"}
             </p>
           </article>
         ))}

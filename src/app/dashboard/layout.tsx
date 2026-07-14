@@ -9,23 +9,23 @@ export default function DashboardLayout({
   return (
     <div className="split-layout">
       <aside className="sidebar">
-        <span className="eyebrow">Личный кабинет</span>
-        <nav className="sidebar-nav" aria-label="Навигация личного кабинета">
+        <span className="eyebrow">My account</span>
+        <nav className="sidebar-nav" aria-label="Account navigation">
           <Link href="/dashboard">
             <LayoutDashboard size={18} />
-            Обзор
+            Overview
           </Link>
           <Link href="/dashboard/courses">
             <BookOpenCheck size={18} />
-            Мои курсы
+            My courses
           </Link>
           <Link href="/dashboard/profile">
             <UserRound size={18} />
-            Профиль
+            Profile
           </Link>
           <Link href="/dashboard/certificates">
             <Award size={18} />
-            Сертификаты
+            Certificates
           </Link>
         </nav>
       </aside>

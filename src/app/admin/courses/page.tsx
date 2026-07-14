@@ -5,21 +5,17 @@ export default function AdminCoursesPage() {
   return (
     <section className="section">
       <div>
-        <span className="eyebrow">Курсы</span>
-        <h1>Управление курсами</h1>
+        <span className="eyebrow">Courses</span>
+        <h1>Course management</h1>
         <p className="lead">
-          Здесь появятся редактор курса, уроки, материалы, тест и настройки
-          последовательного прохождения.
+          This is where the course editor, lessons, materials, tests, and
+          sequential learning settings will appear.
         </p>
       </div>
       <table className="table">
         <thead>
           <tr>
-            <th>Курс</th>
-            <th>Статус</th>
-            <th>Уроки</th>
-            <th>Обязательные материалы</th>
-            <th>Назначения</th>
+            <th>Course</th><th>Status</th><th>Lessons</th><th>Required materials</th><th>Assignments</th>
           </tr>
         </thead>
         <tbody>

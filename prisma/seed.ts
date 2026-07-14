@@ -55,10 +55,10 @@ async function main() {
     create: {
       id: "course_maritime_safety",
       title: "Basic Maritime Safety",
-      shortDescription: "Базовый курс по безопасности на борту.",
-      fullDescription: "Закрытый морской учебный курс с обязательными материалами и финальным тестом.",
-      goals: "Познакомить студента с ключевыми правилами безопасности на борту.",
-      requirements: "Просмотреть все обязательные материалы и сдать тест.",
+      shortDescription: "A foundation course in onboard safety.",
+      fullDescription: "A maritime learning course with required materials and a final test.",
+      goals: "Introduce students to the key rules of onboard safety.",
+      requirements: "Review all required materials and pass the test.",
       status: "active",
       isSequential: true,
       showOnHome: true,
@@ -68,15 +68,15 @@ async function main() {
         create: [
           {
             id: "lesson_intro",
-            title: "Как проходит курс",
+            title: "How the course works",
             sortOrder: 1,
             materials: {
               create: [
                 {
                   id: "material_intro_text",
                   type: "text",
-                  title: "Правила прохождения",
-                  content: "Материалы проходят последовательно. Тест откроется после завершения учебной части.",
+                  title: "Completion rules",
+                  content: "Materials are completed in sequence. The test opens after the learning section is complete.",
                   sortOrder: 1
                 }
               ]
@@ -87,25 +87,25 @@ async function main() {
       test: {
         create: {
           id: "test_safety",
-          title: "Финальный тест",
+          title: "Final test",
           passingPercent: 80,
           attemptsLimit: 3,
           questions: {
             create: [
               {
                 id: "q_test_access",
-                questionText: "Когда открывается финальный тест?",
+                questionText: "When does the final test open?",
                 sortOrder: 1,
                 options: {
                   create: [
                     {
                       id: "q1_o1",
-                      optionText: "Сразу после назначения курса",
+                      optionText: "Immediately after the course is assigned",
                       sortOrder: 1
                     },
                     {
                       id: "q1_o2",
-                      optionText: "После прохождения обязательных материалов",
+                      optionText: "After completing the required materials",
                       isCorrect: true,
                       sortOrder: 2
                     }

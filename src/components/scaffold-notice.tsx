@@ -2,11 +2,11 @@ export function ScaffoldNotice() {
   return (
     <div className="scaffold-notice" role="status">
       <p>
-        <strong>Это UI-каркас Next.js, не рабочее приложение.</strong> Все функции
-        уже реализованы в standalone-сервере: запустите{" "}
-        <code>npm run dev</code> и откройте{" "}
-        <a href="http://127.0.0.1:3000">http://127.0.0.1:3000</a>. Страницы в{" "}
-        <code>src/app/</code> показывают mock-данные и не связаны с базой.
+        <strong>This is a Next.js UI scaffold, not the live application.</strong> All functions
+        are already implemented in the standalone server: run{" "}
+        <code>npm run dev</code> and open{" "}
+        <a href="http://127.0.0.1:3000">http://127.0.0.1:3000</a>. Pages in{" "}
+        <code>src/app/</code> show mock data and are not connected to the database.
       </p>
     </div>
   );

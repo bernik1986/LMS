@@ -15,27 +15,27 @@ export default function AdminLayout({
   return (
     <div className="split-layout">
       <aside className="sidebar">
-        <span className="eyebrow">Админ-панель</span>
-        <nav className="sidebar-nav" aria-label="Админская навигация">
+        <span className="eyebrow">Administration</span>
+        <nav className="sidebar-nav" aria-label="Admin navigation">
           <Link href="/admin">
             <LayoutDashboard size={18} />
-            Дашборд
+            Dashboard
           </Link>
           <Link href="/admin/applications">
             <ClipboardList size={18} />
-            Заявки
+            Applications
           </Link>
           <Link href="/admin/users">
             <UsersRound size={18} />
-            Пользователи
+            Users
           </Link>
           <Link href="/admin/courses">
             <BookOpen size={18} />
-            Курсы
+            Courses
           </Link>
           <Link href="/admin/certificates">
             <Award size={18} />
-            Сертификаты
+            Certificates
           </Link>
         </nav>
       </aside>

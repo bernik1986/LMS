@@ -1,194 +1,58 @@
 # Marine LMS
 
-Готовый локальный MVP закрытой морской учебной платформы: заявки, ручное создание пользователей, роли, курсы, материалы, прогресс, тесты и сертификаты.
+Marine LMS is a maritime learning platform for course delivery, testing, certificate issuance, staff operations, reporting, and controlled production deployment.
 
-## Архитектура: что где лежит
+## Production application
 
-В репозитории **два слоя**. Путать их не нужно — рабочее приложение одно.
-
-| Слой | Путь | Назначение | Как запустить |
-|------|------|------------|---------------|
-| **Рабочее приложение** | `scripts/lms-server.mjs` | Весь MVP: вход, заявки, админка, тесты, сертификаты | `npm run dev` |
-| **UI-каркас Next.js** | `src/app/` | Прототип интерфейса на mock-данных для возможной будущей миграции | `npm run scaffold:dev` |
-
-**Правило:** логику, API и интерфейс для пользователей меняйте в `scripts/lms-server.mjs`. Папку `src/app/` трогайте только если сознательно переносите UI на Next.js.
-
-Подробнее про каркас: [src/README.md](./src/README.md).
-
-## Запуск
-
-```bash
-npm install
-npm run dev
-```
-
-Откройте:
+The live application is the standalone Node.js server:
 
 ```text
-http://127.0.0.1:3000
+scripts/lms-server.mjs
 ```
 
-Команда запуска сервера остается активной в терминале. Это нормально: не закрывайте это окно, пока работаете с платформой.
+The `src/app/` tree is a Next.js UI scaffold used for future migration and design work. It is not the production runtime.
 
-Если порт занят:
+## Documentation
 
-```bash
-PORT=3100 npm run dev
+Read the complete project record here:
+
+- [Project documentation](docs/PROJECT_DOCUMENTATION.md)
+
+It covers the product scope, architecture, confirmed implementation timeline, workflows, roles, data model, certificates, imports, deployment, operations, security, tests, and known limitations.
+
+## Local start
+
+```powershell
+npm.cmd install
+npm.cmd run dev
 ```
 
-На Windows PowerShell:
+Open `http://127.0.0.1:3000`.
+
+If port 3000 is in use:
 
 ```powershell
 $env:PORT="3100"; npm.cmd run dev
 ```
 
-## Демо-доступ
+## Essential checks
 
-Администратор:
+```powershell
+npm.cmd run build
+npm.cmd run audit:prod
+npm.cmd run prod:check:no-uploads
+```
+
+`npm.cmd run test` launches the full regression runner. It must be run in a normal local terminal or CI environment that allows child-process creation.
+
+## Data safety
+
+Never commit or overwrite these production data locations:
 
 ```text
-admin@example.com
-Admin123!
+.env
+data/uploads/
+data/db.json
 ```
 
-Студент:
-
-```text
-student@example.com
-Student123!
-```
-
-## Что работает
-
-- Публичная форма заявки на курс.
-- Заявка не создает аккаунт автоматически.
-- Вход по e-mail и паролю.
-- Роли администратора и студента.
-- Админ-панель с заявками, пользователями, курсами, сертификатами и уведомлениями.
-- Ручное создание студентов.
-- Редактирование студентов, обязательные поля профиля, активация/деактивация и сброс пароля.
-- Мягкое удаление/архивирование студентов.
-- Создание пользователя из заявки.
-- Назначение курса студенту.
-- Удаление назначения до выдачи сертификата.
-- Создание и редактирование курсов.
-- Обложки курсов: загрузка в админке, показ на главной и в кабинете студента.
-- Ручная витрина главной страницы: админ выбирает курсы и задает порядок.
-- Публичный каталог всех активных курсов `/courses` с поиском.
-- Публичная страница курса с описанием, таймингом, структурой уроков и кнопкой заявки.
-- Добавление, редактирование и удаление уроков и материалов.
-- Загрузка файлов для учебных материалов.
-- Настройка теста, попыток, проходного процента, повторов, таймера и статуса.
-- Добавление, редактирование и удаление вопросов с одним правильным ответом.
-- До 6 вариантов ответа на вопрос.
-- Предпросмотр теста для администратора.
-- Автоматическое отключение пустого или некорректного теста.
-- Кабинет студента.
-- Обязательные поля студента: фамилия, имя, дата рождения, почта, должность.
-- Необязательное поле студента: компания.
-- Загрузка фото студента для будущего сертификата.
-- Постоянное уведомление студенту, если фото для сертификата не загружено.
-- Последовательное прохождение обязательных материалов.
-- Блокировка теста до завершения материалов.
-- Прохождение теста.
-- Подсчет результата на сервере.
-- Показ результата последней попытки студенту.
-- Выдача сертификата после успешного теста и загруженного фото.
-- Если тест сдан без фото, сертификат ожидает загрузку фото и студент видит повторное уведомление.
-- Индивидуальный HTML-шаблон сертификата для каждого курса.
-- Предпросмотр HTML-шаблона сертификата в редакторе курса.
-- Подстановка переменных в шаблон сертификата: имя, фамилия, дата рождения, дата выдачи, дата истечения и другие поля.
-- Дата истечения сертификата рассчитывается автоматически: дата выдачи плюс 5 лет.
-- QR-код проверки сертификата.
-- Серверная выгрузка сертификата в PDF.
-- CSV и Excel-реестр сертификатов по фильтрам админки.
-- Журнал действий по сертификатам: выдача, отзыв, перевыпуск и повторная отправка.
-- Просмотр и печать сертификата.
-- Публичная проверка сертификата по номеру через `/verify/...`.
-- Лог уведомлений с поиском, пагинацией и SMTP-очередью.
-- Поиск и пагинация в заявках, студентах, курсах и уведомлениях.
-- Same-origin защита POST-запросов и rate limit на вход.
-- Backup демо/production данных.
-- Бело-синий профессиональный морской интерфейс.
-
-## Сброс демо-данных
-
-```bash
-npm run reset:data
-```
-
-После сброса данные будут созданы заново при следующем запуске или запросе.
-
-## Проверки
-
-```bash
-npm run typecheck
-npm run lint
-npm run smoke
-npm run audit:prod
-npm run backup:data
-```
-
-`npm run smoke` проверяет уже запущенный сервер. По умолчанию он смотрит на `http://127.0.0.1:3000`; другой адрес можно передать через `BASE_URL`.
-
-## Шаблоны сертификатов
-
-В редакторе каждого курса есть блок "Шаблон сертификата". Можно вставить HTML вручную или загрузить `.html` файл.
-
-Доступные переменные:
-
-```text
-{{firstName}}
-{{lastName}}
-{{fullName}}
-{{birthDate}}
-{{position}}
-{{company}}
-{{courseTitle}}
-{{certificateNumber}}
-{{issuedAt}}
-{{expiresAt}}
-{{photoImage}}
-{{photoUrl}}
-{{verificationUrl}}
-{{qrCode}}
-```
-
-## SMTP
-
-Если SMTP-переменные не заданы, уведомления сохраняются в журнале как `logged`. Если SMTP настроен, новые уведомления попадают в очередь и отправляются из админки кнопкой "Отправить очередь SMTP".
-
-Переменные:
-
-```text
-SMTP_HOST
-SMTP_PORT
-SMTP_SECURE
-SMTP_STARTTLS
-SMTP_USER
-SMTP_PASS
-SMTP_FROM
-PUBLIC_BASE_URL
-```
-
-## Backup
-
-```bash
-npm run backup:data
-```
-
-Команда создает копию `data/db.json` и `data/uploads` в папке `backups/`.
-
-## Примечание по Next.js и Prisma
-
-Папка `src/app/` — **не рабочее приложение**, а UI-каркас на mock-данных. Все функции MVP уже реализованы в `scripts/lms-server.mjs`.
-
-Prisma-схема и PostgreSQL используются standalone-сервером (режим `LMS_STORAGE=prisma`). Next.js к backend не подключён.
-
-Чтобы посмотреть только макет интерфейса:
-
-```bash
-npm run scaffold:dev
-```
-
-Не запускайте `npm run dev` и `npm run scaffold:dev` одновременно — оба по умолчанию занимают порт 3000.
+The production database is PostgreSQL (`LMS_STORAGE=prisma`). Uploaded media is stored separately under `data/uploads/`.

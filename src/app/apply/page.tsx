@@ -8,24 +8,24 @@ export default function ApplyPage() {
     <main className="page">
       <section className="section">
         <div>
-          <span className="eyebrow">Заявка на курс</span>
-          <h1>Оставить заявку</h1>
+          <span className="eyebrow">Course application</span>
+          <h1>Apply for a course</h1>
           <p className="lead">
-            Отправка формы не создает аккаунт. Администратор обработает заявку
-            и вручную создаст пользователя при необходимости.
+            Submitting this form does not create an account. An administrator
+            will process the application and create a user when needed.
           </p>
         </div>
         <form className="form-panel">
           <div className="field">
-            <label htmlFor="lastName">Фамилия</label>
+            <label htmlFor="lastName">Last name</label>
             <input id="lastName" name="lastName" autoComplete="family-name" />
           </div>
           <div className="field">
-            <label htmlFor="firstName">Имя</label>
+            <label htmlFor="firstName">First name</label>
             <input id="firstName" name="firstName" autoComplete="given-name" />
           </div>
           <div className="field">
-            <label htmlFor="phone">Номер телефона</label>
+            <label htmlFor="phone">Phone number</label>
             <input id="phone" name="phone" autoComplete="tel" />
           </div>
           <div className="field">
@@ -33,7 +33,7 @@ export default function ApplyPage() {
             <input id="email" name="email" type="email" autoComplete="email" />
           </div>
           <div className="field">
-            <label htmlFor="course">Курс</label>
+            <label htmlFor="course">Course</label>
             <select id="course" name="course">
               {activeCourses.map((course) => (
                 <option key={course.id}>{course.title}</option>
@@ -41,16 +41,16 @@ export default function ApplyPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="comment">Комментарий</label>
+            <label htmlFor="comment">Comment</label>
             <textarea id="comment" name="comment" />
           </div>
           <button className="button" type="button" disabled>
             <Send size={17} />
-            Отправить заявку
+            Send application
           </button>
           <p className="muted">
-            Форма неактивна: это mock-страница Next.js-каркаса. Рабочая заявка —
-            на <a href="http://127.0.0.1:3000/apply">127.0.0.1:3000/apply</a> после{" "}
+            This form is inactive: it is a mock page in the Next.js scaffold. The live application is
+            at <a href="http://127.0.0.1:3000/apply">127.0.0.1:3000/apply</a> after{" "}
             <code>npm run dev</code>.
           </p>
         </form>

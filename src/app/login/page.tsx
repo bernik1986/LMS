@@ -6,11 +6,11 @@ export default function LoginPage() {
     <main className="page">
       <section className="section">
         <div>
-          <span className="eyebrow">Закрытый доступ</span>
-          <h1>Вход в платформу</h1>
+          <span className="eyebrow">Private access</span>
+          <h1>Sign in to the platform</h1>
           <p className="lead">
-            Самостоятельной регистрации нет. Доступ выдает администратор после
-            обработки заявки.
+            Self-registration is not available. An administrator grants access
+            after processing an application.
           </p>
         </div>
         <form className="form-panel">
@@ -19,7 +19,7 @@ export default function LoginPage() {
             <input id="email" name="email" type="email" autoComplete="email" />
           </div>
           <div className="field">
-            <label htmlFor="password">Пароль</label>
+            <label htmlFor="password">Password</label>
             <input
               id="password"
               name="password"
@@ -29,15 +29,15 @@ export default function LoginPage() {
           </div>
           <button className="button" type="button" disabled>
             <LogIn size={17} />
-            Войти
+            Sign in
           </button>
           <p className="muted">
-            Форма неактивна: это mock-страница Next.js-каркаса. Рабочий вход —
-            на <a href="http://127.0.0.1:3000/login">127.0.0.1:3000/login</a> после{" "}
+            This form is inactive: it is a mock page in the Next.js scaffold. The live sign-in is
+            at <a href="http://127.0.0.1:3000/login">127.0.0.1:3000/login</a> after{" "}
             <code>npm run dev</code>.
           </p>
           <Link className="nav-link" href="/apply">
-            Еще нет доступа? Оставить заявку
+            Need access? Submit an application
           </Link>
         </form>
       </section>

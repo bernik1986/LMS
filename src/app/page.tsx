@@ -15,34 +15,33 @@ export default function HomePage() {
       <section className="hero">
         <div className="hero-copy">
           <span className="eyebrow">Marine training platform</span>
-          <h1>Marine LMS для обучения, тестов и сертификатов</h1>
+          <h1>Marine LMS for training, tests, and certificates</h1>
           <p className="lead">
-            Закрытая учебная платформа для морских курсов: администратор
-            вручную создает студентов, назначает обучение, контролирует
-            прогресс и выдает сертификаты.
+            A private maritime learning platform where administrators create
+            students, assign training, track progress, and issue certificates.
           </p>
           <div className="actions">
             <Link className="button" href="/apply">
               <ClipboardPenLine size={18} />
-              Зарегистрироваться на курс
+              Apply for a course
             </Link>
             <Link className="button secondary" href="/login">
               <LockKeyhole size={18} />
-              Войти в кабинет
+              Sign in to your account
             </Link>
           </div>
-          <div className="hero-meta" aria-label="Ключевые возможности">
+          <div className="hero-meta" aria-label="Key features">
             <div className="hero-meta-item">
               <strong>Manual access</strong>
-              <span>без самостоятельной регистрации</span>
+              <span>no self-registration</span>
             </div>
             <div className="hero-meta-item">
               <strong>Course control</strong>
-              <span>материалы перед тестом</span>
+              <span>materials before the test</span>
             </div>
             <div className="hero-meta-item">
               <strong>Certificates</strong>
-              <span>привязка к студенту и курсу</span>
+              <span>linked to student and course</span>
             </div>
           </div>
         </div>
@@ -51,11 +50,11 @@ export default function HomePage() {
       <section className="section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Ключевая логика</span>
-            <h2>Что входит в первый релиз</h2>
+            <span className="eyebrow">Core workflow</span>
+            <h2>What the first release includes</h2>
           </div>
           <Link className="button secondary" href="/admin">
-            Открыть админ-панель
+            Open admin panel
             <ArrowRight size={17} />
           </Link>
         </div>
@@ -64,29 +63,29 @@ export default function HomePage() {
             <span className="metric-icon">
               <Anchor size={20} />
             </span>
-            <h3>Морская специализация</h3>
+            <h3>Maritime specialization</h3>
             <p className="muted">
-              Интерфейс и структура заточены под курсы безопасности,
-              экипажное обучение и сертификацию.
+              The interface and structure are tailored for safety courses,
+              crew training, and certification.
             </p>
           </article>
           <article className="card">
             <span className="metric-icon">
               <Route size={20} />
             </span>
-            <h3>Материалы перед тестом</h3>
+            <h3>Materials before the test</h3>
             <p className="muted">
-              Тест открывается после завершения обязательных материалов курса.
+              The test becomes available after the required course materials are completed.
             </p>
           </article>
           <article className="card">
             <span className="metric-icon">
               <LockKeyhole size={20} />
             </span>
-            <h3>Роли и закрытый доступ</h3>
+            <h3>Roles and private access</h3>
             <p className="muted">
-              Минимум две роли: студент и администратор, с разными зонами
-              интерфейса и правами.
+              At least two roles are available: student and administrator, with
+              separate interface areas and permissions.
             </p>
           </article>
         </div>
@@ -95,8 +94,8 @@ export default function HomePage() {
       <section className="section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Демо-курсы</span>
-            <h2>Основа каталога для формы заявки</h2>
+            <span className="eyebrow">Demo courses</span>
+            <h2>Catalogue foundation for course applications</h2>
           </div>
         </div>
         <div className="grid three">
@@ -110,8 +109,8 @@ export default function HomePage() {
               <h3>{course.title}</h3>
               <p className="muted">{course.shortDescription}</p>
               <p className="muted">
-                {course.lessonsCount} уроков, {course.requiredMaterialsCount}{" "}
-                обязательных материалов
+                {course.lessonsCount} lessons, {course.requiredMaterialsCount}{" "}
+                required materials
               </p>
             </article>
           ))}

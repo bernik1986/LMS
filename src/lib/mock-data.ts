@@ -7,7 +7,7 @@ import {
   UserRoundCheck
 } from "lucide-react";
 
-/** Mock-данные только для Next.js-каркаса в src/app/. Рабочее приложение использует data/db.json или PostgreSQL. */
+/** Mock data for the Next.js scaffold in src/app/. The live application uses data/db.json or PostgreSQL. */
 export type CourseStatus = "active" | "inactive";
 export type AssignmentStatus =
   | "not_started"
@@ -39,27 +39,27 @@ export type DemoAssignment = {
 
 export const platformStats = [
   {
-    label: "Новые заявки",
+    label: "New applications",
     value: "12",
-    hint: "ожидают обработки",
+    hint: "awaiting review",
     icon: ClipboardList
   },
   {
-    label: "Активные студенты",
+    label: "Active students",
     value: "48",
-    hint: "имеют доступ к платформе",
+    hint: "have platform access",
     icon: UserRoundCheck
   },
   {
-    label: "Активные курсы",
+    label: "Active courses",
     value: "7",
-    hint: "доступны для назначения",
+    hint: "available to assign",
     icon: GraduationCap
   },
   {
-    label: "Выданные сертификаты",
+    label: "Issued certificates",
     value: "136",
-    hint: "за все время",
+    hint: "all time",
     icon: Award
   }
 ];
@@ -68,7 +68,7 @@ export const demoCourses: DemoCourse[] = [
   {
     id: "maritime-safety-basics",
     title: "Basic Maritime Safety",
-    shortDescription: "Базовый курс по безопасности на борту и обязательным процедурам.",
+    shortDescription: "Basic onboard safety and mandatory procedures course.",
     status: "active",
     lessonsCount: 5,
     requiredMaterialsCount: 9,
@@ -77,7 +77,7 @@ export const demoCourses: DemoCourse[] = [
   {
     id: "first-aid-at-sea",
     title: "First Aid at Sea",
-    shortDescription: "Курс по первой помощи на море с финальным тестированием.",
+    shortDescription: "Maritime first aid course with a final test.",
     status: "active",
     lessonsCount: 6,
     requiredMaterialsCount: 12,
@@ -86,7 +86,7 @@ export const demoCourses: DemoCourse[] = [
   {
     id: "vessel-equipment-intro",
     title: "Vessel Equipment Introduction",
-    shortDescription: "Вводный курс по работе с судовым оборудованием.",
+    shortDescription: "Introductory course on vessel equipment operations.",
     status: "inactive",
     lessonsCount: 4,
     requiredMaterialsCount: 7,
@@ -124,17 +124,17 @@ export const demoAssignments: DemoAssignment[] = [
 
 export const studentHighlights = [
   {
-    label: "Назначенные курсы",
+    label: "Assigned courses",
     value: "3",
     icon: BookOpenCheck
   },
   {
-    label: "Доступные тесты",
+    label: "Available tests",
     value: "1",
     icon: ClipboardList
   },
   {
-    label: "Сертификаты",
+    label: "Certificates",
     value: "1",
     icon: FileCheck2
   }

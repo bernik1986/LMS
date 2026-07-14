@@ -5,21 +5,17 @@ export default function AdminUsersPage() {
   return (
     <section className="section">
       <div>
-        <span className="eyebrow">Пользователи</span>
-        <h1>Карточки и история обучения</h1>
+        <span className="eyebrow">Users</span>
+        <h1>Profiles and learning history</h1>
         <p className="lead">
-          Заготовка раздела для ручного создания студентов, смены статуса,
-          сброса пароля и просмотра прогресса.
+          A section scaffold for manually creating students, changing status,
+          resetting passwords, and viewing progress.
         </p>
       </div>
       <table className="table">
         <thead>
           <tr>
-            <th>Студент</th>
-            <th>Курс</th>
-            <th>Статус</th>
-            <th>Прогресс</th>
-            <th>Тест</th>
+            <th>Student</th><th>Course</th><th>Status</th><th>Progress</th><th>Test</th>
           </tr>
         </thead>
         <tbody>
@@ -40,8 +36,8 @@ export default function AdminUsersPage() {
                 {assignment.testResult
                   ? `${assignment.testResult}%`
                   : assignment.testAvailable
-                    ? "Доступен"
-                    : "Закрыт"}
+                    ? "Available"
+                    : "Locked"}
               </td>
             </tr>
           ))}

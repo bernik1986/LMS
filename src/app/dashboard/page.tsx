@@ -7,15 +7,15 @@ export default function StudentDashboardPage() {
     <section className="section">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">Студент</span>
-          <h1>Обзор обучения</h1>
+          <span className="eyebrow">Student</span>
+          <h1>Learning overview</h1>
           <p className="lead">
-            Кабинет показывает назначенные курсы, прогресс, тесты и доступные
-            сертификаты.
+            Your account shows assigned courses, progress, tests, and available
+            certificates.
           </p>
         </div>
         <Link className="button" href="/dashboard/courses">
-          Мои курсы
+          My courses
           <ArrowRight size={17} />
         </Link>
       </div>

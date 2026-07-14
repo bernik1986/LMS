@@ -1,17 +1,17 @@
 import type { AssignmentStatus, CourseStatus } from "@/lib/mock-data";
 
 export function getCourseStatusLabel(status: CourseStatus) {
-  return status === "active" ? "Активен" : "Отключен";
+  return status === "active" ? "Active" : "Inactive";
 }
 
 export function getAssignmentStatusLabel(status: AssignmentStatus) {
   const labels: Record<AssignmentStatus, string> = {
-    not_started: "Не начат",
-    in_progress: "В процессе",
-    materials_completed: "Материалы пройдены",
-    test_available: "Тест доступен",
-    test_failed: "Тест не сдан",
-    completed: "Завершен"
+    not_started: "Not started",
+    in_progress: "In progress",
+    materials_completed: "Materials completed",
+    test_available: "Test available",
+    test_failed: "Test failed",
+    completed: "Completed"
   };
 
   return labels[status];

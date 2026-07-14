@@ -170,6 +170,9 @@ const productCss = `
 @media print { .topbar, .sidebar, .actions, .button { display: none !important; } body { background: white; } .certificate { box-shadow: none; } }
 `;
 
+// Price data remains stored for invoices and future re-enablement, but is not shown in the course UI.
+const SHOW_COURSE_PRICES = false;
+
 function now() {
   return new Date().toISOString();
 }
@@ -237,11 +240,11 @@ function createSeedData() {
   const safetyCourse = {
     id: "course_maritime_safety",
     title: "Basic Maritime Safety",
-    shortDescription: "Базовый курс по безопасности на борту и обязательным процедурам.",
+    shortDescription: "Basic onboard safety and mandatory procedures course.",
     fullDescription:
-      "Закрытый морской курс с последовательным прохождением материалов, финальным тестом и сертификатом.",
-    goals: "Подготовить студента к базовым процедурам безопасности на судне.",
-    requirements: "Завершить обязательные материалы и сдать финальный тест.",
+      "Private maritime course with sequential materials, a final test, and a certificate.",
+    goals: "Prepare the student for basic onboard safety procedures.",
+    requirements: "Complete the required materials and pass the final test.",
     oldPrice: "",
     newPrice: "",
     status: "active",
@@ -252,8 +255,8 @@ function createSeedData() {
     lessons: [
       {
         id: "lesson_intro",
-        title: "Введение в безопасность на борту",
-        description: "Общие правила и порядок прохождения курса.",
+        title: "Introduction to onboard safety",
+        description: "General rules and course completion procedure.",
         sortOrder: 1,
         isRequired: true,
         status: "active",
@@ -261,9 +264,9 @@ function createSeedData() {
           {
             id: "material_intro_text",
             type: "text",
-            title: "Правила прохождения",
+            title: "Completion rules",
             content:
-              "Материалы проходят последовательно. Финальный тест откроется после завершения обязательной учебной части.",
+              "Materials are completed in sequence. The final test opens after the required learning section is complete.",
             isRequired: true,
             sortOrder: 1
           },
@@ -279,8 +282,8 @@ function createSeedData() {
       },
       {
         id: "lesson_emergency",
-        title: "Действия при аварийной ситуации",
-        description: "Маршруты эвакуации, сигналы тревоги и сборные пункты.",
+        title: "Emergency response",
+        description: "Evacuation routes, alarm signals, and muster points.",
         sortOrder: 2,
         isRequired: true,
         status: "active",
@@ -288,9 +291,9 @@ function createSeedData() {
           {
             id: "material_emergency_text",
             type: "text",
-            title: "Алгоритм действий",
+            title: "Response procedure",
             content:
-              "Студент должен знать сигналы тревоги, маршруты эвакуации и порядок доклада ответственному офицеру.",
+              "The student must know alarm signals, evacuation routes, and the reporting procedure for the responsible officer.",
             isRequired: true,
             sortOrder: 1
           }
@@ -299,8 +302,8 @@ function createSeedData() {
     ],
     test: {
       id: "test_safety",
-      title: "Финальный тест по безопасности",
-      description: "Проверка обязательных знаний после учебных материалов.",
+      title: "Safety final test",
+      description: "Assessment of required knowledge after the learning materials.",
       attemptsLimit: 3,
       passingPercent: 80,
       timeLimitMinutes: 0,
@@ -310,13 +313,13 @@ function createSeedData() {
       questions: [
         {
           id: "q_test_access",
-          questionText: "Когда студент получает доступ к финальному тесту?",
+          questionText: "When does the student receive access to the final test?",
           sortOrder: 1,
           options: [
-            { id: "q1_o1", optionText: "Сразу после назначения курса", isCorrect: false, sortOrder: 1 },
+            { id: "q1_o1", optionText: "Immediately after course assignment", isCorrect: false, sortOrder: 1 },
             {
               id: "q1_o2",
-              optionText: "После завершения обязательных материалов",
+              optionText: "After completing the required materials",
               isCorrect: true,
               sortOrder: 2
             }
@@ -324,11 +327,11 @@ function createSeedData() {
         },
         {
           id: "q_alarm",
-          questionText: "Что нужно сделать при сигнале тревоги?",
+          questionText: "What should be done when an alarm signal is given?",
           sortOrder: 2,
           options: [
-            { id: "q2_o1", optionText: "Следовать утвержденному аварийному порядку", isCorrect: true, sortOrder: 1 },
-            { id: "q2_o2", optionText: "Продолжить обычную работу", isCorrect: false, sortOrder: 2 }
+            { id: "q2_o1", optionText: "Follow the approved emergency procedure", isCorrect: true, sortOrder: 1 },
+            { id: "q2_o2", optionText: "Continue normal work", isCorrect: false, sortOrder: 2 }
           ]
         }
       ]
@@ -339,10 +342,10 @@ function createSeedData() {
   const firstAidCourse = {
     id: "course_first_aid",
     title: "First Aid at Sea",
-    shortDescription: "Курс по первой помощи на море с финальным тестированием.",
-    fullDescription: "Обязательные действия при травмах и неотложных состояниях на борту.",
-    goals: "Закрепить порядок первичной помощи до прибытия медицинской поддержки.",
-    requirements: "Завершить материалы и пройти тест.",
+    shortDescription: "Maritime first aid course with a final test.",
+    fullDescription: "Required actions for onboard injuries and medical emergencies.",
+    goals: "Reinforce first aid procedures before medical support arrives.",
+    requirements: "Complete the materials and pass the test.",
     oldPrice: "",
     newPrice: "",
     status: "active",
@@ -353,8 +356,8 @@ function createSeedData() {
     lessons: [
       {
         id: "lesson_aid_intro",
-        title: "Первичная оценка состояния",
-        description: "Безопасность места, оценка сознания, дыхания и кровотечения.",
+        title: "Primary assessment",
+        description: "Scene safety and assessment of consciousness, breathing, and bleeding.",
         sortOrder: 1,
         isRequired: true,
         status: "active",
@@ -362,8 +365,8 @@ function createSeedData() {
           {
             id: "material_aid_text",
             type: "text",
-            title: "Первичный осмотр",
-            content: "Проверьте безопасность, сознание, дыхание и наличие сильного кровотечения.",
+            title: "Initial examination",
+            content: "Check safety, consciousness, breathing, and severe bleeding.",
             isRequired: true,
             sortOrder: 1
           }
@@ -372,8 +375,8 @@ function createSeedData() {
     ],
     test: {
       id: "test_first_aid",
-      title: "Финальный тест по первой помощи",
-      description: "Базовая проверка знаний.",
+      title: "First aid final test",
+      description: "Basic knowledge assessment.",
       attemptsLimit: 2,
       passingPercent: 75,
       timeLimitMinutes: 0,
@@ -383,11 +386,11 @@ function createSeedData() {
       questions: [
         {
           id: "q_aid_1",
-          questionText: "С чего начинается оказание первой помощи?",
+          questionText: "What is the first step in providing first aid?",
           sortOrder: 1,
           options: [
-            { id: "q_aid_1_o1", optionText: "С оценки безопасности места", isCorrect: true, sortOrder: 1 },
-            { id: "q_aid_1_o2", optionText: "С заполнения отчета", isCorrect: false, sortOrder: 2 }
+            { id: "q_aid_1_o1", optionText: "Assess scene safety", isCorrect: true, sortOrder: 1 },
+            { id: "q_aid_1_o2", optionText: "Complete a report", isCorrect: false, sortOrder: 2 }
           ]
         }
       ]
@@ -698,7 +701,7 @@ function addYearsIso(value, years) {
 }
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString("ru-RU") : "";
+  return value ? new Date(value).toLocaleDateString("en-GB") : "";
 }
 
 function formatEnglishCertificateDate(value) {
@@ -2156,10 +2159,10 @@ function imageExtension(file) {
 function saveCourseImage(course, image) {
   if (!image || typeof image === "string" || !image.buffer?.length) return { ok: true, skipped: true };
   if (!imageUploadAllowed(image)) {
-    return { ok: false, message: "Загрузите изображение курса: JPG, PNG, WebP или GIF." };
+    return { ok: false, message: "Upload a course image in JPG, PNG, WebP, or GIF format." };
   }
   if (image.buffer.length > maxCourseImageUploadBytes) {
-    return { ok: false, message: `Обложка слишком большая. Максимальный размер: ${Math.round(maxCourseImageUploadBytes / 1024 / 1024)} MB.` };
+    return { ok: false, message: `The cover image is too large. Maximum size: ${Math.round(maxCourseImageUploadBytes / 1024 / 1024)} MB.` };
   }
 
   mkdirSync(uploadsDir, { recursive: true });
@@ -2333,7 +2336,7 @@ function requireAdmin(request, response) {
   const user = requireUser(request, response);
   if (!user) return null;
   if (!canAccessAdminPanel(user)) {
-    send(response, page("Нет доступа", user, `<main class="page"><div class="notice">Админ-панель доступна только администратору или инструктору.</div></main>`), 403);
+    send(response, page("Access denied", user, `<main class="page"><div class="notice">The admin panel is available only to administrators and instructors.</div></main>`), 403);
     return null;
   }
   return user;
@@ -2388,14 +2391,14 @@ function assignmentFor(userId, courseId) {
 
 function materialContentHtml(material) {
   const content = material.content?.trim() ?? "";
-  if (!content) return `<p class="muted">Материал еще не добавлен.</p>`;
+  if (!content) return `<p class="muted">Material has not been added yet.</p>`;
   if (content.startsWith("/uploads/")) {
     const safeContent = escapeHtml(content);
     const extension = extname(content).toLowerCase();
-    const title = escapeHtml(material.title || "Материал курса");
+    const title = escapeHtml(material.title || "Course material");
 
     if (material.type === "video" || isVideoFile(content)) {
-      return `<div class="material-player"><video controls playsinline preload="metadata" aria-label="${title}"><source src="${safeContent}" />Ваш браузер не поддерживает воспроизведение видео.</video></div>`;
+      return `<div class="material-player"><video controls playsinline preload="metadata" aria-label="${title}"><source src="${safeContent}" />Your browser does not support video playback.</video></div>`;
     }
     if (material.type === "pdf" || extension === ".pdf") {
       return `<iframe class="material-pdf" src="${safeContent}#toolbar=1&navpanes=0" title="${title}"></iframe>`;
@@ -2403,10 +2406,10 @@ function materialContentHtml(material) {
     if ([".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(extension)) {
       return `<img class="material-image" src="${safeContent}" alt="${title}" loading="lazy" />`;
     }
-    return `<p><a class="small-button primary" href="${safeContent}" download>Скачать файл</a></p>`;
+    return `<p><a class="small-button primary" href="${safeContent}" download>Download file</a></p>`;
   }
   if (/^https?:\/\//i.test(content)) {
-    return `<p><a class="link-line" href="${escapeHtml(content)}" target="_blank" rel="noopener">Открыть внешний материал</a></p>`;
+    return `<p><a class="link-line" href="${escapeHtml(content)}" target="_blank" rel="noopener">Open external material</a></p>`;
   }
   return `<div class="material-text">${escapeHtml(content).replaceAll("\n", "<br />")}</div>`;
 }
@@ -2461,9 +2464,9 @@ function courseCatalogFields(course) {
   const category = courseCategory(course);
   const positions = new Set(coursePositionsFor(course));
   return `<div class="admin-edit-grid">
-    <div class="field"><label>Категория</label><select name="catalogCategory"><option value="">Не выбрана</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></div>
+    <div class="field"><label>Category</label><select name="catalogCategory"><option value="">Not selected</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></div>
   </div>
-  <fieldset class="course-audience-fields"><legend>Подходит для должностей</legend><div class="course-audience-options">${coursePositions.map((position) => `<label class="checkbox-row"><input name="catalogPositions" type="checkbox" value="${escapeHtml(position)}" ${positions.has(position) ? "checked" : ""} /> ${escapeHtml(position)}</label>`).join("")}</div></fieldset>`;
+  <fieldset class="course-audience-fields"><legend>Suitable positions</legend><div class="course-audience-options">${coursePositions.map((position) => `<label class="checkbox-row"><input name="catalogPositions" type="checkbox" value="${escapeHtml(position)}" ${positions.has(position) ? "checked" : ""} /> ${escapeHtml(position)}</label>`).join("")}</div></fieldset>`;
 }
 
 function sortHomepageCourses(courses) {
@@ -2533,10 +2536,11 @@ function normalizeCoursePrice(value) {
 }
 
 function coursePriceHtml(course, options = {}) {
+  if (!SHOW_COURSE_PRICES) return "";
   const oldPrice = normalizeCoursePrice(course.oldPrice);
   const newPrice = normalizeCoursePrice(course.newPrice);
   if (!oldPrice && !newPrice) {
-    return options.showEmpty ? `<div class="course-price empty">Цена не задана</div>` : "";
+    return options.showEmpty ? `<div class="course-price empty">Price not set</div>` : "";
   }
   return `<div class="course-price">
     ${oldPrice ? `<span class="course-price-old">${escapeHtml(oldPrice)}</span>` : ""}
@@ -2546,8 +2550,8 @@ function coursePriceHtml(course, options = {}) {
 
 function courseTimingText(course) {
   const test = course.test;
-  const testTime = test?.timeLimitMinutes ? `${test.timeLimitMinutes} мин. на тест` : "тест без лимита времени";
-  return `${course.lessons?.length ?? 0} уроков, ${requiredMaterials(course).length} обязательных материалов, ${testTime}`;
+  const testTime = test?.timeLimitMinutes ? `${test.timeLimitMinutes} min test limit` : "no test time limit";
+  return `${course.lessons?.length ?? 0} lessons, ${requiredMaterials(course).length} required materials, ${testTime}`;
 }
 
 function publicCourseDetail(user, course) {
@@ -2564,39 +2568,39 @@ function publicCourseDetail(user, course) {
       <section class="section">
         <div class="course-public-hero">
           <div>
-            <span class="eyebrow">Курс</span>
+            <span class="eyebrow">Course</span>
             <h1>${escapeHtml(course.title)}</h1>
             ${coursePriceHtml(course)}
             <p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p>
             <div class="actions">
-              <a class="button" href="/apply?courseId=${encodeURIComponent(course.id)}">Оставить заявку</a>
-              <a class="button secondary" href="/courses">Все курсы</a>
+              <a class="button" href="/apply?courseId=${encodeURIComponent(course.id)}">Apply now</a>
+              <a class="button secondary" href="/courses">All courses</a>
             </div>
           </div>
           ${course.imageUrl ? `<img class="course-public-cover" src="${escapeHtml(course.imageUrl)}" alt="${escapeHtml(course.title)}" />` : courseCoverHtml(course)}
         </div>
         <div class="course-meta-grid">
-          <article class="metric"><span class="muted">Уроки</span><strong class="metric-value">${lessons.length}</strong></article>
-          <article class="metric"><span class="muted">Материалы</span><strong class="metric-value">${materialsCount}</strong><span class="muted">${requiredCount} обязательных</span></article>
-          <article class="metric"><span class="muted">Тест</span><strong class="metric-value">${test?.questions?.length ?? 0}</strong><span class="muted">проходной ${test?.passingPercent ?? 0}%</span></article>
-          <article class="metric"><span class="muted">Тайминг</span><strong class="metric-value">${test?.timeLimitMinutes ? `${test.timeLimitMinutes} мин` : "Без лимита"}</strong><span class="muted">финальный тест</span></article>
+          <article class="metric"><span class="muted">Lessons</span><strong class="metric-value">${lessons.length}</strong></article>
+          <article class="metric"><span class="muted">Materials</span><strong class="metric-value">${materialsCount}</strong><span class="muted">${requiredCount} required</span></article>
+          <article class="metric"><span class="muted">Test</span><strong class="metric-value">${test?.questions?.length ?? 0}</strong><span class="muted">pass mark ${test?.passingPercent ?? 0}%</span></article>
+          <article class="metric"><span class="muted">Timing</span><strong class="metric-value">${test?.timeLimitMinutes ? `${test.timeLimitMinutes} min` : "No limit"}</strong><span class="muted">final test</span></article>
         </div>
         <div class="grid two">
           <article class="panel stack">
-            <h2>О курсе</h2>
+            <h2>About this course</h2>
             <p>${escapeHtml(course.shortDescription || course.fullDescription || "")}</p>
-            ${course.goals ? `<div><h3>Цели</h3><p class="muted">${escapeHtml(course.goals)}</p></div>` : ""}
-            ${course.requirements ? `<div><h3>Требования</h3><p class="muted">${escapeHtml(course.requirements)}</p></div>` : ""}
+            ${course.goals ? `<div><h3>Learning objectives</h3><p class="muted">${escapeHtml(course.goals)}</p></div>` : ""}
+            ${course.requirements ? `<div><h3>Requirements</h3><p class="muted">${escapeHtml(course.requirements)}</p></div>` : ""}
           </article>
           <article class="panel stack">
-            <h2>Как проходит обучение</h2>
+            <h2>How learning works</h2>
             <p class="muted">${escapeHtml(courseTimingText(course))}.</p>
-            <p class="muted">Учебные материалы открываются в личном кабинете после назначения курса администратором.</p>
-            <p class="muted">После успешного прохождения теста система формирует сертификат, если у студента загружено фото.</p>
+            <p class="muted">Learning materials become available in your account after an administrator assigns the course.</p>
+            <p class="muted">After a successful test, the system issues a certificate when the student has uploaded a photo.</p>
           </article>
         </div>
         <article class="panel stack">
-          <h2>Что внутри курса</h2>
+          <h2>Course contents</h2>
           <div class="course-outline">
             ${lessons
               .map((lesson) => `<div class="course-outline-item">
@@ -2605,11 +2609,11 @@ function publicCourseDetail(user, course) {
                 <ul class="course-material-list">
                   ${(lesson.materials ?? [])
                     .sort((a, b) => a.sortOrder - b.sortOrder)
-                    .map((material) => `<li>${escapeHtml(material.title)} · ${escapeHtml(material.type)}${material.isRequired ? " · обязательный" : ""}</li>`)
-                    .join("") || `<li>Материалы будут добавлены позже</li>`}
+                    .map((material) => `<li>${escapeHtml(material.title)} · ${escapeHtml(material.type)}${material.isRequired ? " · required" : ""}</li>`)
+                    .join("") || `<li>Materials will be added later</li>`}
                 </ul>
               </div>`)
-              .join("") || `<div class="notice">Структура курса пока не заполнена.</div>`}
+              .join("") || `<div class="notice">The course structure has not been added yet.</div>`}
           </div>
         </article>
       </section>
@@ -2623,8 +2627,8 @@ function publicCourseCard(course) {
     <h3>${escapeHtml(course.title)}</h3>
     ${coursePriceHtml(course)}
     <div class="table-actions">
-      <a class="small-button primary" href="${coursePublicUrl(course)}">Подробнее</a>
-      <a class="small-button" href="/apply?courseId=${encodeURIComponent(course.id)}">Заявка</a>
+      <a class="small-button primary" href="${coursePublicUrl(course)}">Details</a>
+      <a class="small-button" href="/apply?courseId=${encodeURIComponent(course.id)}">Apply</a>
     </div>
   </article>`;
 }
@@ -2645,26 +2649,26 @@ function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
     .sort((a, b) => (sort === "title_desc" ? -1 : 1) * a.title.localeCompare(b.title, "ru"));
   const pagination = paginateItems(activeCourses, catalogParams);
   return page(
-    "Все курсы",
+    "All courses",
     user,
     `<main class="page">
       <section class="section">
         <div class="section-heading">
-          <div><span class="eyebrow">Каталог</span><h1>Все курсы</h1><p class="lead">Полный список активных программ. Каждый курс можно открыть, посмотреть описание и отправить заявку.</p></div>
-          <a class="button secondary" href="/">На главную</a>
+          <div><span class="eyebrow">Catalogue</span><h1>All courses</h1><p class="lead">A complete list of active programmes. Open a course to view its details and submit an application.</p></div>
+          <a class="button secondary" href="/">Home</a>
         </div>
         <form class="inline-form" method="get" action="/courses">
-          <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск по названию или описанию" />
-          <label class="field"><span>Подходит для</span><select name="position"><option value="">Все должности</option>${coursePositions.map((item) => `<option value="${escapeHtml(item)}" ${position === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
-          <label class="field"><span>Категория</span><select name="category"><option value="">Все категории</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
-          <label class="field"><span>Сортировка</span><select name="sort"><option value="title_asc" ${sort === "title_asc" ? "selected" : ""}>Название: А-Я</option><option value="title_desc" ${sort === "title_desc" ? "selected" : ""}>Название: Я-А</option></select></label>
-          <button class="small-button primary" type="submit">Применить</button>
-          <a class="small-button" href="/courses">Сбросить</a>
+          <input name="q" value="${escapeHtml(params.q)}" placeholder="Search by title or description" />
+          <label class="field"><span>Suitable for</span><select name="position"><option value="">All positions</option>${coursePositions.map((item) => `<option value="${escapeHtml(item)}" ${position === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
+          <label class="field"><span>Category</span><select name="category"><option value="">All categories</option>${courseCategories.map((item) => `<option value="${escapeHtml(item)}" ${category === item ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></label>
+          <label class="field"><span>Sort</span><select name="sort"><option value="title_asc" ${sort === "title_asc" ? "selected" : ""}>Title: A-Z</option><option value="title_desc" ${sort === "title_desc" ? "selected" : ""}>Title: Z-A</option></select></label>
+          <button class="small-button primary" type="submit">Apply filters</button>
+          <a class="small-button" href="/courses">Reset</a>
         </form>
         <div class="grid three">
-          ${pagination.items.map(publicCourseCard).join("") || `<article class="card"><h3>Курсы не найдены</h3><p class="muted">Попробуйте изменить поисковый запрос.</p></article>`}
+          ${pagination.items.map(publicCourseCard).join("") || `<article class="card"><h3>No courses found</h3><p class="muted">Try changing your search criteria.</p></article>`}
         </div>
-        ${paginationControls("/courses", { ...catalogParams, paginationLabel: "Курсы" }, pagination)}
+        ${paginationControls("/courses", { ...catalogParams, paginationLabel: "Courses" }, pagination)}
       </section>
     </main>`
   );
@@ -2687,7 +2691,7 @@ function uploadFileKey(path) {
 }
 
 function fileBadge(found) {
-  return `<span class="badge ${found ? "success" : "warning"}">${found ? "Найден" : "Не найден"}</span>`;
+  return `<span class="badge ${found ? "success" : "warning"}">${found ? "Found" : "Not found"}</span>`;
 }
 
 function uploadReport() {
@@ -2763,7 +2767,7 @@ function materialFileMatchesQuery(item, query) {
 }
 
 function uploadFileMatchesQuery(item, query) {
-  return matchesQuery([item.relativePath, item.publicPath, item.usedAsPhoto ? "фото" : "", item.isVideo ? "video" : ""], query);
+  return matchesQuery([item.relativePath, item.publicPath, item.usedAsPhoto ? "photo" : "", item.isVideo ? "video" : ""], query);
 }
 
 function lessonSelectOptions(selectedLessonId = "") {
@@ -2934,15 +2938,15 @@ function questionEditorFields(question = null) {
   for (let index = 1; index <= 6; index += 1) {
     const option = options[index - 1];
     fields.push(`<div class="field">
-      <label>Вариант ${index}${index > 2 ? " — необязательно" : ""}</label>
+      <label>Option ${index}${index > 2 ? " - optional" : ""}</label>
       <input name="option${index}" value="${escapeHtml(option?.optionText ?? "")}" ${index <= 2 ? "required" : ""} />
       <input type="hidden" name="optionId${index}" value="${escapeHtml(option?.id ?? "")}" />
     </div>`);
   }
   return `${fields.join("")}
-    <div class="field"><label>Правильный ответ</label><select name="correct">${Array.from({ length: 6 }, (_, itemIndex) => {
+    <div class="field"><label>Correct answer</label><select name="correct">${Array.from({ length: 6 }, (_, itemIndex) => {
       const value = itemIndex + 1;
-      return `<option value="${value}" ${correctIndex === value ? "selected" : ""}>Вариант ${value}</option>`;
+      return `<option value="${value}" ${correctIndex === value ? "selected" : ""}>Option ${value}</option>`;
     }).join("")}</select></div>`;
 }
 
@@ -2982,7 +2986,7 @@ function paginationControls(pathname, params, pagination) {
     return `<a class="small-button" href="${pathname}?${next.toString()}">${label}</a>`;
   };
   const pageNumbers = new Set([1, pagination.totalPages]);
-  const paginationLabel = params.paginationLabel ?? "Записи";
+  const paginationLabel = params.paginationLabel ?? "Records";
   for (let page = pagination.page - 2; page <= pagination.page + 2; page += 1) {
     if (page > 0 && page <= pagination.totalPages) pageNumbers.add(page);
   }
@@ -2997,12 +3001,12 @@ function paginationControls(pathname, params, pagination) {
         : link(page, String(page))
     );
   }
-  return `<nav class="pagination-controls" aria-label="Страницы списка">
-    <span class="pagination-summary">${escapeHtml(paginationLabel)}: страница ${pagination.page} из ${pagination.totalPages}, всего ${pagination.total}</span>
+  return `<nav class="pagination-controls" aria-label="List pages">
+    <span class="pagination-summary">${escapeHtml(paginationLabel)}: page ${pagination.page} of ${pagination.totalPages}, ${pagination.total} total</span>
     <div class="pagination-links">
-    ${pagination.page > 1 ? link(pagination.page - 1, "Назад") : ""}
+    ${pagination.page > 1 ? link(pagination.page - 1, "Previous") : ""}
     ${numberLinks.join("")}
-    ${pagination.page < pagination.totalPages ? link(pagination.page + 1, "Вперед") : ""}
+    ${pagination.page < pagination.totalPages ? link(pagination.page + 1, "Next") : ""}
     </div>
   </nav>`;
 }
@@ -3074,7 +3078,7 @@ function hasCertificatePhoto(user) {
 }
 
 function photoRequiredNotice() {
-  return `<div class="photo-warning"><strong>Фото для сертификата не загружено.</strong><br>Для получения сертификата в будущем обязательно загрузите фото в личном кабинете.</div>`;
+  return `<div class="photo-warning"><strong>No certificate photo has been uploaded.</strong><br>To receive a certificate in the future, upload a photo in your account.</div>`;
 }
 
 function activeCertificateForAssignment(assignmentId) {
@@ -3298,28 +3302,28 @@ function issueManualCertificate(student, course, admin, options = {}) {
 
 function statusLabel(status) {
   const labels = {
-    active: "Активен",
-    inactive: "Отключен",
-    deleted: "Архив",
-    new: "Новая",
-    contacted: "Связались",
-    accepted: "Принята",
-    rejected: "Отклонена",
-    converted_to_user: "Пользователь создан",
-    not_started: "Не начат",
-    in_progress: "В процессе",
-    test_available: "Тест доступен",
-    test_failed: "Тест не сдан",
-    test_passed: "Тест сдан",
-    completed: "Завершен",
-    issued: "Выдан",
-    revoked: "Отозван",
-    reissued: "Перевыпущен",
-    pending_photo: "Ожидает фото",
-    queued: "В очереди",
-    logged: "Лог",
-    sent: "Отправлено",
-    failed: "Ошибка"
+    active: "Active",
+    inactive: "Inactive",
+    deleted: "Archived",
+    new: "New",
+    contacted: "Contacted",
+    accepted: "Accepted",
+    rejected: "Rejected",
+    converted_to_user: "User created",
+    not_started: "Not started",
+    in_progress: "In progress",
+    test_available: "Test available",
+    test_failed: "Test failed",
+    test_passed: "Test passed",
+    completed: "Completed",
+    issued: "Issued",
+    revoked: "Revoked",
+    reissued: "Reissued",
+    pending_photo: "Awaiting photo",
+    queued: "Queued",
+    logged: "Logged",
+    sent: "Sent",
+    failed: "Failed"
   };
   return labels[status] ?? status;
 }
@@ -3337,9 +3341,9 @@ function displayUserName(user) {
 
 function roleLabel(role) {
   const labels = {
-    admin: "Администратор",
-    instructor: "Инструктор",
-    student: "Студент"
+    admin: "Administrator",
+    instructor: "Instructor",
+    student: "Student"
   };
   return labels[role] ?? role;
 }
@@ -3347,15 +3351,15 @@ function roleLabel(role) {
 function topNav(user) {
   return `<header class="topbar">
     <a class="brand" href="/" aria-label="Maritime Portal"><img class="brand-logo" src="/assets/brand/maritime-portal-logo.png" alt="Maritime Portal" /></a>
-    <nav class="public-nav" aria-label="Основная навигация">
-      <a class="nav-link" href="/courses">Каталог</a>
-      <a class="nav-link" href="/blog">Блог</a>
-      <a class="nav-link" href="/contacts">Контакты</a>
+    <nav class="public-nav" aria-label="Main navigation">
+      <a class="nav-link" href="/courses">Catalogue</a>
+      <a class="nav-link" href="/blog">Blog</a>
+      <a class="nav-link" href="/contacts">Contact</a>
     </nav>
     <div class="nav-account">
-      ${user ? `<a class="nav-link" href="/dashboard">Кабинет</a>` : ""}
-      ${canAccessAdminPanel(user) ? `<a class="nav-link" href="/admin">Админ</a>` : ""}
-      ${user ? `<form method="post" action="/logout"><button class="nav-link" type="submit">Выйти</button></form>` : `<a class="nav-link" href="/login">Войти</a>`}
+      ${user ? `<a class="nav-link" href="/dashboard">My account</a>` : ""}
+      ${canAccessAdminPanel(user) ? `<a class="nav-link" href="/admin">Admin</a>` : ""}
+      ${user ? `<form method="post" action="/logout"><button class="nav-link" type="submit">Sign out</button></form>` : `<a class="nav-link" href="/login">Sign in</a>`}
     </div>
   </header>`;
 }
@@ -3366,7 +3370,7 @@ function page(title, user, body) {
       ${body}
     </div>`);
   return `<!doctype html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -3382,27 +3386,27 @@ function page(title, user, body) {
 
 function adminShell(user, title, body) {
   const navLinks = isFullAdmin(user)
-    ? `<a href="/admin">Дашборд</a>
-          <a href="/admin/applications">Заявки</a>
-          <a href="/admin/users">Пользователи</a>
-          <a href="/admin/reports">Отчеты</a>
-          <a href="/admin/checks">Чеки</a>
-          <a href="/admin/tests">Тесты</a>
-          <a href="/admin/courses">Курсы</a>
-          <a href="/admin/course-prices">Цены</a>
-          <a href="/admin/homepage">Главная</a>
-          <a href="/admin/files">Файлы</a>
-          <a href="/admin/certificates">Сертификаты</a>
-          <a href="/admin/notifications">Уведомления</a>
-          <a href="/admin/audit">Аудит</a>`
-    : `<a href="/admin">Панель инструктора</a>
-          <a href="/admin/users">Пользователи</a>`;
+    ? `<a href="/admin">Dashboard</a>
+          <a href="/admin/applications">Applications</a>
+          <a href="/admin/users">Users</a>
+          <a href="/admin/reports">Reports</a>
+          <a href="/admin/checks">Invoices</a>
+          <a href="/admin/tests">Tests</a>
+          <a href="/admin/courses">Courses</a>
+          ${SHOW_COURSE_PRICES ? `<a href="/admin/course-prices">Prices</a>` : ""}
+          <a href="/admin/homepage">Home</a>
+          <a href="/admin/files">Files</a>
+          <a href="/admin/certificates">Certificates</a>
+          <a href="/admin/notifications">Notifications</a>
+          <a href="/admin/audit">Audit log</a>`
+    : `<a href="/admin">Instructor panel</a>
+          <a href="/admin/users">Users</a>`;
   return page(
     title,
     user,
     `<div class="split-layout">
       <aside class="sidebar">
-        <span class="eyebrow">Админ-панель</span>
+        <span class="eyebrow">Administration</span>
         <nav class="sidebar-nav">
           ${navLinks}
         </nav>
@@ -3419,13 +3423,13 @@ function studentShell(user, title, body) {
     user,
     `<div class="split-layout">
       <aside class="sidebar">
-        <span class="eyebrow">Личный кабинет</span>
+        <span class="eyebrow">My account</span>
         <nav class="sidebar-nav">
-          <a href="/dashboard">Обзор</a>
-          <a href="/dashboard/courses">Мои курсы</a>
-          <a href="/dashboard/tests">Пройденные тесты</a>
-          <a href="/dashboard/certificates">Сертификаты</a>
-          <a href="/dashboard/profile">Профиль</a>
+          <a href="/dashboard">Overview</a>
+          <a href="/dashboard/courses">My courses</a>
+          <a href="/dashboard/tests">Completed tests</a>
+          <a href="/dashboard/certificates">Certificates</a>
+          <a href="/dashboard/profile">Profile</a>
         </nav>
       </aside>
       <main class="content">${photoNotice}${body}</main>
@@ -3436,7 +3440,7 @@ function studentShell(user, title, body) {
 function homePage(user, feedbackSent = false) {
   const visibleCourses = homepageCourses();
   return page(
-    "Главная",
+    "Home",
     user,
     `<main class="home-page">
       <section class="hero">
@@ -3447,30 +3451,30 @@ function homePage(user, feedbackSent = false) {
         </div>
         <div class="hero-copy">
           <span class="eyebrow">Marine training platform</span>
-          <h1>Marine LMS для обучения, тестов и сертификатов</h1>
-          <p class="lead">Закрытая учебная платформа для морских курсов: администратор вручную создает студентов, назначает обучение, контролирует прогресс и выдает сертификаты.</p>
+          <h1>Marine LMS for training, tests, and certificates</h1>
+          <p class="lead">A private maritime learning platform where administrators create students, assign training, track progress, and issue certificates.</p>
           <div class="actions">
-            <a class="button" href="/apply">Зарегистрироваться на курс</a>
-            <a class="button secondary" href="${user ? "/dashboard" : "/login"}">Войти в кабинет</a>
+            <a class="button" href="/apply">Apply for a course</a>
+            <a class="button secondary" href="${user ? "/dashboard" : "/login"}">Sign in</a>
           </div>
           <div class="hero-meta">
-            <div class="hero-meta-item"><strong>Manual access</strong><span>без самостоятельной регистрации</span></div>
-            <div class="hero-meta-item"><strong>Course control</strong><span>материалы перед тестом</span></div>
-            <div class="hero-meta-item"><strong>Certificates</strong><span>привязка к студенту и курсу</span></div>
+            <div class="hero-meta-item"><strong>Manual access</strong><span>no self-registration</span></div>
+            <div class="hero-meta-item"><strong>Course control</strong><span>materials before the test</span></div>
+            <div class="hero-meta-item"><strong>Certificates</strong><span>linked to the student and course</span></div>
           </div>
         </div>
       </section>
       <section class="section">
         <div class="section-heading">
-          <div><span class="eyebrow">Курсы</span><h2>Доступные программы обучения</h2></div>
-          <div class="actions"><a class="button secondary" href="/courses">Все курсы</a><a class="button secondary" href="/apply">Оставить заявку</a></div>
+          <div><span class="eyebrow">Courses</span><h2>Available training programmes</h2></div>
+          <div class="actions"><a class="button secondary" href="/courses">All courses</a><a class="button secondary" href="/apply">Apply now</a></div>
         </div>
         <div class="grid three">
           ${visibleCourses.length
             ? visibleCourses
             .map(publicCourseCard)
             .join("")
-            : `<article class="card"><h3>Курсы скоро появятся</h3><p class="muted">Администратор еще не выбрал курсы для главной страницы.</p></article>`}
+            : `<article class="card"><h3>Courses will be available soon</h3><p class="muted">An administrator has not selected courses for the home page yet.</p></article>`}
         </div>
       </section>
       ${homeFooter(feedbackSent)}
@@ -3480,19 +3484,19 @@ function homePage(user, feedbackSent = false) {
 
 function loginPage(user, notice = "") {
   if (user) return redirectPage("/dashboard");
-  const message = notice === "login_required" ? `<div class="notice">Войдите, чтобы открыть закрытую часть платформы.</div>` : "";
+  const message = notice === "login_required" ? `<div class="notice">Sign in to access the private part of the platform.</div>` : "";
   return page(
-    "Вход",
+    "Sign in",
     null,
     `<main class="page">
       <section class="section">
-        <div><span class="eyebrow">Закрытый доступ</span><h1>Вход в Marine LMS</h1><p class="lead">Самостоятельной регистрации нет. Доступ выдает администратор после обработки заявки.</p></div>
+        <div><span class="eyebrow">Private access</span><h1>Sign in to Marine LMS</h1><p class="lead">Self-registration is not available. Access is granted by an administrator after the application is processed.</p></div>
         ${message}
         <form class="form-panel" method="post" action="/login">
           <div class="field"><label for="email">E-mail</label><input id="email" name="email" type="email" required /></div>
-          <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" required /></div>
-          <button class="button" type="submit">Войти</button>
-          <a class="link-line" href="/forgot-password">Восстановить пароль</a>
+          <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" required /></div>
+          <button class="button" type="submit">Sign in</button>
+          <a class="link-line" href="/forgot-password">Reset password</a>
         </form>
       </section>
     </main>`
@@ -3563,7 +3567,7 @@ async function blogPage(user) {
     .map((item) => `<article class="imo-news-card"><img class="imo-news-image" src="${escapeHtml(item.imageUrl)}" alt="" /><div class="imo-news-content"><div class="imo-news-meta">IMO Press Briefing · ${escapeHtml(item.date)}</div><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p><a class="small-button primary" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Read on IMO</a></div></article>`)
     .join("");
   return page(
-    "Блог",
+    "Blog",
     user,
     `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">International Maritime Organization</span><h1>Maritime news</h1><p class="lead">Latest official IMO press briefings on shipping, safety, seafarers and the marine environment.</p></div><a class="button secondary" href="${imoPressBriefingsUrl}" target="_blank" rel="noopener noreferrer">IMO Press Briefings</a></div>${cards ? `<div class="imo-news-grid">${cards}</div>` : `<article class="panel"><p class="muted">Official IMO news is temporarily unavailable. Please try again shortly.</p></article>`}</section></main>`
   );
@@ -3572,9 +3576,9 @@ async function blogPage(user) {
 function contactsPage(user) {
   const email = process.env.SMTP_FROM || "info@maritimelearning.store";
   return page(
-    "Контакты",
+    "Contact",
     user,
-    `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">Контакты</span><h1>Связь с Marine LMS</h1><p class="lead">По вопросам обучения и заявок используйте электронную почту или оставьте заявку на нужный курс.</p></div><a class="button" href="/apply">Оставить заявку</a></div><article class="panel stack"><div><strong>E-mail</strong><br><a class="link-line" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></div></article></section></main>`
+    `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">Contact</span><h1>Contact Marine LMS</h1><p class="lead">For training and course applications, use email or submit an application for the course you need.</p></div><a class="button" href="/apply">Apply now</a></div><article class="panel stack"><div><strong>Email</strong><br><a class="link-line" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></div></article></section></main>`
   );
 }
 
@@ -3595,16 +3599,16 @@ function policyPage(user, title, content) {
 function forgotPasswordPage(user, success = false) {
   if (user) return redirectPage("/dashboard");
   return page(
-    "Восстановление пароля",
+    "Password recovery",
     null,
     `<main class="page">
       <section class="section">
-        <div><span class="eyebrow">Доступ</span><h1>Восстановление пароля</h1><p class="lead">Если e-mail есть в системе, LMS отправит одноразовую ссылку для выбора нового пароля.</p></div>
-        ${success ? `<div class="notice">Если такой e-mail зарегистрирован, ссылка для восстановления была отправлена.</div>` : ""}
+        <div><span class="eyebrow">Access</span><h1>Password recovery</h1><p class="lead">If the email address exists in the system, LMS will send a one-time link to choose a new password.</p></div>
+        ${success ? `<div class="notice">If this email address is registered, a recovery link has been sent.</div>` : ""}
         <form class="form-panel" method="post" action="/forgot-password">
           <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>
-          <button class="button" type="submit">Получить ссылку</button>
-          <a class="small-button" href="/login">Вернуться ко входу</a>
+          <button class="button" type="submit">Get link</button>
+          <a class="small-button" href="/login">Back to sign in</a>
         </form>
       </section>
     </main>`
@@ -3612,16 +3616,16 @@ function forgotPasswordPage(user, success = false) {
 }
 
 function resetPasswordPage(token = "", error = "") {
-  const message = error === "invalid" ? `<div class="notice danger">Ссылка недействительна или срок ее действия истек.</div>` : "";
+  const message = error === "invalid" ? `<div class="notice danger">The link is invalid or has expired.</div>` : "";
   return page(
-    "Новый пароль",
+    "New password",
     null,
-    `<main class="page"><section class="section"><div><span class="eyebrow">Доступ</span><h1>Новый пароль</h1><p class="lead">Ссылка действует 30 минут и может быть использована один раз.</p></div>
+    `<main class="page"><section class="section"><div><span class="eyebrow">Access</span><h1>New password</h1><p class="lead">The link is valid for 30 minutes and can be used once.</p></div>
       ${message}
       <form class="form-panel" method="post" action="/reset-password">
         <input type="hidden" name="token" value="${escapeHtml(token)}" />
-        <div class="field"><label>Новый пароль</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
-        <button class="button" type="submit">Сохранить пароль</button>
+        <div class="field"><label>New password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
+        <button class="button" type="submit">Save password</button>
       </form>
     </section></main>`
   );
@@ -3635,20 +3639,20 @@ function applyPage(user, success = false, selectedCourseId = "") {
   const activeCourses = db.courses.filter((course) => course.status === "active");
   const isStudentRequest = user?.role === "student";
   return page(
-    "Заявка",
+    "Application",
     user,
     `<main class="page">
       <section class="section">
-        <div><span class="eyebrow">Заявка на курс</span><h1>Оставить заявку</h1><p class="lead">${isStudentRequest ? "Ваши данные из личного кабинета будут приложены к заявке. Выберите нужный курс." : "Заявка не создает аккаунт автоматически. Администратор связывается с кандидатом и вручную создает пользователя."}</p></div>
-        ${success ? `<div class="notice">Заявка отправлена. Администратор увидит ее в панели управления.</div>` : ""}
+        <div><span class="eyebrow">Course application</span><h1>Apply for a course</h1><p class="lead">${isStudentRequest ? "Your account details will be attached to the application. Select the course you need." : "Submitting an application does not create an account automatically. An administrator will contact the applicant and create the user manually."}</p></div>
+        ${success ? `<div class="notice">Your application has been sent. An administrator will see it in the control panel.</div>` : ""}
         <form class="form-panel" method="post" action="/apply">
-          ${isStudentRequest ? "" : `<div class="field"><label>Фамилия</label><input name="lastName" required /></div>
-          <div class="field"><label>Имя</label><input name="firstName" required /></div>
-          <div class="field"><label>Номер телефона</label><input name="phone" required /></div>
+          ${isStudentRequest ? "" : `<div class="field"><label>Last name</label><input name="lastName" required /></div>
+          <div class="field"><label>First name</label><input name="firstName" required /></div>
+          <div class="field"><label>Phone number</label><input name="phone" required /></div>
           <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>`}
-          <div class="field"><label>Курс</label><select name="courseId" required>${activeCourses.map((course) => `<option value="${course.id}" ${selectedCourseId === course.id ? "selected" : ""}>${escapeHtml(course.title)}</option>`).join("")}</select></div>
-          <div class="field"><label>Комментарий</label><textarea name="comment"></textarea></div>
-          <button class="button" type="submit">Отправить заявку</button>
+          <div class="field"><label>Course</label><select name="courseId" required>${activeCourses.map((course) => `<option value="${course.id}" ${selectedCourseId === course.id ? "selected" : ""}>${escapeHtml(course.title)}</option>`).join("")}</select></div>
+          <div class="field"><label>Comment</label><textarea name="comment"></textarea></div>
+          <button class="button" type="submit">Send application</button>
         </form>
       </section>
     </main>`
@@ -3661,15 +3665,15 @@ function adminDashboard(user) {
     const activeCourses = db.courses.filter((course) => course.status === "active").length;
     return adminShell(
       user,
-      "Панель инструктора",
+      "Instructor panel",
       `<section class="section">
         <div class="section-heading">
-          <div><span class="eyebrow">Инструктор</span><h1>Назначение обучения</h1><p class="lead">Инструктор может создать студента, редактировать его данные, загрузить фото и назначить курс. Удаление, отчеты и сертификаты недоступны.</p></div>
-          <div class="actions"><a class="button" href="/admin/users">Пользователи</a></div>
+          <div><span class="eyebrow">Instructor</span><h1>Training assignment</h1><p class="lead">An instructor can create a student, edit their details, upload a photo, and assign a course. Deletion, reports, and certificates are unavailable.</p></div>
+          <div class="actions"><a class="button" href="/admin/users">Users</a></div>
         </div>
         <div class="grid three">
-          <article class="metric"><span class="muted">Активные студенты</span><strong class="metric-value">${students}</strong></article>
-          <article class="metric"><span class="muted">Курсы для назначения</span><strong class="metric-value">${activeCourses}</strong></article>
+          <article class="metric"><span class="muted">Active students</span><strong class="metric-value">${students}</strong></article>
+          <article class="metric"><span class="muted">Courses available to assign</span><strong class="metric-value">${activeCourses}</strong></article>
         </div>
       </section>`
     );
@@ -3678,18 +3682,18 @@ function adminDashboard(user) {
   const activeCourses = db.courses.filter((course) => course.status === "active").length;
   const completed = db.assignments.filter((assignment) => assignment.status === "completed").length;
   const metrics = [
-    ["Новые заявки", db.applications.filter((item) => item.status === "new").length, "ожидают обработки"],
-    ["Активные студенты", activeStudents, "имеют доступ"],
-    ["Активные курсы", activeCourses, "доступны для назначения"],
-    ["Завершенные курсы", completed, "успешно пройдены"]
+    ["New applications", db.applications.filter((item) => item.status === "new").length, "awaiting review"],
+    ["Active students", activeStudents, "have access"],
+    ["Active courses", activeCourses, "available to assign"],
+    ["Completed courses", completed, "passed successfully"]
   ];
   return adminShell(
     user,
-    "Админ-панель",
+    "Admin panel",
     `<section class="section">
       <div class="section-heading">
-        <div><span class="eyebrow">Управление обучением</span><h1>Админский дашборд</h1><p class="lead">Операционный центр для заявок, пользователей, курсов, тестов и сертификатов.</p></div>
-        <div class="actions"><a class="button" href="/admin/users">Создать пользователя</a><a class="button secondary" href="/admin/courses">Курсы</a></div>
+        <div><span class="eyebrow">Learning management</span><h1>Admin dashboard</h1><p class="lead">The operations centre for applications, users, courses, tests, and certificates.</p></div>
+        <div class="actions"><a class="button" href="/admin/users">Create user</a><a class="button secondary" href="/admin/courses">Courses</a></div>
       </div>
       <div class="grid four">${metrics
         .map(
@@ -3712,22 +3716,22 @@ function adminApplications(user, searchParams = new URLSearchParams()) {
   const pagination = paginateItems(applications, params);
   return adminShell(
     user,
-    "Заявки",
+    "Applications",
     `<section class="section">
-      <div><span class="eyebrow">Заявки</span><h1>Заявки на курсы</h1><p class="lead">Заявка сохраняется отдельно и не создает аккаунт автоматически.</p></div>
+      <div><span class="eyebrow">Applications</span><h1>Course applications</h1><p class="lead">An application is stored separately and does not create an account automatically.</p></div>
       <form class="inline-form" method="get" action="/admin/applications">
-        <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск заявок" />
-        <button class="small-button primary" type="submit">Найти</button>
+        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search applications" />
+        <button class="small-button primary" type="submit">Search</button>
       </form>
       <table class="table">
-        <thead><tr><th>Кандидат</th><th>Контакты</th><th>Курс</th><th>Статус</th><th>Действия</th></tr></thead>
+        <thead><tr><th>Applicant</th><th>Contact details</th><th>Course</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>${pagination.items
           .map((application) => {
             const course = courseById(application.courseId);
             return `<tr>
               <td>${escapeHtml(application.lastName)} ${escapeHtml(application.firstName)}<br><span class="muted">${escapeHtml(application.comment)}</span></td>
               <td>${escapeHtml(application.email)}<br><span class="muted">${escapeHtml(application.phone)}</span></td>
-              <td>${escapeHtml(course?.title ?? "Курс удален")}</td>
+              <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
               <td>${badge(application.status)}</td>
               <td><div class="table-actions">
                 <form method="post" action="/admin/applications/status" class="inline-form">
@@ -3735,16 +3739,16 @@ function adminApplications(user, searchParams = new URLSearchParams()) {
                   <select name="status">
                     ${["new", "contacted", "accepted", "rejected"].map((status) => `<option value="${status}" ${application.status === status ? "selected" : ""}>${statusLabel(status)}</option>`).join("")}
                   </select>
-                  <button class="small-button" type="submit">Сохранить</button>
+                  <button class="small-button" type="submit">Save</button>
                 </form>
                 <form method="post" action="/admin/applications/convert">
                   <input type="hidden" name="id" value="${application.id}" />
-                  <button class="small-button primary" type="submit">Создать пользователя</button>
+                  <button class="small-button primary" type="submit">Create user</button>
                 </form>
               </div></td>
             </tr>`;
           })
-          .join("") || `<tr><td colspan="5"><span class="muted">Заявки не найдены.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="5"><span class="muted">No applications found.</span></td></tr>`}</tbody>
       </table>
       ${paginationControls("/admin/applications", params, pagination)}
     </section>`
@@ -3754,29 +3758,29 @@ function adminApplications(user, searchParams = new URLSearchParams()) {
 function adminStudentCard(student, viewer = null) {
   const assignments = db.assignments.filter((assignment) => assignment.userId === student.id);
   const activeCourses = db.courses.filter((course) => course.status === "active");
-  const toggleLabel = student.status === "active" ? "Деактивировать" : "Активировать";
-  const photoLabel = hasCertificatePhoto(student) ? "Фото загружено" : "Фото не загружено";
+  const toggleLabel = student.status === "active" ? "Deactivate" : "Activate";
+  const photoLabel = hasCertificatePhoto(student) ? "Photo uploaded" : "No photo uploaded";
   const fullAdmin = isFullAdmin(viewer);
   const canAssign = canAssignCourses(viewer);
   const canEdit = canEditStudents(viewer);
   return `<article class="panel stack admin-user-card">
     <div class="admin-user-summary">
       <div>
-        <span class="eyebrow">Студент</span>
+        <span class="eyebrow">Student</span>
         <h2>${escapeHtml(student.firstNameEn)} ${escapeHtml(student.lastNameEn)}</h2>
         <p class="muted">${escapeHtml(student.email)}</p>
       </div>
       <div>${badge(student.status)}</div>
-      <p><strong>Должность:</strong> ${escapeHtml(student.position || "-")}</p>
-      <p><strong>Компания:</strong> ${escapeHtml(student.company || "-")}</p>
+      <p><strong>Position:</strong> ${escapeHtml(student.position || "-")}</p>
+      <p><strong>Company:</strong> ${escapeHtml(student.company || "-")}</p>
       <p class="muted">${photoLabel}</p>
-      ${fullAdmin ? `<a class="small-button" href="/admin/users/${encodeURIComponent(student.id)}">Профиль студента</a>
-      <a class="small-button primary" href="/admin/certificates?userId=${encodeURIComponent(student.id)}">Сертификаты студента</a>` : ""}
+      ${fullAdmin ? `<a class="small-button" href="/admin/users/${encodeURIComponent(student.id)}">Student profile</a>
+      <a class="small-button primary" href="/admin/certificates?userId=${encodeURIComponent(student.id)}">Student certificates</a>` : ""}
       ${hasCertificatePhoto(student) ? `<img class="profile-photo" src="${escapeHtml(student.photoUrl)}" alt="Certificate photo" />` : `<div class="profile-photo"></div>`}
       ${canEdit ? `<form class="stack" method="post" action="/admin/users/photo" enctype="multipart/form-data">
         <input type="hidden" name="id" value="${student.id}" />
-        <div class="field"><label>Фото для сертификата</label><input name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required /></div>
-        <button class="small-button primary" type="submit">Загрузить фото</button>
+        <div class="field"><label>Certificate photo</label><input name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required /></div>
+        <button class="small-button primary" type="submit">Upload photo</button>
       </form>` : ""}
       ${fullAdmin ? `<div class="table-actions">
         <form method="post" action="/admin/users/toggle">
@@ -3785,12 +3789,12 @@ function adminStudentCard(student, viewer = null) {
         </form>
         <form method="post" action="/admin/users/delete">
           <input type="hidden" name="id" value="${student.id}" />
-          <button class="small-button danger" type="submit">Архивировать</button>
+          <button class="small-button danger" type="submit">Archive</button>
         </form>
         <form method="post" action="/admin/users/reset-password" class="inline-form">
           <input type="hidden" name="id" value="${student.id}" />
           <input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="Temporary password" required />
-          <button class="small-button warning" type="submit">Сбросить пароль</button>
+          <button class="small-button warning" type="submit">Reset password</button>
         </form>
       </div>` : ""}
     </div>
@@ -3798,44 +3802,44 @@ function adminStudentCard(student, viewer = null) {
       ${canEdit ? `<form class="stack" method="post" action="/admin/users/update">
         <input type="hidden" name="id" value="${student.id}" />
         <div class="admin-edit-grid">
-          <div class="field"><label>Фамилия</label><input name="lastNameEn" value="${escapeHtml(student.lastNameEn)}" required /></div>
-          <div class="field"><label>Имя</label><input name="firstNameEn" value="${escapeHtml(student.firstNameEn)}" required /></div>
-          <div class="field"><label>Дата рождения</label><input name="birthDate" type="date" value="${escapeHtml(student.birthDate || "")}" required /></div>
+          <div class="field"><label>Last name</label><input name="lastNameEn" value="${escapeHtml(student.lastNameEn)}" required /></div>
+          <div class="field"><label>First name</label><input name="firstNameEn" value="${escapeHtml(student.firstNameEn)}" required /></div>
+          <div class="field"><label>Date of birth</label><input name="birthDate" type="date" value="${escapeHtml(student.birthDate || "")}" required /></div>
           <div class="field"><label>E-mail</label><input name="email" type="email" value="${escapeHtml(student.email)}" required /></div>
-          <div class="field"><label>Должность</label><input name="position" value="${escapeHtml(student.position || "")}" required /></div>
-          <div class="field"><label>Компания</label><input name="company" value="${escapeHtml(student.company || "")}" /></div>
-          <div class="field"><label>Телефон</label><input name="phone" value="${escapeHtml(student.phone || "")}" /></div>
+          <div class="field"><label>Position</label><input name="position" value="${escapeHtml(student.position || "")}" required /></div>
+          <div class="field"><label>Company</label><input name="company" value="${escapeHtml(student.company || "")}" /></div>
+          <div class="field"><label>Phone</label><input name="phone" value="${escapeHtml(student.phone || "")}" /></div>
         </div>
-        <button class="small-button primary" type="submit">Сохранить профиль</button>
-      </form>` : `<div class="notice"><strong>Ограниченный доступ.</strong><br>Недостаточно прав для редактирования профиля.</div>`}
+        <button class="small-button primary" type="submit">Save profile</button>
+      </form>` : `<div class="notice"><strong>Limited access.</strong><br>You do not have permission to edit this profile.</div>`}
       <div class="stack">
-        <h3>Назначенные курсы</h3>
+        <h3>Assigned courses</h3>
         ${assignments.map((assignment) => {
           recalculateAssignment(assignment);
           const course = courseById(assignment.courseId);
           const hasCertificate = Boolean(activeCertificateForAssignment(assignment.id));
           return `<div class="assignment-chip">
-            <span>${escapeHtml(course?.title ?? "Курс удален")}</span>
+            <span>${escapeHtml(course?.title ?? "Course deleted")}</span>
             <span>${badge(assignment.status)} ${assignment.progressPercent ?? 0}%</span>
             ${hasCertificate
-              ? `<span class="muted">Есть сертификат</span>`
-              : fullAdmin ? `<form method="post" action="/admin/assignments/${assignment.id}/delete"><button class="small-button danger" type="submit">Удалить</button></form>` : `<span class="muted">Сертификата нет</span>`}
+              ? `<span class="muted">Certificate issued</span>`
+              : fullAdmin ? `<form method="post" action="/admin/assignments/${assignment.id}/delete"><button class="small-button danger" type="submit">Delete</button></form>` : `<span class="muted">No certificate</span>`}
           </div>`;
-        }).join("") || `<p class="muted">Назначений пока нет.</p>`}
+        }).join("") || `<p class="muted">No assignments yet.</p>`}
         ${canAssign && activeCourses.length
           ? `<form method="post" action="/admin/assignments/create" class="inline-form">
               <input type="hidden" name="userId" value="${student.id}" />
               <select name="courseId">${activeCourses.map((course) => `<option value="${course.id}">${escapeHtml(course.title)}</option>`).join("")}</select>
-              <button class="small-button primary" type="submit">Назначить курс</button>
+              <button class="small-button primary" type="submit">Assign course</button>
             </form>`
-          : `<p class="muted">Нет активных курсов для назначения.</p>`}
+          : `<p class="muted">No active courses available to assign.</p>`}
         ${fullAdmin && activeCourses.length
           ? `<form method="post" action="/admin/certificates/issue-manual" class="inline-form">
               <input type="hidden" name="userId" value="${student.id}" />
               <select name="courseId">${activeCourses.map((course) => `<option value="${course.id}">${escapeHtml(course.title)}</option>`).join("")}</select>
-              <label class="field">Дата выдачи<input name="issuedAt" type="date" value="${dateInputValue()}" required /></label>
-              <button class="small-button warning" type="submit" ${hasCertificatePhoto(student) ? "" : "disabled"}>Выдать сертификат</button>
-              ${hasCertificatePhoto(student) ? `<span class="muted">Курс будет отмечен как завершенный.</span>` : `<span class="muted">Сначала загрузите фото студента.</span>`}
+              <label class="field">Issue date<input name="issuedAt" type="date" value="${dateInputValue()}" required /></label>
+              <button class="small-button warning" type="submit" ${hasCertificatePhoto(student) ? "" : "disabled"}>Issue certificate</button>
+              ${hasCertificatePhoto(student) ? `<span class="muted">The course will be marked as completed.</span>` : `<span class="muted">Upload the student's photo first.</span>`}
             </form>`
           : ""}
       </div>
@@ -3854,41 +3858,41 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
   const pagination = paginateItems(students, params);
   return adminShell(
     user,
-    "Пользователи",
+    "Users",
     `<section class="section">
       <div class="section-heading">
-        <div><span class="eyebrow">Пользователи</span><h1>Студенты</h1><p class="lead">Администратор создает студентов, редактирует обязательные поля и назначает курсы.</p></div>
+        <div><span class="eyebrow">Users</span><h1>Students</h1><p class="lead">An administrator creates students, edits required details, and assigns courses.</p></div>
       </div>
       <form class="inline-form" method="get" action="/admin/users">
-        <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск студентов" />
-        <button class="small-button primary" type="submit">Найти</button>
+        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search students" />
+        <button class="small-button primary" type="submit">Search</button>
       </form>
       <form class="form-panel" method="post" action="/admin/users/create">
-        <h2>${isFullAdmin(user) ? "Создать пользователя" : "Создать студента"}</h2>
+        <h2>${isFullAdmin(user) ? "Create user" : "Create student"}</h2>
         ${isFullAdmin(user)
-          ? `<div class="field"><label>Роль</label><select name="role"><option value="student">Студент</option><option value="instructor">Инструктор</option></select></div>`
+          ? `<div class="field"><label>Role</label><select name="role"><option value="student">Student</option><option value="instructor">Instructor</option></select></div>`
           : `<input type="hidden" name="role" value="student" />`}
         <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>
-        <div class="field"><label>Имя</label><input name="firstNameEn" required /></div>
-        <div class="field"><label>Фамилия</label><input name="lastNameEn" required /></div>
-        <div class="field"><label>Дата рождения</label><input name="birthDate" type="date" required /></div>
-        <div class="field"><label>Должность</label><input name="position" required /></div>
-        <div class="field"><label>Компания — необязательно</label><input name="company" /></div>
-        <div class="field"><label>Телефон</label><input name="phone" /></div>
-        <div class="field"><label>Временный пароль</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
-        <button class="button" type="submit">Создать пользователя</button>
+        <div class="field"><label>First name</label><input name="firstNameEn" required /></div>
+        <div class="field"><label>Last name</label><input name="lastNameEn" required /></div>
+        <div class="field"><label>Date of birth</label><input name="birthDate" type="date" required /></div>
+        <div class="field"><label>Position</label><input name="position" required /></div>
+        <div class="field"><label>Company - optional</label><input name="company" /></div>
+        <div class="field"><label>Phone</label><input name="phone" /></div>
+        <div class="field"><label>Temporary password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
+        <button class="button" type="submit">Create user</button>
       </form>
       ${isFullAdmin(user) ? `<article class="panel stack">
-        <h2>Сотрудники админ-панели</h2>
+        <h2>Admin panel staff</h2>
         <table class="table">
-          <thead><tr><th>Имя</th><th>E-mail</th><th>Роль</th><th>Статус</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
           <tbody>${staff
             .map((item) => `<tr><td>${escapeHtml(displayUserName(item))}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(roleLabel(item.role))}</td><td>${badge(item.status)}</td></tr>`)
-            .join("") || `<tr><td colspan="4"><span class="muted">Сотрудников не найдено.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="4"><span class="muted">No staff members found.</span></td></tr>`}</tbody>
         </table>
       </article>` : ""}
       <div class="admin-user-list">
-        ${pagination.items.map((student) => adminStudentCard(student, user)).join("") || `<article class="panel">Студентов не найдено.</article>`}
+        ${pagination.items.map((student) => adminStudentCard(student, user)).join("") || `<article class="panel">No students found.</article>`}
       </div>
       ${paginationControls("/admin/users", params, pagination)}
     </section>`
@@ -3899,11 +3903,11 @@ function assignmentAdminActions(assignment, returnTo) {
   return `<div class="table-actions">
     <form method="post" action="/admin/assignments/${assignment.id}/unlock-test">
       <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />
-      <button class="small-button warning" type="submit">Разблокировать пересдачу</button>
+      <button class="small-button warning" type="submit">Unlock retake</button>
     </form>
     <form method="post" action="/admin/assignments/${assignment.id}/reset-attempts">
       <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />
-      <button class="small-button danger" type="submit">Сбросить попытки</button>
+      <button class="small-button danger" type="submit">Reset attempts</button>
     </form>
   </div>`;
 }
@@ -3913,18 +3917,18 @@ function attemptWrongAnswersHtml(attempt) {
   const course = assignment ? courseById(assignment.courseId) : null;
   const questions = new Map((course?.test?.questions ?? []).map((question) => [question.id, question]));
   const wrongAnswers = (attempt.answers ?? []).filter((answer) => !answer.isCorrect);
-  if (!wrongAnswers.length) return `<span class="muted">Ошибок нет.</span>`;
-  return `<details><summary>${wrongAnswers.length} неправильных ответов</summary><div class="stack">${wrongAnswers
+  if (!wrongAnswers.length) return `<span class="muted">No errors.</span>`;
+  return `<details><summary>${wrongAnswers.length} incorrect answers</summary><div class="stack">${wrongAnswers
     .map((answer) => {
       const question = questions.get(answer.questionId);
       const options = question?.options ?? [];
       const selectedIds = answer.selectedOptionIds ?? [answer.selectedOptionId].filter(Boolean);
-      const selected = options.filter((option) => selectedIds.includes(option.id)).map((option) => option.optionText).join(", ") || "Нет ответа";
+      const selected = options.filter((option) => selectedIds.includes(option.id)).map((option) => option.optionText).join(", ") || "No answer";
       const correct = options.filter((option) => option.isCorrect).map((option) => option.optionText).join(", ");
       return `<div class="notice">
-        <strong>${escapeHtml(question?.questionText ?? "Вопрос удален")}</strong>
-        <p class="muted">Ответ студента: ${escapeHtml(selected)}</p>
-        <p class="muted">Правильно: ${escapeHtml(correct)}</p>
+        <strong>${escapeHtml(question?.questionText ?? "Question deleted")}</strong>
+        <p class="muted">Student answer: ${escapeHtml(selected)}</p>
+        <p class="muted">Correct: ${escapeHtml(correct)}</p>
       </div>`;
     })
     .join("")}</div></details>`;
@@ -3941,64 +3945,64 @@ function adminStudentDetail(admin, student) {
     displayUserName(student) || student.email,
     `<section class="section">
       <div class="section-heading">
-        <div><span class="eyebrow">Профиль студента</span><h1>${escapeHtml(displayUserName(student) || student.email)}</h1><p class="lead">${escapeHtml(student.email)} · ${escapeHtml(student.position || "Должность не указана")}</p></div>
-        <div class="actions"><a class="button secondary" href="/admin/users">Все студенты</a><a class="button" href="/admin/certificates?userId=${encodeURIComponent(student.id)}">Сертификаты</a></div>
+        <div><span class="eyebrow">Student profile</span><h1>${escapeHtml(displayUserName(student) || student.email)}</h1><p class="lead">${escapeHtml(student.email)} · ${escapeHtml(student.position || "Position not specified")}</p></div>
+        <div class="actions"><a class="button secondary" href="/admin/users">All students</a><a class="button" href="/admin/certificates?userId=${encodeURIComponent(student.id)}">Certificates</a></div>
       </div>
       <div class="grid four">
-        <article class="metric"><span class="muted">Курсы</span><strong class="metric-value">${assignments.length}</strong></article>
-        <article class="metric"><span class="muted">Завершено</span><strong class="metric-value">${assignments.filter((item) => item.status === "completed").length}</strong></article>
-        <article class="metric"><span class="muted">Попытки тестов</span><strong class="metric-value">${attempts.length}</strong></article>
-        <article class="metric"><span class="muted">Сертификаты</span><strong class="metric-value">${certificates.length}</strong></article>
+        <article class="metric"><span class="muted">Courses</span><strong class="metric-value">${assignments.length}</strong></article>
+        <article class="metric"><span class="muted">Completed</span><strong class="metric-value">${assignments.filter((item) => item.status === "completed").length}</strong></article>
+        <article class="metric"><span class="muted">Test attempts</span><strong class="metric-value">${attempts.length}</strong></article>
+        <article class="metric"><span class="muted">Certificates</span><strong class="metric-value">${certificates.length}</strong></article>
       </div>
       ${adminStudentCard(student, admin)}
       <article class="panel stack">
-        <h2>Курсы и прогресс</h2>
+        <h2>Courses and progress</h2>
         <table class="table">
-          <thead><tr><th>Курс</th><th>Статус</th><th>Прогресс</th><th>Попытки</th><th>Сертификат</th><th>Действия</th></tr></thead>
+          <thead><tr><th>Course</th><th>Status</th><th>Progress</th><th>Attempts</th><th>Certificate</th><th>Actions</th></tr></thead>
           <tbody>${assignments
             .map((assignment) => {
               const course = courseById(assignment.courseId);
               const cert = activeCertificateForAssignment(assignment.id);
               return `<tr>
-                <td>${escapeHtml(course?.title ?? "Курс удален")}</td>
+                <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
                 <td>${badge(assignment.status)}</td>
                 <td>${assignment.progressPercent ?? 0}%</td>
                 <td>${attemptsFor(assignment.id).length} / ${(course?.test?.attemptsLimit ?? 0) + (assignment.extraTestAttempts ?? 0)}</td>
-                <td>${cert ? `<a class="small-button" href="/certificates/${cert.id}">${escapeHtml(cert.certificateNumber)}</a>` : `<span class="muted">Нет</span>`}</td>
+                <td>${cert ? `<div class="table-actions"><a class="small-button primary" href="/certificates/${cert.id}">Open certificate</a><a class="small-button" href="/certificates/${cert.id}.pdf">PDF</a><span class="muted">${escapeHtml(cert.certificateNumber)}</span></div>` : `<span class="muted">No certificate</span>`}</td>
                 <td>${assignmentAdminActions(assignment, returnTo)}</td>
               </tr>`;
             })
-            .join("") || `<tr><td colspan="6"><span class="muted">Курсы не назначены.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="6"><span class="muted">No courses assigned.</span></td></tr>`}</tbody>
         </table>
       </article>
       <article class="panel stack">
-        <h2>Попытки тестов</h2>
+        <h2>Test attempts</h2>
         <table class="table">
-          <thead><tr><th>Курс</th><th>Попытка</th><th>Результат</th><th>Дата</th><th>Ошибки</th></tr></thead>
+          <thead><tr><th>Course</th><th>Attempt</th><th>Result</th><th>Date</th><th>Errors</th></tr></thead>
           <tbody>${attempts
             .map((attempt) => {
               const assignment = db.assignments.find((item) => item.id === attempt.assignmentId);
               const course = assignment ? courseById(assignment.courseId) : null;
               return `<tr>
-                <td>${escapeHtml(course?.title ?? "Курс удален")}</td>
+                <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
                 <td>${attempt.attemptNumber}</td>
                 <td>${attempt.scorePercent}% ${badge(attempt.status === "passed" ? "test_passed" : "test_failed")}</td>
-                <td>${new Date(attempt.finishedAt).toLocaleString("ru-RU")}</td>
+                <td>${new Date(attempt.finishedAt).toLocaleString("en-GB")}</td>
                 <td>${attemptWrongAnswersHtml(attempt)}</td>
               </tr>`;
             })
-            .join("") || `<tr><td colspan="5"><span class="muted">Попыток пока нет.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="5"><span class="muted">No attempts yet.</span></td></tr>`}</tbody>
         </table>
       </article>
       <article class="panel stack">
-        <h2>Уведомления студента</h2>
+        <h2>Student notifications</h2>
         <table class="table">
-          <thead><tr><th>Тип</th><th>Событие</th><th>Статус</th><th>Дата</th></tr></thead>
+          <thead><tr><th>Type</th><th>Event</th><th>Status</th><th>Date</th></tr></thead>
           <tbody>${notifications
             .slice()
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .map((note) => `<tr><td>${escapeHtml(note.type)}</td><td>${escapeHtml(note.payload || "")}</td><td>${badge(note.status)}</td><td>${new Date(note.createdAt).toLocaleString("ru-RU")}</td></tr>`)
-            .join("") || `<tr><td colspan="4"><span class="muted">Уведомлений нет.</span></td></tr>`}</tbody>
+            .map((note) => `<tr><td>${escapeHtml(note.type)}</td><td>${escapeHtml(note.payload || "")}</td><td>${badge(note.status)}</td><td>${new Date(note.createdAt).toLocaleString("en-GB")}</td></tr>`)
+            .join("") || `<tr><td colspan="4"><span class="muted">No notifications.</span></td></tr>`}</tbody>
         </table>
       </article>
     </section>`
@@ -4041,7 +4045,7 @@ function courseSelectOptions(selectedCourseId) {
 function assignmentStatusOptions(selectedStatus) {
   const statuses = ["", "not_started", "in_progress", "test_available", "test_failed", "completed"];
   return statuses
-    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? statusLabel(status) : "Все статусы"}</option>`)
+    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? statusLabel(status) : "All statuses"}</option>`)
     .join("");
 }
 
@@ -4064,27 +4068,27 @@ function adminReports(user, searchParams = new URLSearchParams()) {
   const returnTo = `/admin/reports${reportQuery(params)}`;
   return adminShell(
     user,
-    "Отчеты",
+    "Reports",
     `<section class="section">
-      <div><span class="eyebrow">Отчеты</span><h1>Прогресс обучения</h1><p class="lead">Контроль статусов студентов по курсам, тестам и сертификатам.</p></div>
+      <div><span class="eyebrow">Reports</span><h1>Learning progress</h1><p class="lead">Monitor student status across courses, tests, and certificates.</p></div>
       <form class="form-panel" method="get" action="/admin/reports">
-        <h2>Фильтры</h2>
+        <h2>Filters</h2>
         <div class="admin-edit-grid">
-          <div class="field"><label>Поиск</label><input name="q" value="${escapeHtml(params.q)}" placeholder="Студент, email, курс" /></div>
-          <div class="field"><label>Студент</label><select name="userId"><option value="">Все студенты</option>${userSelectOptions(params.userId)}</select></div>
-          <div class="field"><label>Курс</label><select name="courseId"><option value="">Все курсы</option>${courseSelectOptions(params.courseId)}</select></div>
-          <div class="field"><label>Статус</label><select name="status">${assignmentStatusOptions(params.status)}</select></div>
+          <div class="field"><label>Search</label><input name="q" value="${escapeHtml(params.q)}" placeholder="Student, email, course" /></div>
+          <div class="field"><label>Student</label><select name="userId"><option value="">All students</option>${userSelectOptions(params.userId)}</select></div>
+          <div class="field"><label>Course</label><select name="courseId"><option value="">All courses</option>${courseSelectOptions(params.courseId)}</select></div>
+          <div class="field"><label>Status</label><select name="status">${assignmentStatusOptions(params.status)}</select></div>
         </div>
-        <div class="table-actions"><button class="small-button primary" type="submit">Применить</button><a class="small-button" href="/admin/reports">Сбросить</a></div>
+        <div class="table-actions"><button class="small-button primary" type="submit">Apply</button><a class="small-button" href="/admin/reports">Reset</a></div>
       </form>
       <div class="grid four">
-        <article class="metric"><span class="muted">Не начали</span><strong class="metric-value">${assignments.filter((item) => item.status === "not_started").length}</strong></article>
-        <article class="metric"><span class="muted">В процессе</span><strong class="metric-value">${assignments.filter((item) => item.status === "in_progress" || item.status === "test_available").length}</strong></article>
-        <article class="metric"><span class="muted">Тест не сдан</span><strong class="metric-value">${assignments.filter((item) => item.status === "test_failed").length}</strong></article>
-        <article class="metric"><span class="muted">Завершили</span><strong class="metric-value">${assignments.filter((item) => item.status === "completed").length}</strong></article>
+        <article class="metric"><span class="muted">Not started</span><strong class="metric-value">${assignments.filter((item) => item.status === "not_started").length}</strong></article>
+        <article class="metric"><span class="muted">In progress</span><strong class="metric-value">${assignments.filter((item) => item.status === "in_progress" || item.status === "test_available").length}</strong></article>
+        <article class="metric"><span class="muted">Test failed</span><strong class="metric-value">${assignments.filter((item) => item.status === "test_failed").length}</strong></article>
+        <article class="metric"><span class="muted">Completed</span><strong class="metric-value">${assignments.filter((item) => item.status === "completed").length}</strong></article>
       </div>
       <table class="table">
-        <thead><tr><th>Студент</th><th>Курс</th><th>Статус</th><th>Прогресс</th><th>Тесты</th><th>Сертификат</th><th>Действия</th></tr></thead>
+        <thead><tr><th>Student</th><th>Course</th><th>Status</th><th>Progress</th><th>Tests</th><th>Certificate</th><th>Actions</th></tr></thead>
         <tbody>${assignments
           .map((assignment) => {
             const student = userById(assignment.userId);
@@ -4092,15 +4096,15 @@ function adminReports(user, searchParams = new URLSearchParams()) {
             const cert = activeCertificateForAssignment(assignment.id);
             return `<tr>
               <td><a class="link-line" href="/admin/users/${assignment.userId}">${escapeHtml(displayUserName(student) || student?.email || "")}</a><br><span class="muted">${escapeHtml(student?.email ?? "")}</span></td>
-              <td>${escapeHtml(course?.title ?? "Курс удален")}</td>
+              <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
               <td>${badge(assignment.status)}</td>
               <td>${assignment.progressPercent ?? 0}%</td>
               <td>${attemptsFor(assignment.id).length} / ${(course?.test?.attemptsLimit ?? 0) + (assignment.extraTestAttempts ?? 0)}</td>
-              <td>${cert ? `<a class="small-button" href="/certificates/${cert.id}">${escapeHtml(cert.certificateNumber)}</a>` : `<span class="muted">Нет</span>`}</td>
+              <td>${cert ? `<a class="small-button" href="/certificates/${cert.id}">${escapeHtml(cert.certificateNumber)}</a>` : `<span class="muted">No</span>`}</td>
               <td>${assignmentAdminActions(assignment, returnTo)}</td>
             </tr>`;
           })
-          .join("") || `<tr><td colspan="7"><span class="muted">Назначения не найдены.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="7"><span class="muted">No assignments found.</span></td></tr>`}</tbody>
       </table>
     </section>`
   );
@@ -4171,10 +4175,10 @@ function courseRevenuePrice(course) {
 }
 
 function formatReportMoney(amount, currencies = new Set()) {
-  const formatted = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(amount);
+  const formatted = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(amount);
   const cleanCurrencies = [...currencies].filter(Boolean);
   if (cleanCurrencies.length === 1) return `${formatted} ${cleanCurrencies[0]}`;
-  if (cleanCurrencies.length > 1) return `${formatted} (смешанная валюта)`;
+  if (cleanCurrencies.length > 1) return `${formatted} (mixed currency)`;
   return formatted;
 }
 
@@ -4209,32 +4213,32 @@ function adminChecksLegacy(user, searchParams = new URLSearchParams()) {
   const exportHref = `/admin/checks/export.xls${reportQuery(params)}`;
   return adminShell(
     user,
-    "Чеки",
+    "Checks",
     `<section class="section">
       <div>
-        <span class="eyebrow">Статистика</span>
-        <h1>Чеки и назначения</h1>
-        <p class="lead">Выберите сотрудника и период, чтобы увидеть, кого он зарегистрировал, какие курсы назначил и какая сумма получается по ценам курсов.</p>
+        <span class="eyebrow">Reporting</span>
+        <h1>Checks and assignments</h1>
+        <p class="lead">Select a staff member and a period to see students they registered, courses they assigned, and the resulting course-price total.</p>
       </div>
       <form class="form-panel" method="get" action="/admin/checks">
-        <h2>Фильтр</h2>
+        <h2>Filter</h2>
         <div class="admin-edit-grid">
-          <div class="field"><label>Сотрудник</label><select name="staffId"><option value="">Все админы и инструкторы</option>${staffSelectOptions(params.staffId)}</select></div>
-          <div class="field"><label>С даты</label><input name="from" type="date" value="${escapeHtml(params.from)}" /></div>
-          <div class="field"><label>По дату</label><input name="to" type="date" value="${escapeHtml(params.to)}" /></div>
+          <div class="field"><label>Staff member</label><select name="staffId"><option value="">All administrators and instructors</option>${staffSelectOptions(params.staffId)}</select></div>
+          <div class="field"><label>From</label><input name="from" type="date" value="${escapeHtml(params.from)}" /></div>
+          <div class="field"><label>To</label><input name="to" type="date" value="${escapeHtml(params.to)}" /></div>
         </div>
-        <div class="table-actions"><button class="small-button primary" type="submit">Показать</button><a class="small-button" href="/admin/checks">Сбросить</a><a class="small-button warning" href="${exportHref}">Экспорт Excel</a></div>
+        <div class="table-actions"><button class="small-button primary" type="submit">Show</button><a class="small-button" href="/admin/checks">Reset</a><a class="small-button warning" href="${exportHref}">Export Excel</a></div>
       </form>
       <div class="grid four">
-        <article class="metric"><span class="muted">Зарегистрировано студентов</span><strong class="metric-value">${registeredStudents.length}</strong></article>
-        <article class="metric"><span class="muted">Назначено курсов</span><strong class="metric-value">${assignments.length}</strong></article>
-        <article class="metric"><span class="muted">Уникальных студентов в назначениях</span><strong class="metric-value">${assignedStudentIds.size}</strong></article>
-        <article class="metric"><span class="muted">Общая сумма</span><strong class="metric-value">${escapeHtml(formatReportMoney(total, currencies))}</strong></article>
+        <article class="metric"><span class="muted">Registered students</span><strong class="metric-value">${registeredStudents.length}</strong></article>
+        <article class="metric"><span class="muted">Assigned courses</span><strong class="metric-value">${assignments.length}</strong></article>
+        <article class="metric"><span class="muted">Unique assigned students</span><strong class="metric-value">${assignedStudentIds.size}</strong></article>
+        <article class="metric"><span class="muted">Total amount</span><strong class="metric-value">${escapeHtml(formatReportMoney(total, currencies))}</strong></article>
       </div>
       <article class="panel stack">
-        <div class="section-heading"><div><h2>Курсы и суммы</h2><p class="muted">В сумму идет новая цена; если она пустая, берется старая цена.</p></div></div>
+        <div class="section-heading"><div><h2>Courses and amounts</h2><p class="muted">The new price is used; if it is empty, the old price is used.</p></div></div>
         <table class="table">
-          <thead><tr><th>Сотрудник</th><th>Студент</th><th>Курс</th><th>Старая цена</th><th>Новая цена</th><th>В сумме</th><th>Дата</th></tr></thead>
+          <thead><tr><th>Staff member</th><th>Student</th><th>Course</th><th>Old price</th><th>New price</th><th>Included amount</th><th>Date</th></tr></thead>
           <tbody>${assignments
             .map((assignment) => {
               const student = userById(assignment.userId);
@@ -4243,38 +4247,38 @@ function adminChecksLegacy(user, searchParams = new URLSearchParams()) {
               const price = courseRevenuePrice(course);
               const rowCurrencies = new Set(price.currency ? [price.currency] : []);
               return `<tr>
-                <td>${escapeHtml(displayUserName(staff) || staff?.email || "Не указано")}</td>
-                <td><a class="link-line" href="/admin/users/${encodeURIComponent(assignment.userId)}">${escapeHtml(displayUserName(student) || student?.email || "Студент удален")}</a><br><span class="muted">${escapeHtml(student?.email ?? "")}</span></td>
-                <td>${escapeHtml(course?.title ?? "Курс удален")}</td>
+                <td>${escapeHtml(displayUserName(staff) || staff?.email || "Not specified")}</td>
+                <td><a class="link-line" href="/admin/users/${encodeURIComponent(assignment.userId)}">${escapeHtml(displayUserName(student) || student?.email || "Student deleted")}</a><br><span class="muted">${escapeHtml(student?.email ?? "")}</span></td>
+                <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
                 <td>${escapeHtml(course?.oldPrice || "-")}</td>
                 <td>${escapeHtml(course?.newPrice || "-")}</td>
                 <td>${escapeHtml(formatReportMoney(price.amount, rowCurrencies))}</td>
-                <td>${new Date(assignment.assignedAt).toLocaleDateString("ru-RU")}</td>
+                <td>${new Date(assignment.assignedAt).toLocaleDateString("en-GB")}</td>
               </tr>`;
             })
-            .join("") || `<tr><td colspan="7"><span class="muted">Назначений за выбранный период нет.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="7"><span class="muted">No assignments for the selected period.</span></td></tr>`}</tbody>
         </table>
       </article>
       <article class="panel stack">
-        <div class="section-heading"><div><h2>Зарегистрированные студенты</h2><p class="muted">Показывает, кто был создан сотрудником в выбранный период.</p></div></div>
+        <div class="section-heading"><div><h2>Registered students</h2><p class="muted">Shows students created by the staff member in the selected period.</p></div></div>
         <table class="table">
-          <thead><tr><th>Сотрудник</th><th>Студент</th><th>E-mail</th><th>Назначений в период</th><th>Дата регистрации</th></tr></thead>
+          <thead><tr><th>Staff member</th><th>Student</th><th>Email</th><th>Assignments in period</th><th>Registration date</th></tr></thead>
           <tbody>${registeredStudents
             .map((student) => {
               const creator = userById(student.createdById);
               const assignmentCount = assignments.filter((assignment) => assignment.userId === student.id).length;
               return `<tr>
-                <td>${escapeHtml(displayUserName(creator) || creator?.email || "Не указано")}</td>
+                <td>${escapeHtml(displayUserName(creator) || creator?.email || "Not specified")}</td>
                 <td><a class="link-line" href="/admin/users/${encodeURIComponent(student.id)}">${escapeHtml(displayUserName(student) || student.email)}</a></td>
                 <td>${escapeHtml(student.email)}</td>
                 <td>${assignmentCount}</td>
-                <td>${new Date(student.createdAt).toLocaleDateString("ru-RU")}</td>
+                <td>${new Date(student.createdAt).toLocaleDateString("en-GB")}</td>
               </tr>`;
             })
-            .join("") || `<tr><td colspan="5"><span class="muted">Регистраций за выбранный период нет.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="5"><span class="muted">No registrations for the selected period.</span></td></tr>`}</tbody>
         </table>
       </article>
-      ${hasStudentsWithoutCreator ? `<div class="notice">У части старых студентов нет регистратора, потому что они были импортированы или созданы до появления этого отчета.</div>` : ""}
+      ${hasStudentsWithoutCreator ? `<div class="notice">Some older students do not have a recorded creator because they were imported or created before this report was introduced.</div>` : ""}
     </section>`
   );
 }
@@ -4283,8 +4287,8 @@ const invoiceStatuses = ["draft", "issued", "sent", "viewed", "partially_paid", 
 
 function invoiceStatusLabel(status) {
   return {
-    draft: "Черновик", issued: "Сформирован", sent: "Отправлен", viewed: "Просмотрен",
-    partially_paid: "Частично оплачен", paid: "Оплачен", overdue: "Просрочен", cancelled: "Отменён"
+    draft: "Draft", issued: "Issued", sent: "Sent", viewed: "Viewed",
+    partially_paid: "Partially paid", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled"
   }[status] ?? status;
 }
 
@@ -4375,10 +4379,10 @@ function invoiceLineFromAssignment(assignment) {
   const certificate = activeCertificateForAssignment(assignment.id);
   return {
     id: id("invoice_line"), assignmentId: assignment.id, studentId: assignment.userId,
-    studentName: displayUserName(student) || student?.email || "Студент удалён",
+    studentName: displayUserName(student) || student?.email || "Student deleted",
     studentEmail: student?.email || "", company: student?.company || "",
-    creatorName: displayUserName(creator) || creator?.email || "Не указан",
-    courseId: assignment.courseId, courseTitle: course?.title || "Курс удалён",
+    creatorName: displayUserName(creator) || creator?.email || "Not specified",
+    courseId: assignment.courseId, courseTitle: course?.title || "Course deleted",
     assignedAt: assignment.assignedAt || "", startedAt: assignment.startedAt || "", completedAt: assignment.completedAt || "",
     status: assignment.status, certificateNumber: certificate?.certificateNumber || "",
     baseAmount: price.amount, discount: 0, amount: price.amount, currency: price.currency || ""
@@ -4471,34 +4475,34 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
   const companies = [...new Set(students.map((item) => item.company).filter(Boolean))].sort();
   const query = invoiceFilterQuery(params);
   const selectedStaff = userById(params.staffId);
-  return adminShell(user, "Чеки", `<section class="section stack">
-    <div><span class="eyebrow">Инвойсы и отчёты</span><h1>Чеки</h1><p class="lead">Отберите назначения, сформируйте предварительный инвойс и сохраните его в истории.</p></div>
-    <form class="form-panel" method="get" action="/admin/checks"><h2>Фильтры</h2><div class="admin-edit-grid">
-      <div class="field"><label>Пользователь / менеджер</label><select name="staffId"><option value="">Все пользователи</option>${staffSelectOptions(params.staffId)}</select></div>
-      <div class="field"><label>Компания</label><select name="company"><option value="">Все компании</option>${companies.map((company) => `<option value="${escapeHtml(company)}" ${params.company === company ? "selected" : ""}>${escapeHtml(company)}</option>`).join("")}</select></div>
-      <div class="field"><label>Студенты</label><select name="studentId" multiple size="4">${students.map((student) => `<option value="${student.id}" ${params.studentIds.includes(student.id) ? "selected" : ""}>${escapeHtml(displayUserName(student) || student.email)}</option>`).join("")}</select></div>
-      <div class="field"><label>Событие периода</label><select name="event"><option value="assigned" ${params.event === "assigned" ? "selected" : ""}>Назначение</option><option value="started" ${params.event === "started" ? "selected" : ""}>Начало обучения</option><option value="completed" ${params.event === "completed" ? "selected" : ""}>Завершение</option></select></div>
-      <div class="field"><label>Период</label><select name="period"><option value="current_month" ${params.period === "current_month" ? "selected" : ""}>Текущий месяц</option><option value="previous_month" ${params.period === "previous_month" ? "selected" : ""}>Предыдущий месяц</option><option value="custom" ${params.period === "custom" ? "selected" : ""}>Произвольный</option></select></div>
-      <div class="field"><label>С даты</label><input name="from" type="date" value="${escapeHtml(params.from)}" /></div><div class="field"><label>По дату</label><input name="to" type="date" value="${escapeHtml(params.to)}" /></div>
-      <div class="field"><label>Статус курса</label><select name="status">${assignmentStatusOptions(params.status)}</select></div>
-      <div class="field"><label>Группировка</label><select name="groupBy"><option value="student" ${params.groupBy === "student" ? "selected" : ""}>По студентам</option><option value="course" ${params.groupBy === "course" ? "selected" : ""}>По курсам</option><option value="company" ${params.groupBy === "company" ? "selected" : ""}>По компаниям</option><option value="staff" ${params.groupBy === "staff" ? "selected" : ""}>По пользователям</option><option value="date" ${params.groupBy === "date" ? "selected" : ""}>По датам</option><option value="status" ${params.groupBy === "status" ? "selected" : ""}>По статусам</option></select></div>
-    </div><div class="table-actions"><button class="small-button primary">Показать</button><a class="small-button" href="/admin/checks">Сбросить</a><a class="small-button warning" href="/admin/checks/export.xls?${query}">Экспорт Excel</a></div></form>
-    <div class="grid four"><article class="metric"><span class="muted">Курсы в выборке</span><strong class="metric-value">${assignments.length}</strong></article><article class="metric"><span class="muted">Студенты</span><strong class="metric-value">${new Set(assignments.map((item) => item.userId)).size}</strong></article><article class="metric"><span class="muted">Получатель</span><strong class="metric-value">${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.email || params.company || "Все")}</strong></article><article class="metric"><span class="muted">Предварительная сумма</span><strong class="metric-value">${escapeHtml(formatReportMoney(total))}</strong></article></div>
-    <article class="panel stack"><div class="section-heading"><div><h2>Предварительный расчёт</h2><p class="muted">Отметьте позиции, которые должны попасть в документ. Стоимость можно изменить уже в черновике.</p></div></div>
-      <form id="invoice-create-form" method="post" action="/admin/checks/invoices/create" class="inline-form"><input type="hidden" name="filterQuery" value="${escapeHtml(query)}" /><input type="hidden" name="recipientName" value="${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.company || params.company)}" /><input type="hidden" name="recipientEmail" value="${escapeHtml(selectedStaff?.email || "")}" /><input type="hidden" name="recipientCompany" value="${escapeHtml(params.company || selectedStaff?.company || "")}" /><button class="button" type="submit">Создать черновик инвойса</button></form>
-      <table class="table"><thead><tr><th>В инвойс</th><th>Студент / компания</th><th>Создал / назначил</th><th>Курс</th><th>Назначен</th><th>Начат</th><th>Завершён</th><th>Статус</th><th>Сертификат</th><th>Стоимость</th></tr></thead><tbody>${assignments.map((assignment) => { const line = invoiceLineFromAssignment(assignment); return `<tr><td><input form="invoice-create-form" type="checkbox" name="assignmentId" value="${assignment.id}" checked aria-label="Добавить в инвойс" /></td><td><a class="link-line" href="/admin/users/${assignment.userId}">${escapeHtml(line.studentName)}</a><br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.creatorName)}</td><td>${escapeHtml(line.courseTitle)}</td><td>${formatDate(line.assignedAt)}</td><td>${formatDate(line.startedAt)}</td><td>${formatDate(line.completedAt)}</td><td>${badge(line.status)}</td><td>${line.certificateNumber ? escapeHtml(line.certificateNumber) : "-"}</td><td>${escapeHtml(formatReportMoney(line.amount, new Set(line.currency ? [line.currency] : [])))}</td></tr>`; }).join("") || `<tr><td colspan="10"><span class="muted">В выборке нет назначений.</span></td></tr>`}</tbody></table>
+  return adminShell(user, "Invoices", `<section class="section stack">
+    <div><span class="eyebrow">Invoices and reports</span><h1>Invoices</h1><p class="lead">Select assignments, prepare a draft invoice, and save it to the history.</p></div>
+    <form class="form-panel" method="get" action="/admin/checks"><h2>Filters</h2><div class="admin-edit-grid">
+      <div class="field"><label>User / manager</label><select name="staffId"><option value="">All users</option>${staffSelectOptions(params.staffId)}</select></div>
+      <div class="field"><label>Company</label><select name="company"><option value="">All companies</option>${companies.map((company) => `<option value="${escapeHtml(company)}" ${params.company === company ? "selected" : ""}>${escapeHtml(company)}</option>`).join("")}</select></div>
+      <div class="field"><label>Students</label><select name="studentId" multiple size="4">${students.map((student) => `<option value="${student.id}" ${params.studentIds.includes(student.id) ? "selected" : ""}>${escapeHtml(displayUserName(student) || student.email)}</option>`).join("")}</select></div>
+      <div class="field"><label>Period event</label><select name="event"><option value="assigned" ${params.event === "assigned" ? "selected" : ""}>Assignment</option><option value="started" ${params.event === "started" ? "selected" : ""}>Learning started</option><option value="completed" ${params.event === "completed" ? "selected" : ""}>Completed</option></select></div>
+      <div class="field"><label>Period</label><select name="period"><option value="current_month" ${params.period === "current_month" ? "selected" : ""}>Current month</option><option value="previous_month" ${params.period === "previous_month" ? "selected" : ""}>Previous month</option><option value="custom" ${params.period === "custom" ? "selected" : ""}>Custom range</option></select></div>
+      <div class="field"><label>From</label><input name="from" type="date" value="${escapeHtml(params.from)}" /></div><div class="field"><label>To</label><input name="to" type="date" value="${escapeHtml(params.to)}" /></div>
+      <div class="field"><label>Course status</label><select name="status">${assignmentStatusOptions(params.status)}</select></div>
+      <div class="field"><label>Group by</label><select name="groupBy"><option value="student" ${params.groupBy === "student" ? "selected" : ""}>Student</option><option value="course" ${params.groupBy === "course" ? "selected" : ""}>Course</option><option value="company" ${params.groupBy === "company" ? "selected" : ""}>Company</option><option value="staff" ${params.groupBy === "staff" ? "selected" : ""}>User</option><option value="date" ${params.groupBy === "date" ? "selected" : ""}>Date</option><option value="status" ${params.groupBy === "status" ? "selected" : ""}>Status</option></select></div>
+    </div><div class="table-actions"><button class="small-button primary">Show</button><a class="small-button" href="/admin/checks">Reset</a><a class="small-button warning" href="/admin/checks/export.xls?${query}">Export Excel</a></div></form>
+    <div class="grid four"><article class="metric"><span class="muted">Courses in selection</span><strong class="metric-value">${assignments.length}</strong></article><article class="metric"><span class="muted">Students</span><strong class="metric-value">${new Set(assignments.map((item) => item.userId)).size}</strong></article><article class="metric"><span class="muted">Recipient</span><strong class="metric-value">${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.email || params.company || "All")}</strong></article><article class="metric"><span class="muted">Estimated total</span><strong class="metric-value">${escapeHtml(formatReportMoney(total))}</strong></article></div>
+    <article class="panel stack"><div class="section-heading"><div><h2>Draft calculation</h2><p class="muted">Select the items to include in the document. Prices can be changed in the draft.</p></div></div>
+      <form id="invoice-create-form" method="post" action="/admin/checks/invoices/create" class="inline-form"><input type="hidden" name="filterQuery" value="${escapeHtml(query)}" /><input type="hidden" name="recipientName" value="${escapeHtml(displayUserName(selectedStaff) || selectedStaff?.company || params.company)}" /><input type="hidden" name="recipientEmail" value="${escapeHtml(selectedStaff?.email || "")}" /><input type="hidden" name="recipientCompany" value="${escapeHtml(params.company || selectedStaff?.company || "")}" /><button class="button" type="submit">Create invoice draft</button></form>
+      <table class="table"><thead><tr><th>Include</th><th>Student / company</th><th>Created / assigned by</th><th>Course</th><th>Assigned</th><th>Started</th><th>Completed</th><th>Status</th><th>Certificate</th><th>Amount</th></tr></thead><tbody>${assignments.map((assignment) => { const line = invoiceLineFromAssignment(assignment); return `<tr><td><input form="invoice-create-form" type="checkbox" name="assignmentId" value="${assignment.id}" checked aria-label="Add to invoice" /></td><td><a class="link-line" href="/admin/users/${assignment.userId}">${escapeHtml(line.studentName)}</a><br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.creatorName)}</td><td>${escapeHtml(line.courseTitle)}</td><td>${formatDate(line.assignedAt)}</td><td>${formatDate(line.startedAt)}</td><td>${formatDate(line.completedAt)}</td><td>${badge(line.status)}</td><td>${line.certificateNumber ? escapeHtml(line.certificateNumber) : "-"}</td><td>${escapeHtml(formatReportMoney(line.amount, new Set(line.currency ? [line.currency] : [])))}</td></tr>`; }).join("") || `<tr><td colspan="10"><span class="muted">No assignments in this selection.</span></td></tr>`}</tbody></table>
     </article>
-    <article class="panel stack"><div class="section-heading"><div><h2>История инвойсов</h2><p class="muted">Все суммы и позиции зафиксированы в момент создания документа.</p></div></div><table class="table"><thead><tr><th>Номер</th><th>Получатель</th><th>Период</th><th>Сумма</th><th>Статус</th><th>Создан</th><th></th></tr></thead><tbody>${invoiceHistoryRows().map((invoice) => { const totals = invoiceTotals(invoice); return `<tr><td>${escapeHtml(invoice.number)}</td><td>${escapeHtml(invoice.recipientName || invoice.recipientCompany || "Не указан")}</td><td>${escapeHtml(invoice.period?.from || "-")} - ${escapeHtml(invoice.period?.to || "-")}</td><td>${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</td><td>${badge(invoiceStatusLabel(invoice.status))}</td><td>${formatDate(invoice.createdAt)}</td><td><a class="small-button" href="/admin/checks/invoices/${invoice.id}">Открыть</a></td></tr>`; }).join("") || `<tr><td colspan="7"><span class="muted">Инвойсов ещё нет.</span></td></tr>`}</tbody></table></article>
+    <article class="panel stack"><div class="section-heading"><div><h2>Invoice history</h2><p class="muted">All amounts and items are fixed when the document is created.</p></div></div><table class="table"><thead><tr><th>Number</th><th>Recipient</th><th>Period</th><th>Amount</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>${invoiceHistoryRows().map((invoice) => { const totals = invoiceTotals(invoice); return `<tr><td>${escapeHtml(invoice.number)}</td><td>${escapeHtml(invoice.recipientName || invoice.recipientCompany || "Not specified")}</td><td>${escapeHtml(invoice.period?.from || "-")} - ${escapeHtml(invoice.period?.to || "-")}</td><td>${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</td><td>${badge(invoiceStatusLabel(invoice.status))}</td><td>${formatDate(invoice.createdAt)}</td><td><a class="small-button" href="/admin/checks/invoices/${invoice.id}">Open</a></td></tr>`; }).join("") || `<tr><td colspan="7"><span class="muted">No invoices yet.</span></td></tr>`}</tbody></table></article>
   </section>`);
 }
 
 function adminInvoiceDetail(user, invoice) {
   const totals = invoiceTotals(invoice);
-  return adminShell(user, `Инвойс ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Инвойс</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Редактируйте позиции до отправки. Изменения сохраняются в историю.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">К списку</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF и печать</a></div></div>
-    <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Получатель</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Компания</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>E-mail</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Дата выставления</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Срок оплаты</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Валюта</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Скидка на инвойс</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Доплата</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Статус</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Дата оплаты</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div><div class="field"><label>Комментарий</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
-      <article class="panel stack"><h2>Позиции</h2><table class="table"><thead><tr><th>Включить</th><th>Студент</th><th>Курс</th><th>Статус / сертификат</th><th>Цена</th><th>Скидка</th></tr></thead><tbody>${(invoice.lines ?? []).map((line) => `<tr><td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td><td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.courseTitle)}<br><span class="muted">${formatDate(line.assignedAt)}</span></td><td>${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "Без сертификата")}</span></td><td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td><td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td></tr>`).join("")}</tbody></table></article>
-      <article class="panel"><div class="grid four"><article class="metric"><span class="muted">Промежуточно</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.subtotal, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Скидки</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.lineDiscount + totals.invoiceDiscount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">VAT</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.vatAmount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Итого</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article></div></article><div class="table-actions"><button class="button" type="submit">Сохранить и обновить PDF</button><button class="small-button warning" type="submit" name="sendEmail" value="1">Отправить по e-mail</button></div></form>
-    <article class="panel stack"><h2>История изменений</h2><table class="table"><thead><tr><th>Дата</th><th>Пользователь</th><th>Событие</th></tr></thead><tbody>${(invoice.changes ?? []).slice().reverse().map((change) => `<tr><td>${new Date(change.at).toLocaleString("ru-RU")}</td><td>${escapeHtml(change.byName || "")}</td><td>${escapeHtml(change.action)}</td></tr>`).join("") || `<tr><td colspan="3"><span class="muted">Изменений нет.</span></td></tr>`}</tbody></table></article></section>`);
+  return adminShell(user, `Invoice ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Invoice</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Edit items before sending. Changes are saved in the history.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">Back to list</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF and print</a></div></div>
+    <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Recipient</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Company</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>Email</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Issue date</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Currency</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Invoice discount</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Extra charge</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Status</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Payment date</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div><div class="field"><label>Comment</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
+      <article class="panel stack"><h2>Items</h2><table class="table"><thead><tr><th>Include</th><th>Student</th><th>Course</th><th>Status / certificate</th><th>Price</th><th>Discount</th></tr></thead><tbody>${(invoice.lines ?? []).map((line) => `<tr><td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td><td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.courseTitle)}<br><span class="muted">${formatDate(line.assignedAt)}</span></td><td>${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "No certificate")}</span></td><td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td><td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td></tr>`).join("")}</tbody></table></article>
+      <article class="panel"><div class="grid four"><article class="metric"><span class="muted">Subtotal</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.subtotal, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Discounts</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.lineDiscount + totals.invoiceDiscount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">VAT</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.vatAmount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Total</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article></div></article><div class="table-actions"><button class="button" type="submit">Save and update PDF</button><button class="small-button warning" type="submit" name="sendEmail" value="1">Send by email</button></div></form>
+    <article class="panel stack"><h2>Change history</h2><table class="table"><thead><tr><th>Date</th><th>User</th><th>Event</th></tr></thead><tbody>${(invoice.changes ?? []).slice().reverse().map((change) => `<tr><td>${new Date(change.at).toLocaleString("en-GB")}</td><td>${escapeHtml(change.byName || "")}</td><td>${escapeHtml(change.action)}</td></tr>`).join("") || `<tr><td colspan="3"><span class="muted">No changes yet.</span></td></tr>`}</tbody></table></article></section>`);
 }
 
 function testReportParams(searchParams = new URLSearchParams()) {
@@ -4512,7 +4516,7 @@ function testReportParams(searchParams = new URLSearchParams()) {
 
 function testStatusOptions(selectedStatus) {
   return ["", "passed", "failed"]
-    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? (status === "passed" ? "Сдан" : "Не сдан") : "Все результаты"}</option>`)
+    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? (status === "passed" ? "Passed" : "Failed") : "All results"}</option>`)
     .join("");
 }
 
@@ -4536,26 +4540,26 @@ function adminTests(user, searchParams = new URLSearchParams()) {
   const passed = attempts.filter((attempt) => attempt.status === "passed").length;
   return adminShell(
     user,
-    "Тесты",
+    "Tests",
     `<section class="section">
-      <div><span class="eyebrow">Тесты</span><h1>Попытки и ошибки</h1><p class="lead">Здесь можно посмотреть результаты, неправильные ответы и перейти к студенту для сброса или разблокировки пересдачи.</p></div>
+      <div><span class="eyebrow">Tests</span><h1>Attempts and errors</h1><p class="lead">View results and incorrect answers, then open a student to reset or unlock a retake.</p></div>
       <form class="form-panel" method="get" action="/admin/tests">
-        <h2>Фильтры</h2>
+        <h2>Filters</h2>
         <div class="admin-edit-grid">
-          <div class="field"><label>Поиск</label><input name="q" value="${escapeHtml(params.q)}" placeholder="Студент, email, курс" /></div>
-          <div class="field"><label>Студент</label><select name="userId"><option value="">Все студенты</option>${userSelectOptions(params.userId)}</select></div>
-          <div class="field"><label>Курс</label><select name="courseId"><option value="">Все курсы</option>${courseSelectOptions(params.courseId)}</select></div>
-          <div class="field"><label>Результат</label><select name="status">${testStatusOptions(params.status)}</select></div>
+          <div class="field"><label>Search</label><input name="q" value="${escapeHtml(params.q)}" placeholder="Student, email, course" /></div>
+          <div class="field"><label>Student</label><select name="userId"><option value="">All students</option>${userSelectOptions(params.userId)}</select></div>
+          <div class="field"><label>Course</label><select name="courseId"><option value="">All courses</option>${courseSelectOptions(params.courseId)}</select></div>
+          <div class="field"><label>Result</label><select name="status">${testStatusOptions(params.status)}</select></div>
         </div>
-        <div class="table-actions"><button class="small-button primary" type="submit">Применить</button><a class="small-button" href="/admin/tests">Сбросить</a></div>
+        <div class="table-actions"><button class="small-button primary" type="submit">Apply</button><a class="small-button" href="/admin/tests">Reset</a></div>
       </form>
       <div class="grid three">
-        <article class="metric"><span class="muted">Попытки</span><strong class="metric-value">${attempts.length}</strong></article>
-        <article class="metric"><span class="muted">Сдано</span><strong class="metric-value">${passed}</strong></article>
-        <article class="metric"><span class="muted">Не сдано</span><strong class="metric-value">${attempts.length - passed}</strong></article>
+        <article class="metric"><span class="muted">Attempts</span><strong class="metric-value">${attempts.length}</strong></article>
+        <article class="metric"><span class="muted">Passed</span><strong class="metric-value">${passed}</strong></article>
+        <article class="metric"><span class="muted">Failed</span><strong class="metric-value">${attempts.length - passed}</strong></article>
       </div>
       <table class="table">
-        <thead><tr><th>Студент</th><th>Курс</th><th>Попытка</th><th>Результат</th><th>Дата</th><th>Ошибки</th></tr></thead>
+        <thead><tr><th>Student</th><th>Course</th><th>Attempt</th><th>Result</th><th>Date</th><th>Errors</th></tr></thead>
         <tbody>${attempts
           .map((attempt) => {
             const student = userById(attempt.userId);
@@ -4563,14 +4567,14 @@ function adminTests(user, searchParams = new URLSearchParams()) {
             const course = assignment ? courseById(assignment.courseId) : null;
             return `<tr>
               <td><a class="link-line" href="/admin/users/${attempt.userId}">${escapeHtml(displayUserName(student) || student?.email || "")}</a><br><span class="muted">${escapeHtml(student?.email ?? "")}</span></td>
-              <td>${escapeHtml(course?.title ?? "Курс удален")}</td>
+              <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
               <td>${attempt.attemptNumber}</td>
               <td>${attempt.scorePercent}% ${badge(attempt.status === "passed" ? "test_passed" : "test_failed")}</td>
-              <td>${new Date(attempt.finishedAt).toLocaleString("ru-RU")}</td>
+              <td>${new Date(attempt.finishedAt).toLocaleString("en-GB")}</td>
               <td>${attemptWrongAnswersHtml(attempt)}</td>
             </tr>`;
           })
-          .join("") || `<tr><td colspan="6"><span class="muted">Попытки не найдены.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="6"><span class="muted">No attempts found.</span></td></tr>`}</tbody>
       </table>
     </section>`
   );
@@ -4586,29 +4590,29 @@ function adminHomepage(user) {
   const selectedCount = courses.filter((course) => course.showOnHome && course.status === "active").length;
   const footer = homeFooterSettings();
   const selectionMode = db.settings?.homepageCourseSelectionEnabled
-    ? `<div class="notice"><strong>Витрина настроена.</strong><br>На главной показываются только отмеченные активные курсы.</div>`
-    : `<div class="notice"><strong>Витрина еще не сохранена.</strong><br>До первого сохранения главная показывает несколько активных курсов автоматически.</div>`;
+    ? `<div class="notice"><strong>Course showcase configured.</strong><br>Only selected active courses appear on the home page.</div>`
+    : `<div class="notice"><strong>The course showcase has not been saved yet.</strong><br>Until the first save, the home page automatically shows several active courses.</div>`;
   return adminShell(
     user,
-    "Главная",
+    "Home page",
     `<section class="section">
       <div>
-        <span class="eyebrow">Главная страница</span>
-        <h1>Витрина курсов</h1>
-        <p class="lead">Выберите, какие курсы показывать на первой странице программы, и задайте порядок отображения.</p>
+        <span class="eyebrow">Home page</span>
+        <h1>Course showcase</h1>
+        <p class="lead">Choose which courses appear on the first page and set their display order.</p>
       </div>
       ${selectionMode}
       <form class="form-panel" method="post" action="/admin/homepage/courses">
         <div class="section-heading">
-          <div><h2>Курсы на главной</h2><p class="muted">Сейчас выбрано активных курсов: ${selectedCount}</p></div>
-          <button class="button" type="submit">Сохранить витрину</button>
+          <div><h2>Courses on home page</h2><p class="muted">Active courses selected: ${selectedCount}</p></div>
+          <button class="button" type="submit">Save showcase</button>
         </div>
         <table class="table">
-          <thead><tr><th>Показ</th><th>Курс</th><th>Статус</th><th>Порядок</th></tr></thead>
+          <thead><tr><th>Display</th><th>Course</th><th>Status</th><th>Order</th></tr></thead>
           <tbody>${courses
             .map(
               (course) => `<tr>
-                <td><label class="checkbox-row"><input name="showOnHome" type="checkbox" value="${course.id}" ${course.showOnHome ? "checked" : ""} /> На главной</label></td>
+                <td><label class="checkbox-row"><input name="showOnHome" type="checkbox" value="${course.id}" ${course.showOnHome ? "checked" : ""} /> Show on home page</label></td>
                 <td><div class="course-title-cell admin-course-title-cell">${courseCoverHtml(course, "admin-course-avatar")}<strong>${escapeHtml(course.title)}</strong></div></td>
                 <td>${badge(course.status)}</td>
                 <td><input name="homeSortOrder:${course.id}" type="number" min="1" value="${courseHomeSortValue(course)}" /></td>
@@ -4616,33 +4620,33 @@ function adminHomepage(user) {
             )
             .join("")}</tbody>
         </table>
-        <div class="table-actions"><button class="button" type="submit">Сохранить витрину</button><a class="button secondary" href="/">Открыть главную</a></div>
+        <div class="table-actions"><button class="button" type="submit">Save showcase</button><a class="button secondary" href="/">Open home page</a></div>
       </form>
       <form class="form-panel" method="post" action="/admin/homepage/footer">
-        <h2>Подвал главной страницы</h2>
+        <h2>Home page footer</h2>
         <div class="admin-edit-grid">
-          <div class="field"><label>Заголовок политик</label><input name="policiesTitle" value="${escapeHtml(footer.policiesTitle)}" required /></div>
-          <div class="field"><label>Заголовок формы</label><input name="feedbackTitle" value="${escapeHtml(footer.feedbackTitle)}" required /></div>
+          <div class="field"><label>Policies heading</label><input name="policiesTitle" value="${escapeHtml(footer.policiesTitle)}" required /></div>
+          <div class="field"><label>Form heading</label><input name="feedbackTitle" value="${escapeHtml(footer.feedbackTitle)}" required /></div>
         </div>
         <div class="admin-edit-grid">
-          <div class="field"><label>Текст ссылки 1</label><input name="termsLabel" value="${escapeHtml(footer.termsLabel)}" required /></div>
-          <div class="field"><label>Ссылка 1</label><input name="termsUrl" value="${escapeHtml(footer.termsUrl)}" required /></div>
-          <div class="field"><label>Текст ссылки 2</label><input name="privacyLabel" value="${escapeHtml(footer.privacyLabel)}" required /></div>
-          <div class="field"><label>Ссылка 2</label><input name="privacyUrl" value="${escapeHtml(footer.privacyUrl)}" required /></div>
-          <div class="field"><label>Текст ссылки 3</label><input name="userPolicyLabel" value="${escapeHtml(footer.userPolicyLabel)}" required /></div>
-          <div class="field"><label>Ссылка 3</label><input name="userPolicyUrl" value="${escapeHtml(footer.userPolicyUrl)}" required /></div>
+          <div class="field"><label>Link 1 text</label><input name="termsLabel" value="${escapeHtml(footer.termsLabel)}" required /></div>
+          <div class="field"><label>Link 1 URL</label><input name="termsUrl" value="${escapeHtml(footer.termsUrl)}" required /></div>
+          <div class="field"><label>Link 2 text</label><input name="privacyLabel" value="${escapeHtml(footer.privacyLabel)}" required /></div>
+          <div class="field"><label>Link 2 URL</label><input name="privacyUrl" value="${escapeHtml(footer.privacyUrl)}" required /></div>
+          <div class="field"><label>Link 3 text</label><input name="userPolicyLabel" value="${escapeHtml(footer.userPolicyLabel)}" required /></div>
+          <div class="field"><label>Link 3 URL</label><input name="userPolicyUrl" value="${escapeHtml(footer.userPolicyUrl)}" required /></div>
         </div>
-        <div class="field"><label>Текст страницы «${escapeHtml(footer.termsLabel)}»</label><textarea name="termsContent" rows="8">${escapeHtml(footer.termsContent)}</textarea></div>
-        <div class="field"><label>Текст страницы «${escapeHtml(footer.privacyLabel)}»</label><textarea name="privacyContent" rows="8">${escapeHtml(footer.privacyContent)}</textarea></div>
-        <div class="field"><label>Текст страницы «${escapeHtml(footer.userPolicyLabel)}»</label><textarea name="userPolicyContent" rows="8">${escapeHtml(footer.userPolicyContent)}</textarea></div>
+        <div class="field"><label>Content for “${escapeHtml(footer.termsLabel)}”</label><textarea name="termsContent" rows="8">${escapeHtml(footer.termsContent)}</textarea></div>
+        <div class="field"><label>Content for “${escapeHtml(footer.privacyLabel)}”</label><textarea name="privacyContent" rows="8">${escapeHtml(footer.privacyContent)}</textarea></div>
+        <div class="field"><label>Content for “${escapeHtml(footer.userPolicyLabel)}”</label><textarea name="userPolicyContent" rows="8">${escapeHtml(footer.userPolicyContent)}</textarea></div>
         <div class="admin-edit-grid">
-          <div class="field"><label>Подсказка имени</label><input name="namePlaceholder" value="${escapeHtml(footer.namePlaceholder)}" required /></div>
-          <div class="field"><label>Подсказка e-mail</label><input name="emailPlaceholder" value="${escapeHtml(footer.emailPlaceholder)}" required /></div>
-          <div class="field"><label>Подсказка темы</label><input name="subjectPlaceholder" value="${escapeHtml(footer.subjectPlaceholder)}" required /></div>
-          <div class="field"><label>Подсказка сообщения</label><input name="messagePlaceholder" value="${escapeHtml(footer.messagePlaceholder)}" required /></div>
-          <div class="field"><label>Текст кнопки</label><input name="submitLabel" value="${escapeHtml(footer.submitLabel)}" required /></div>
+          <div class="field"><label>Name placeholder</label><input name="namePlaceholder" value="${escapeHtml(footer.namePlaceholder)}" required /></div>
+          <div class="field"><label>Email placeholder</label><input name="emailPlaceholder" value="${escapeHtml(footer.emailPlaceholder)}" required /></div>
+          <div class="field"><label>Subject placeholder</label><input name="subjectPlaceholder" value="${escapeHtml(footer.subjectPlaceholder)}" required /></div>
+          <div class="field"><label>Message placeholder</label><input name="messagePlaceholder" value="${escapeHtml(footer.messagePlaceholder)}" required /></div>
+          <div class="field"><label>Button text</label><input name="submitLabel" value="${escapeHtml(footer.submitLabel)}" required /></div>
         </div>
-        <button class="button" type="submit">Сохранить подвал</button>
+        <button class="button" type="submit">Save footer</button>
       </form>
     </section>`
   );
@@ -4656,46 +4660,46 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
   const pagination = paginateItems(courses, params);
   return adminShell(
     user,
-    "Курсы",
+    "Courses",
     `<section class="section">
       <div class="section-heading">
-        <div><span class="eyebrow">Курсы</span><h1>Управление курсами</h1><p class="lead">Курс состоит из уроков, обязательных материалов и финального теста.</p></div>
-        <div class="table-actions"><a class="button secondary" href="/admin/course-prices">Цены курсов</a><a class="button secondary" href="/admin/homepage">Настроить главную</a></div>
+        <div><span class="eyebrow">Courses</span><h1>Course management</h1><p class="lead">A course consists of lessons, required materials, and a final test.</p></div>
+        <div class="table-actions">${SHOW_COURSE_PRICES ? `<a class="button secondary" href="/admin/course-prices">Course prices</a>` : ""}<a class="button secondary" href="/admin/homepage">Configure home page</a></div>
       </div>
       <form class="inline-form" method="get" action="/admin/courses">
-        <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск курсов" />
-        <button class="small-button primary" type="submit">Найти</button>
+        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search courses" />
+        <button class="small-button primary" type="submit">Search</button>
       </form>
       <form class="form-panel" method="post" action="/admin/courses/create" enctype="multipart/form-data">
-        <h2>Создать курс</h2>
-        <div class="field"><label>Название</label><input name="title" required /></div>
-        <div class="field"><label>Краткое описание</label><textarea name="shortDescription" required></textarea></div>
-        <div class="field"><label>Цели</label><textarea name="goals"></textarea></div>
-        <div class="admin-edit-grid">
-          <div class="field"><label>Старая цена</label><input name="oldPrice" placeholder="например 250 EUR" /></div>
-          <div class="field"><label>Новая цена</label><input name="newPrice" placeholder="например 199 EUR" /></div>
-        </div>
+        <h2>Create course</h2>
+        <div class="field"><label>Title</label><input name="title" required /></div>
+        <div class="field"><label>Short description</label><textarea name="shortDescription" required></textarea></div>
+        <div class="field"><label>Learning objectives</label><textarea name="goals"></textarea></div>
+        ${SHOW_COURSE_PRICES ? `<div class="admin-edit-grid">
+          <div class="field"><label>Old price</label><input name="oldPrice" placeholder="e.g. 250 USD" /></div>
+          <div class="field"><label>New price</label><input name="newPrice" placeholder="e.g. 199 USD" /></div>
+        </div>` : ""}
         ${courseCatalogFields({})}
-        <div class="field"><label>Обложка курса</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
+        <div class="field"><label>Course cover</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
         <div class="admin-edit-grid">
-          <label class="checkbox-row"><input name="showOnHome" type="checkbox" /> Показывать на главной</label>
-          <div class="field"><label>Порядок на главной</label><input name="homeSortOrder" type="number" min="1" value="999" /></div>
+          <label class="checkbox-row"><input name="showOnHome" type="checkbox" /> Show on home page</label>
+          <div class="field"><label>Home page order</label><input name="homeSortOrder" type="number" min="1" value="999" /></div>
         </div>
-        <button class="button" type="submit">Создать курс</button>
+        <button class="button" type="submit">Create course</button>
       </form>
       <table class="table">
-        <thead><tr><th>Курс</th><th>Цена</th><th>Главная</th><th>Статус</th><th>Материалы</th><th>Тест</th><th>Действия</th></tr></thead>
+        <thead><tr><th>Course</th>${SHOW_COURSE_PRICES ? "<th>Price</th>" : ""}<th>Home page</th><th>Status</th><th>Materials</th><th>Test</th><th>Actions</th></tr></thead>
         <tbody>${pagination.items
           .map((course) => `<tr>
             <td><div class="course-title-cell admin-course-title-cell">${courseCoverHtml(course, "admin-course-avatar")}<strong>${escapeHtml(course.title)}</strong></div></td>
-            <td>${coursePriceHtml(course, { showEmpty: true })}</td>
-            <td>${course.showOnHome ? `<span class="status-pill">Показ</span><br><span class="muted">#${courseHomeSortValue(course)}</span>` : `<span class="muted">Нет</span>`}</td>
+            ${SHOW_COURSE_PRICES ? `<td>${coursePriceHtml(course, { showEmpty: true })}</td>` : ""}
+            <td>${course.showOnHome ? `<span class="status-pill">Shown</span><br><span class="muted">#${courseHomeSortValue(course)}</span>` : `<span class="muted">No</span>`}</td>
             <td>${badge(course.status)}</td>
-            <td>${requiredMaterials(course).length} обязательных</td>
-            <td>${course.test?.questions.length ?? 0} вопросов, проходной ${course.test?.passingPercent ?? 0}%</td>
-            <td><a class="small-button primary" href="/admin/courses/${course.id}">Редактировать</a></td>
+            <td>${requiredMaterials(course).length} required</td>
+            <td>${course.test?.questions.length ?? 0} questions, pass mark ${course.test?.passingPercent ?? 0}%</td>
+            <td><a class="small-button primary" href="/admin/courses/${course.id}">Edit</a></td>
           </tr>`)
-          .join("") || `<tr><td colspan="7"><span class="muted">Курсы не найдены.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="${SHOW_COURSE_PRICES ? 7 : 6}"><span class="muted">No courses found.</span></td></tr>`}</tbody>
       </table>
       ${paginationControls("/admin/courses", params, pagination)}
     </section>`
@@ -4712,7 +4716,7 @@ function coursePriceParams(searchParams = new URLSearchParams()) {
 
 function coursePriceStatusOptions(selectedStatus) {
   return ["", "active", "inactive"]
-    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? statusLabel(status) : "Все статусы"}</option>`)
+    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? statusLabel(status) : "All statuses"}</option>`)
     .join("");
 }
 
@@ -4730,33 +4734,33 @@ function adminCoursePrices(user, searchParams = new URLSearchParams()) {
   const returnTo = `/admin/course-prices${reportQuery(params)}`;
   return adminShell(
     user,
-    "Цены курсов",
+    "Course prices",
     `<section class="section">
       <div class="section-heading">
-        <div><span class="eyebrow">Цены</span><h1>Цены всех курсов</h1></div>
-        <button class="button" form="course-prices-form" type="submit">Сохранить цены</button>
+        <div><span class="eyebrow">Prices</span><h1>Prices for all courses</h1></div>
+        <button class="button" form="course-prices-form" type="submit">Save prices</button>
       </div>
       <form class="form-panel" method="get" action="/admin/course-prices">
-        <h2>Фильтр</h2>
+        <h2>Filter</h2>
         <div class="admin-edit-grid">
-          <div class="field"><label>Поиск</label><input name="q" value="${escapeHtml(params.q)}" placeholder="Курс или цена" /></div>
-          <div class="field"><label>Статус</label><select name="status">${coursePriceStatusOptions(params.status)}</select></div>
+          <div class="field"><label>Search</label><input name="q" value="${escapeHtml(params.q)}" placeholder="Course or price" /></div>
+          <div class="field"><label>Status</label><select name="status">${coursePriceStatusOptions(params.status)}</select></div>
         </div>
-        <div class="table-actions"><button class="small-button primary" type="submit">Показать</button><a class="small-button" href="/admin/course-prices">Сбросить</a><a class="small-button warning" href="${exportHref}">Экспорт Excel</a></div>
+        <div class="table-actions"><button class="small-button primary" type="submit">Show</button><a class="small-button" href="/admin/course-prices">Reset</a><a class="small-button warning" href="${exportHref}">Export Excel</a></div>
       </form>
       <form id="course-prices-form" class="form-panel" method="post" action="/admin/course-prices/update">
         <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />
         <table class="table course-prices-table">
-          <thead><tr><th>Курс</th><th>Старая цена</th><th>Новая цена</th></tr></thead>
+          <thead><tr><th>Course</th><th>Old price</th><th>New price</th></tr></thead>
           <tbody>${courses
             .map((course) => `<tr>
               <td class="course-name-cell">${escapeHtml(course.title)}</td>
-              <td><input name="oldPrice:${course.id}" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="например 250 EUR" /></td>
-              <td><input name="newPrice:${course.id}" value="${escapeHtml(course.newPrice ?? "")}" placeholder="например 199 EUR" /></td>
+              <td><input name="oldPrice:${course.id}" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="e.g. 250 USD" /></td>
+              <td><input name="newPrice:${course.id}" value="${escapeHtml(course.newPrice ?? "")}" placeholder="e.g. 199 USD" /></td>
             </tr>`)
-            .join("") || `<tr><td colspan="3"><span class="muted">Курсы не найдены.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="3"><span class="muted">No courses found.</span></td></tr>`}</tbody>
         </table>
-        <div class="table-actions"><button class="button" type="submit">Сохранить цены</button></div>
+        <div class="table-actions"><button class="button" type="submit">Save prices</button></div>
       </form>
     </section>`
   );
@@ -4777,28 +4781,28 @@ function adminFiles(user, searchParams = new URLSearchParams()) {
   const lessonOptions = lessonSelectOptions();
   return adminShell(
     user,
-    "Файлы",
+    "Files",
     `<section class="section">
-      <div><span class="eyebrow">Файлы и видео</span><h1>Проверка учебных файлов</h1><p class="lead">Отчет сверяет материалы курсов с файлами в data/uploads и помогает найти битые ссылки после импорта.</p></div>
+      <div><span class="eyebrow">Files and video</span><h1>Learning file check</h1><p class="lead">This report compares course materials with files in data/uploads and helps find broken links after import.</p></div>
       <form class="inline-form" method="get" action="/admin/files">
-        <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск по курсу, уроку, файлу" />
-        <button class="small-button primary" type="submit">Найти</button>
-        <a class="small-button" href="/admin/files">Сбросить</a>
-        <a class="small-button" href="/admin/files/import-report.csv">Экспорт отчета импорта</a>
+        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search course, lesson, or file" />
+        <button class="small-button primary" type="submit">Search</button>
+        <a class="small-button" href="/admin/files">Reset</a>
+        <a class="small-button" href="/admin/files/import-report.csv">Export import report</a>
       </form>
       <form method="post" action="/admin/files/auto-link-videos">
-        <button class="small-button warning" type="submit">Автопривязать видео по названию</button>
+        <button class="small-button warning" type="submit">Auto-link videos by title</button>
       </form>
       <div class="grid four">
-        <article class="metric"><span class="muted">Файлов в uploads</span><strong class="metric-value">${report.uploadFiles.length}</strong></article>
-        <article class="metric"><span class="muted">Файлов в материалах</span><strong class="metric-value">${report.materialFiles.length}</strong></article>
-        <article class="metric"><span class="muted">Битых ссылок</span><strong class="metric-value">${report.missingMaterialFiles.length}</strong></article>
-        <article class="metric"><span class="muted">Видео без урока</span><strong class="metric-value">${report.unlinkedVideos.length}</strong></article>
+        <article class="metric"><span class="muted">Files in uploads</span><strong class="metric-value">${report.uploadFiles.length}</strong></article>
+        <article class="metric"><span class="muted">Files in materials</span><strong class="metric-value">${report.materialFiles.length}</strong></article>
+        <article class="metric"><span class="muted">Broken links</span><strong class="metric-value">${report.missingMaterialFiles.length}</strong></article>
+        <article class="metric"><span class="muted">Videos without lessons</span><strong class="metric-value">${report.unlinkedVideos.length}</strong></article>
       </div>
       <article class="panel stack">
-        <h2>Материалы, где файл не найден</h2>
+        <h2>Materials with missing files</h2>
         <table class="table">
-          <thead><tr><th>Курс</th><th>Урок</th><th>Материал</th><th>Путь</th></tr></thead>
+          <thead><tr><th>Course</th><th>Lesson</th><th>Material</th><th>Path</th></tr></thead>
           <tbody>${missingFiles
             .map((item) => `<tr>
               <td>${escapeHtml(item.course.title)}</td>
@@ -4806,37 +4810,37 @@ function adminFiles(user, searchParams = new URLSearchParams()) {
               <td>${escapeHtml(item.material.title)}<br><span class="muted">${escapeHtml(item.material.type)}</span></td>
               <td><span class="link-line">${escapeHtml(item.publicPath)}</span></td>
             </tr>`)
-            .join("") || `<tr><td colspan="4"><span class="muted">Битых ссылок на локальные файлы не найдено.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="4"><span class="muted">No broken links to local files found.</span></td></tr>`}</tbody>
         </table>
       </article>
       <article class="panel stack">
-        <h2>Видео в uploads без привязки к урокам</h2>
+        <h2>Videos in uploads not linked to lessons</h2>
         <table class="table">
-          <thead><tr><th>Файл</th><th>Размер</th><th>Изменен</th><th>Действия</th></tr></thead>
+          <thead><tr><th>File</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
           <tbody>${unlinkedVideos
             .map((file) => `<tr>
               <td><span class="link-line">${escapeHtml(file.relativePath)}</span></td>
               <td>${formatBytes(file.size)}</td>
               <td>${formatDate(file.modifiedAt)}</td>
               <td><div class="table-actions">
-                <a class="small-button primary" href="${escapeHtml(file.publicPath)}" target="_blank" rel="noopener">Открыть</a>
+                <a class="small-button primary" href="${escapeHtml(file.publicPath)}" target="_blank" rel="noopener">Open</a>
                 ${lessonOptions ? `<form class="inline-form" method="post" action="/admin/files/link-video">
                   <input type="hidden" name="publicPath" value="${escapeHtml(file.publicPath)}" />
                   <input name="title" value="${escapeHtml(file.relativePath.split("/").at(-1) ?? "Video")}" />
                   <select name="lessonRef">${lessonOptions}</select>
-                  <label class="checkbox-row"><input name="isRequired" type="checkbox" checked /> обязательный</label>
-                  <button class="small-button warning" type="submit">Привязать</button>
-                </form>` : `<span class="muted">Сначала создайте урок.</span>`}
+                  <label class="checkbox-row"><input name="isRequired" type="checkbox" checked /> required</label>
+                  <button class="small-button warning" type="submit">Link</button>
+                </form>` : `<span class="muted">Create a lesson first.</span>`}
               </div></td>
             </tr>`)
-            .join("") || `<tr><td colspan="4"><span class="muted">Непривязанных видео не найдено.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="4"><span class="muted">No unlinked videos found.</span></td></tr>`}</tbody>
         </table>
-        ${filteredUnlinkedVideos.length > unlinkedVideos.length ? `<p class="muted">Показаны первые 50 видео. Используйте поиск, чтобы сузить список.</p>` : ""}
+        ${filteredUnlinkedVideos.length > unlinkedVideos.length ? `<p class="muted">The first 50 videos are shown. Use search to narrow the list.</p>` : ""}
       </article>
       <article class="panel stack">
-        <h2>Импортированные курсы WordPress/Tutor LMS</h2>
+        <h2>Imported WordPress/Tutor LMS courses</h2>
         <table class="table">
-          <thead><tr><th>Курс</th><th>WP ID</th><th>Уроки</th><th>Материалы</th><th>Видео</th><th>Битые файлы</th><th>Действия</th></tr></thead>
+          <thead><tr><th>Course</th><th>WP ID</th><th>Lessons</th><th>Materials</th><th>Videos</th><th>Missing files</th><th>Actions</th></tr></thead>
           <tbody>${importedCourses
             .map((item) => `<tr>
               <td>${escapeHtml(item.course.title)}</td>
@@ -4845,42 +4849,42 @@ function adminFiles(user, searchParams = new URLSearchParams()) {
               <td>${item.materials}</td>
               <td>${item.videos}</td>
               <td>${item.missing ? `<span class="badge warning">${item.missing}</span>` : `<span class="badge success">0</span>`}</td>
-              <td><a class="small-button primary" href="/admin/courses/${item.course.id}">Открыть курс</a></td>
+              <td><a class="small-button primary" href="/admin/courses/${item.course.id}">Open course</a></td>
             </tr>`)
-            .join("") || `<tr><td colspan="7"><span class="muted">Импортированные курсы не найдены.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="7"><span class="muted">No imported courses found.</span></td></tr>`}</tbody>
         </table>
       </article>
       <article class="panel stack">
-        <h2>Пустые импортированные курсы и уроки</h2>
+        <h2>Empty imported courses and lessons</h2>
         <table class="table">
-          <thead><tr><th>Тип</th><th>Курс</th><th>Урок</th><th>Действия</th></tr></thead>
+          <thead><tr><th>Type</th><th>Course</th><th>Lesson</th><th>Actions</th></tr></thead>
           <tbody>${[
             ...importedCourses
               .filter((item) => item.lessons === 0 || item.materials === 0)
-              .map((item) => `<tr><td>${item.lessons === 0 ? "Курс без уроков" : "Курс без материалов"}</td><td>${escapeHtml(item.course.title)}</td><td><span class="muted">-</span></td><td><a class="small-button primary" href="/admin/courses/${item.course.id}">Открыть</a></td></tr>`),
-            ...emptyImportedLessons.map(({ course, lesson }) => `<tr><td>Урок без материалов</td><td>${escapeHtml(course.title)}</td><td>${escapeHtml(lesson.title)}</td><td><a class="small-button primary" href="/admin/courses/${course.id}">Открыть</a></td></tr>`)
-          ].join("") || `<tr><td colspan="4"><span class="muted">Пустые импортированные курсы и уроки не найдены.</span></td></tr>`}</tbody>
+              .map((item) => `<tr><td>${item.lessons === 0 ? "Course without lessons" : "Course without materials"}</td><td>${escapeHtml(item.course.title)}</td><td><span class="muted">-</span></td><td><a class="small-button primary" href="/admin/courses/${item.course.id}">Open</a></td></tr>`),
+            ...emptyImportedLessons.map(({ course, lesson }) => `<tr><td>Lesson without materials</td><td>${escapeHtml(course.title)}</td><td>${escapeHtml(lesson.title)}</td><td><a class="small-button primary" href="/admin/courses/${course.id}">Open</a></td></tr>`)
+          ].join("") || `<tr><td colspan="4"><span class="muted">No empty imported courses or lessons found.</span></td></tr>`}</tbody>
         </table>
       </article>
       <article class="panel stack">
-        <h2>Файлы без привязки к урокам</h2>
+        <h2>Files not linked to lessons</h2>
         <table class="table">
-          <thead><tr><th>Файл</th><th>Размер</th><th>Статус</th><th>Действия</th></tr></thead>
+          <thead><tr><th>File</th><th>Size</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${unlinkedUploads
             .map((file) => `<tr>
               <td><span class="link-line">${escapeHtml(file.relativePath)}</span></td>
               <td>${formatBytes(file.size)}</td>
-              <td>${file.usedAsPhoto ? `<span class="badge success">Фото студента</span>` : `<span class="badge warning">Не привязан</span>`}</td>
-              <td><a class="small-button primary" href="${escapeHtml(file.publicPath)}" target="_blank" rel="noopener">Открыть</a></td>
+              <td>${file.usedAsPhoto ? `<span class="badge success">Student photo</span>` : `<span class="badge warning">Not linked</span>`}</td>
+              <td><a class="small-button primary" href="${escapeHtml(file.publicPath)}" target="_blank" rel="noopener">Open</a></td>
             </tr>`)
-            .join("") || `<tr><td colspan="4"><span class="muted">Непривязанных файлов не найдено.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="4"><span class="muted">No unlinked files found.</span></td></tr>`}</tbody>
         </table>
-        ${filteredUnlinkedUploads.length > unlinkedUploads.length ? `<p class="muted">Показаны первые 50 файлов. Используйте поиск, чтобы сузить список.</p>` : ""}
+        ${filteredUnlinkedUploads.length > unlinkedUploads.length ? `<p class="muted">The first 50 files are shown. Use search to narrow the list.</p>` : ""}
       </article>
       <article class="panel stack">
-        <h2>Материалы с локальными файлами</h2>
+        <h2>Materials with local files</h2>
         <table class="table">
-          <thead><tr><th>Курс</th><th>Урок</th><th>Материал</th><th>Файл</th><th>Статус</th><th>Действия</th></tr></thead>
+          <thead><tr><th>Course</th><th>Lesson</th><th>Material</th><th>File</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${pagination.items
             .map((item) => `<tr>
               <td>${escapeHtml(item.course.title)}</td>
@@ -4888,9 +4892,9 @@ function adminFiles(user, searchParams = new URLSearchParams()) {
               <td>${escapeHtml(item.material.title)}<br><span class="muted">${escapeHtml(item.material.type)}</span></td>
               <td><span class="link-line">${escapeHtml(item.relativePath)}</span><br><span class="muted">${formatBytes(item.size)}</span></td>
               <td>${fileBadge(item.exists)}</td>
-              <td>${item.exists ? `<a class="small-button primary" href="${escapeHtml(item.publicPath)}" target="_blank" rel="noopener">Открыть</a>` : ""}</td>
+              <td>${item.exists ? `<a class="small-button primary" href="${escapeHtml(item.publicPath)}" target="_blank" rel="noopener">Open</a>` : ""}</td>
             </tr>`)
-            .join("") || `<tr><td colspan="6"><span class="muted">Локальные файлы в материалах не найдены.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="6"><span class="muted">No local files in materials found.</span></td></tr>`}</tbody>
         </table>
         ${paginationControls("/admin/files", params, pagination)}
       </article>
@@ -4903,165 +4907,165 @@ function adminCourseDetail(user, course) {
   const certificateDesignerBlock = certificateDesignerEditorHtml(course, previewCertificate);
   const deletionUsage = courseDeletionUsage(course.id);
   const deletionDetails = [
-    deletionUsage.assignments ? `назначений: ${deletionUsage.assignments}` : "",
-    deletionUsage.applications ? `заявок: ${deletionUsage.applications}` : "",
-    deletionUsage.certificates ? `сертификатов: ${deletionUsage.certificates}` : ""
+    deletionUsage.assignments ? `assignments: ${deletionUsage.assignments}` : "",
+    deletionUsage.applications ? `applications: ${deletionUsage.applications}` : "",
+    deletionUsage.certificates ? `certificates: ${deletionUsage.certificates}` : ""
   ].filter(Boolean).join(", ");
   return adminShell(
     user,
     course.title,
     `<section class="section">
-      <div><span class="eyebrow">Редактор курса</span><h1>${escapeHtml(course.title)}</h1><p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p></div>
+      <div><span class="eyebrow">Course editor</span><h1>${escapeHtml(course.title)}</h1><p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p></div>
       ${certificateDesignerBlock}
       <form class="form-panel" method="post" action="/admin/courses/${course.id}/update" enctype="multipart/form-data">
-        <h2>Основная информация</h2>
+        <h2>Course details</h2>
         ${courseCoverHtml(course, "editor")}
-        <div class="field"><label>Название</label><input name="title" value="${escapeHtml(course.title)}" required /></div>
-        <div class="field"><label>Краткое описание</label><textarea name="shortDescription" required>${escapeHtml(course.shortDescription)}</textarea></div>
-        <div class="field"><label>Полное описание</label><textarea name="fullDescription">${escapeHtml(course.fullDescription || "")}</textarea></div>
-        <div class="field"><label>Цели</label><textarea name="goals">${escapeHtml(course.goals || "")}</textarea></div>
+        <div class="field"><label>Title</label><input name="title" value="${escapeHtml(course.title)}" required /></div>
+        <div class="field"><label>Short description</label><textarea name="shortDescription" required>${escapeHtml(course.shortDescription)}</textarea></div>
+        <div class="field"><label>Full description</label><textarea name="fullDescription">${escapeHtml(course.fullDescription || "")}</textarea></div>
+        <div class="field"><label>Learning objectives</label><textarea name="goals">${escapeHtml(course.goals || "")}</textarea></div>
         ${courseCatalogFields(course)}
+        ${SHOW_COURSE_PRICES ? `<div class="admin-edit-grid">
+          <div class="field"><label>Old price</label><input name="oldPrice" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="e.g. 250 USD" /></div>
+          <div class="field"><label>New price</label><input name="newPrice" value="${escapeHtml(course.newPrice ?? "")}" placeholder="e.g. 199 USD" /></div>
+        </div>` : ""}
         <div class="admin-edit-grid">
-          <div class="field"><label>Старая цена</label><input name="oldPrice" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="например 250 EUR" /></div>
-          <div class="field"><label>Новая цена</label><input name="newPrice" value="${escapeHtml(course.newPrice ?? "")}" placeholder="например 199 EUR" /></div>
+          <div class="field"><label>Replace cover image</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
+          <label class="checkbox-row"><input name="removeImage" type="checkbox" /> Remove cover image</label>
         </div>
         <div class="admin-edit-grid">
-          <div class="field"><label>Заменить обложку</label><input name="imageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
-          <label class="checkbox-row"><input name="removeImage" type="checkbox" /> Удалить обложку</label>
+          <label class="checkbox-row"><input name="showOnHome" type="checkbox" ${course.showOnHome ? "checked" : ""} /> Show on home page</label>
+          <div class="field"><label>Home page order</label><input name="homeSortOrder" type="number" min="1" value="${courseHomeSortValue(course)}" /></div>
         </div>
-        <div class="admin-edit-grid">
-          <label class="checkbox-row"><input name="showOnHome" type="checkbox" ${course.showOnHome ? "checked" : ""} /> Показывать на главной</label>
-          <div class="field"><label>Порядок на главной</label><input name="homeSortOrder" type="number" min="1" value="${courseHomeSortValue(course)}" /></div>
-        </div>
-        <div class="field"><label>Статус</label><select name="status"><option value="active" ${course.status === "active" ? "selected" : ""}>Активен</option><option value="inactive" ${course.status === "inactive" ? "selected" : ""}>Отключен</option></select></div>
-        <button class="button" type="submit">Сохранить</button>
+        <div class="field"><label>Status</label><select name="status"><option value="active" ${course.status === "active" ? "selected" : ""}>Active</option><option value="inactive" ${course.status === "inactive" ? "selected" : ""}>Inactive</option></select></div>
+        <button class="button" type="submit">Save</button>
       </form>
       ${isFullAdmin(user) ? `<article class="panel stack">
-        <h2>Удаление курса</h2>
+        <h2>Delete course</h2>
         ${courseDeletionBlocked(deletionUsage)
-          ? `<p class="muted">Курс нельзя удалить: ${escapeHtml(deletionDetails)}. Сначала удалите или перенесите связанные данные.</p>`
-          : `<p class="muted">Удаление безвозвратно удалит курс, уроки, материалы и тест.</p><form method="post" action="/admin/courses/${course.id}/delete" onsubmit="return confirm('Удалить курс безвозвратно?');"><button class="small-button danger" type="submit">Удалить курс</button></form>`}
+          ? `<p class="muted">This course cannot be deleted: ${escapeHtml(deletionDetails)}. Delete or move the related data first.</p>`
+          : `<p class="muted">Deletion permanently removes the course, lessons, materials, and test.</p><form method="post" action="/admin/courses/${course.id}/delete" onsubmit="return confirm('Permanently delete this course?');"><button class="small-button danger" type="submit">Delete course</button></form>`}
       </article>` : ""}
       <article class="panel certificate-template">
-        <h2>Шаблон сертификата</h2>
-        <p class="muted">Срок действия сертификата всегда рассчитывается автоматически: дата выдачи плюс 5 лет.</p>
+        <h2>Certificate template</h2>
+        <p class="muted">The certificate expiry date is always calculated automatically: issue date plus 5 years.</p>
         <div class="template-token-list">
           <code>{{firstName}}</code><code>{{lastName}}</code><code>{{fullName}}</code><code>{{birthDate}}</code><code>{{position}}</code><code>{{company}}</code><code>{{courseTitle}}</code><code>{{certificateNumber}}</code><code>{{issuedAt}}</code><code>{{expiresAt}}</code><code>{{photoImage}}</code><code>{{photoUrl}}</code><code>{{verificationUrl}}</code><code>{{qrCode}}</code>
         </div>
         <form class="stack" method="post" action="/admin/courses/${course.id}/certificate-template" enctype="multipart/form-data">
-          <div class="field"><label>HTML-шаблон</label><textarea name="certificateTemplateHtml">${escapeHtml(course.certificateTemplateHtml || defaultCertificateTemplate())}</textarea></div>
+          <div class="field"><label>HTML template</label><textarea name="certificateTemplateHtml">${escapeHtml(course.certificateTemplateHtml || defaultCertificateTemplate())}</textarea></div>
           <div class="admin-edit-grid">
-            <div class="field"><label>Загрузить HTML-файл</label><input name="templateFile" type="file" accept=".html,text/html,text/plain" /></div>
-            <label class="checkbox-row"><input name="resetTemplate" type="checkbox" /> Сбросить к базовому шаблону</label>
+            <div class="field"><label>Upload HTML file</label><input name="templateFile" type="file" accept=".html,text/html,text/plain" /></div>
+            <label class="checkbox-row"><input name="resetTemplate" type="checkbox" /> Reset to base template</label>
           </div>
-          <button class="button" type="submit">Сохранить шаблон</button>
+          <button class="button" type="submit">Save template</button>
         </form>
         <div class="certificate-preview-actions">
-          <a class="small-button primary" href="/admin/courses/${course.id}/certificate-template/preview">Открыть предпросмотр</a>
-          <span class="muted">Образец показывает текущий HTML-шаблон с тестовыми данными студента.</span>
+          <a class="small-button primary" href="/admin/courses/${course.id}/certificate-template/preview">Open preview</a>
+          <span class="muted">The sample shows the current HTML template with test student data.</span>
         </div>
         <div class="certificate-preview-frame">
           <div class="${certificateShellClass(previewCertificate.certificateHtml, "certificate-preview")}">${previewCertificate.certificateHtml}</div>
         </div>
       </article>
       <article class="panel stack">
-        <h2>Уроки и материалы</h2>
+        <h2>Lessons and materials</h2>
         <div class="course-editor-list">${course.lessons
           .sort((a, b) => a.sortOrder - b.sortOrder)
           .map(
             (lesson) => `<article class="lesson-editor">
               <form class="stack" method="post" action="/admin/courses/${course.id}/lessons/${lesson.id}/update">
                 <div class="admin-edit-grid">
-                  <div class="field"><label>Название урока</label><input name="title" value="${escapeHtml(lesson.title)}" required /></div>
-                  <div class="field"><label>Порядок</label><input name="sortOrder" type="number" min="1" value="${lesson.sortOrder}" /></div>
-                  <div class="field"><label>Статус</label><select name="status"><option value="active" ${lesson.status === "active" ? "selected" : ""}>Активен</option><option value="inactive" ${lesson.status === "inactive" ? "selected" : ""}>Отключен</option></select></div>
-                  <div class="field"><label>Описание</label><input name="description" value="${escapeHtml(lesson.description || "")}" /></div>
+                  <div class="field"><label>Lesson title</label><input name="title" value="${escapeHtml(lesson.title)}" required /></div>
+                  <div class="field"><label>Order</label><input name="sortOrder" type="number" min="1" value="${lesson.sortOrder}" /></div>
+                  <div class="field"><label>Status</label><select name="status"><option value="active" ${lesson.status === "active" ? "selected" : ""}>Active</option><option value="inactive" ${lesson.status === "inactive" ? "selected" : ""}>Inactive</option></select></div>
+                  <div class="field"><label>Description</label><input name="description" value="${escapeHtml(lesson.description || "")}" /></div>
                 </div>
                 <div class="table-actions">
-                  <button class="small-button primary" type="submit">Сохранить урок</button>
+                  <button class="small-button primary" type="submit">Save lesson</button>
                 </div>
               </form>
               <form method="post" action="/admin/courses/${course.id}/lessons/${lesson.id}/delete">
-                <button class="small-button danger" type="submit">Удалить урок</button>
+                <button class="small-button danger" type="submit">Delete lesson</button>
               </form>
               ${lesson.materials
                 .sort((a, b) => a.sortOrder - b.sortOrder)
                 .map((material) => `<form class="material-editor" method="post" action="/admin/courses/${course.id}/materials/${material.id}/update" enctype="multipart/form-data">
                   <div class="material-edit-grid">
-                    <div class="field"><label>Материал</label><input name="title" value="${escapeHtml(material.title)}" required /></div>
-                    <div class="field"><label>Тип</label><select name="type"><option value="text" ${material.type === "text" ? "selected" : ""}>Текст</option><option value="video" ${material.type === "video" ? "selected" : ""}>Видео</option><option value="pdf" ${material.type === "pdf" ? "selected" : ""}>PDF</option><option value="download" ${material.type === "download" ? "selected" : ""}>Файл</option><option value="image" ${material.type === "image" ? "selected" : ""}>Изображение</option></select></div>
-                    <div class="field"><label>Порядок</label><input name="sortOrder" type="number" min="1" value="${material.sortOrder}" /></div>
+                    <div class="field"><label>Material</label><input name="title" value="${escapeHtml(material.title)}" required /></div>
+                    <div class="field"><label>Type</label><select name="type"><option value="text" ${material.type === "text" ? "selected" : ""}>Text</option><option value="video" ${material.type === "video" ? "selected" : ""}>Video</option><option value="pdf" ${material.type === "pdf" ? "selected" : ""}>PDF</option><option value="download" ${material.type === "download" ? "selected" : ""}>File</option><option value="image" ${material.type === "image" ? "selected" : ""}>Image</option></select></div>
+                    <div class="field"><label>Order</label><input name="sortOrder" type="number" min="1" value="${material.sortOrder}" /></div>
                   </div>
-                  <div class="field"><label>Текст или ссылка</label><input name="content" value="${escapeHtml(material.content || "")}" /></div>
+                  <div class="field"><label>Text or link</label><input name="content" value="${escapeHtml(material.content || "")}" /></div>
                   ${materialContentHtml(material)}
                   <div class="admin-edit-grid">
-                    <label class="checkbox-row"><input name="isRequired" type="checkbox" ${material.isRequired ? "checked" : ""} /> Обязательный</label>
-                    <div class="field"><label>Заменить файлом</label><input name="file" type="file" /></div>
+                    <label class="checkbox-row"><input name="isRequired" type="checkbox" ${material.isRequired ? "checked" : ""} /> Required</label>
+                    <div class="field"><label>Replace file</label><input name="file" type="file" /></div>
                   </div>
                   <div class="table-actions">
-                    <button class="small-button primary" type="submit">Сохранить материал</button>
+                    <button class="small-button primary" type="submit">Save material</button>
                   </div>
                 </form>
                 <form method="post" action="/admin/courses/${course.id}/materials/${material.id}/delete">
-                  <button class="small-button danger" type="submit">Удалить материал</button>
+                  <button class="small-button danger" type="submit">Delete material</button>
                 </form>`)
                 .join("")}
               <form class="inline-form" method="post" action="/admin/courses/${course.id}/materials/create" enctype="multipart/form-data">
                 <input type="hidden" name="lessonId" value="${lesson.id}" />
-                <input name="title" placeholder="Название материала" required />
-                <select name="type"><option value="text">Текст</option><option value="video">Видео</option><option value="pdf">PDF</option><option value="download">Файл</option><option value="image">Изображение</option></select>
-                <input name="content" placeholder="Текст или ссылка" />
-                <label class="checkbox-row"><input name="isRequired" type="checkbox" checked /> Обязательный</label>
+                <input name="title" placeholder="Material title" required />
+                <select name="type"><option value="text">Text</option><option value="video">Video</option><option value="pdf">PDF</option><option value="download">File</option><option value="image">Image</option></select>
+                <input name="content" placeholder="Text or link" />
+                <label class="checkbox-row"><input name="isRequired" type="checkbox" checked /> Required</label>
                 <input name="file" type="file" />
-                <button class="small-button primary" type="submit">Добавить материал</button>
+                <button class="small-button primary" type="submit">Add material</button>
               </form>
             </article>`
           )
           .join("")}</div>
         <form class="inline-form" method="post" action="/admin/courses/${course.id}/lessons/create">
-          <input name="title" placeholder="Название урока" required />
-          <input name="description" placeholder="Описание" />
-          <button class="small-button primary" type="submit">Добавить урок</button>
+          <input name="title" placeholder="Lesson title" required />
+          <input name="description" placeholder="Description" />
+          <button class="small-button primary" type="submit">Add lesson</button>
         </form>
       </article>
       <article class="panel stack">
-        <h2>Финальный тест</h2>
+        <h2>Final test</h2>
         <form class="inline-form" method="post" action="/admin/courses/${course.id}/test/settings">
-          <input name="title" value="${escapeHtml(course.test?.title ?? "Финальный тест")}" required />
+          <input name="title" value="${escapeHtml(course.test?.title ?? "Final test")}" required />
           <input name="attemptsLimit" type="number" min="1" value="${course.test?.attemptsLimit ?? 3}" />
           <input name="passingPercent" type="number" min="1" max="100" value="${course.test?.passingPercent ?? 80}" />
           <input name="timeLimitMinutes" type="number" min="0" value="${course.test?.timeLimitMinutes ?? 0}" />
-          <select name="status"><option value="active" ${course.test?.status === "active" ? "selected" : ""}>Активен</option><option value="inactive" ${course.test?.status === "inactive" ? "selected" : ""}>Отключен</option></select>
-          <label class="checkbox-row"><input name="showResultToUser" type="checkbox" ${course.test?.showResultToUser ? "checked" : ""} /> Показывать результат</label>
-          <label class="checkbox-row"><input name="allowRetake" type="checkbox" ${course.test?.allowRetake ? "checked" : ""} /> Разрешить повторы</label>
-          <button class="small-button primary" type="submit">Сохранить тест</button>
+          <select name="status"><option value="active" ${course.test?.status === "active" ? "selected" : ""}>Active</option><option value="inactive" ${course.test?.status === "inactive" ? "selected" : ""}>Inactive</option></select>
+          <label class="checkbox-row"><input name="showResultToUser" type="checkbox" ${course.test?.showResultToUser ? "checked" : ""} /> Show result</label>
+          <label class="checkbox-row"><input name="allowRetake" type="checkbox" ${course.test?.allowRetake ? "checked" : ""} /> Allow retakes</label>
+          <button class="small-button primary" type="submit">Save test</button>
         </form>
         ${(course.test?.questions ?? [])
           .map(
             (question) => {
               return `<article class="card stack">
                 <form class="stack" method="post" action="/admin/courses/${course.id}/test/questions/${question.id}/update">
-                  <div class="field"><label>Вопрос</label><input name="questionText" value="${escapeHtml(question.questionText)}" required /></div>
+                  <div class="field"><label>Question</label><input name="questionText" value="${escapeHtml(question.questionText)}" required /></div>
                   <div class="admin-edit-grid">
                     ${questionEditorFields(question)}
-                    <div class="field"><label>Порядок</label><input name="sortOrder" type="number" min="1" value="${question.sortOrder}" /></div>
+                    <div class="field"><label>Order</label><input name="sortOrder" type="number" min="1" value="${question.sortOrder}" /></div>
                   </div>
-                  <button class="small-button primary" type="submit">Сохранить вопрос</button>
+                  <button class="small-button primary" type="submit">Save question</button>
                 </form>
                 <form method="post" action="/admin/courses/${course.id}/test/questions/${question.id}/delete">
-                  <button class="small-button danger" type="submit">Удалить вопрос</button>
+                  <button class="small-button danger" type="submit">Delete question</button>
                 </form>
               </article>`;
             }
           )
           .join("")}
         <form class="form-panel" method="post" action="/admin/courses/${course.id}/test/questions/create">
-          <h3>Добавить вопрос</h3>
-          <div class="field"><label>Вопрос</label><input name="questionText" required /></div>
+          <h3>Add question</h3>
+          <div class="field"><label>Question</label><input name="questionText" required /></div>
           <div class="admin-edit-grid">${questionEditorFields()}</div>
-          <button class="button" type="submit">Добавить вопрос</button>
+          <button class="button" type="submit">Add question</button>
         </form>
-        <a class="small-button primary" href="/admin/courses/${course.id}/test/preview">Предпросмотр теста</a>
+        <a class="small-button primary" href="/admin/courses/${course.id}/test/preview">Preview test</a>
       </article>
     </section>`
   );
@@ -5071,15 +5075,15 @@ function adminCertificateTemplatePreview(user, course) {
   const previewCertificate = sampleCertificateForCourse(course);
   return adminShell(
     user,
-    "Предпросмотр сертификата",
+    "Certificate preview",
     `<section class="section">
       <div>
-        <span class="eyebrow">Шаблон сертификата</span>
+        <span class="eyebrow">Certificate template</span>
         <h1>${escapeHtml(course.title)}</h1>
-        <p class="lead">Предпросмотр использует тестовые данные и не создает сертификат в базе.</p>
+        <p class="lead">The preview uses test data and does not create a certificate in the database.</p>
       </div>
       <div class="actions">
-        <a class="button secondary" href="/admin/courses/${course.id}">Назад к курсу</a>
+        <a class="button secondary" href="/admin/courses/${course.id}">Back to course</a>
       </div>
       <div class="${certificateShellClass(previewCertificate.certificateHtml)}">${previewCertificate.certificateHtml}</div>
     </section>`
@@ -5091,12 +5095,12 @@ function adminCertificateActions(certificate, returnTo = "/admin/certificates") 
   const canReissue = certificate.status === "issued" || certificate.status === "revoked";
   const returnInput = `<input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />`;
   return `<div class="table-actions">
-    <a class="small-button primary" href="/certificates/${certificate.id}">Открыть</a>
+    <a class="small-button primary" href="/certificates/${certificate.id}">Open</a>
     <a class="small-button" href="/certificates/${certificate.id}.pdf">PDF</a>
-    <a class="small-button" href="${escapeHtml(certificateVerificationUrl(certificate))}" target="_blank" rel="noopener">Проверка</a>
-    ${canRevoke ? `<form method="post" action="/admin/certificates/revoke"><input type="hidden" name="id" value="${certificate.id}" />${returnInput}<button class="small-button danger" type="submit">Отозвать</button></form>` : ""}
-    ${canReissue ? `<form method="post" action="/admin/certificates/reissue"><input type="hidden" name="id" value="${certificate.id}" />${returnInput}<button class="small-button warning" type="submit">Перевыпустить</button></form>` : ""}
-    <form method="post" action="/admin/certificates/resend"><input type="hidden" name="id" value="${certificate.id}" />${returnInput}<button class="small-button" type="submit">Отправить повторно</button></form>
+    <a class="small-button" href="${escapeHtml(certificateVerificationUrl(certificate))}" target="_blank" rel="noopener">Verify</a>
+    ${canRevoke ? `<form method="post" action="/admin/certificates/revoke"><input type="hidden" name="id" value="${certificate.id}" />${returnInput}<button class="small-button danger" type="submit">Revoke</button></form>` : ""}
+    ${canReissue ? `<form method="post" action="/admin/certificates/reissue"><input type="hidden" name="id" value="${certificate.id}" />${returnInput}<button class="small-button warning" type="submit">Reissue</button></form>` : ""}
+    <form method="post" action="/admin/certificates/resend"><input type="hidden" name="id" value="${certificate.id}" />${returnInput}<button class="small-button" type="submit">Resend</button></form>
   </div>`;
 }
 
@@ -5173,29 +5177,29 @@ function filteredCertificates(filters) {
 
 function certificateEventActionLabel(action) {
   const labels = {
-    issued: "Выдан автоматически",
-    manual_issue: "Выдан вручную",
-    issued_after_student_photo: "Выдан после загрузки фото студентом",
-    issued_after_admin_photo: "Выдан после загрузки фото админом",
-    revoked: "Отозван",
-    reissued: "Создан новый при перевыпуске",
-    replaced_by_reissue: "Заменен при перевыпуске",
-    resent: "Отправлен повторно"
+    issued: "Issued automatically",
+    manual_issue: "Issued manually",
+    issued_after_student_photo: "Issued after student photo upload",
+    issued_after_admin_photo: "Issued after administrator photo upload",
+    revoked: "Revoked",
+    reissued: "New certificate created on reissue",
+    replaced_by_reissue: "Replaced on reissue",
+    resent: "Sent again"
   };
   return labels[action] ?? action;
 }
 
 function certificateEventActorLabel(event) {
-  if (!event.actorEmail || event.actorEmail === "system") return "Система";
+  if (!event.actorEmail || event.actorEmail === "system") return "System";
   return `${event.actorEmail} (${event.actorRole})`;
 }
 
 function certificateEventDetailsText(details = {}) {
   const labels = {
-    assignmentId: "Назначение",
-    replacesCertificateId: "Заменяет ID",
-    newCertificateId: "Новый ID",
-    newCertificateNumber: "Новый номер"
+    assignmentId: "Assignment",
+    replacesCertificateId: "Replaces ID",
+    newCertificateId: "New ID",
+    newCertificateNumber: "New number"
   };
   const rows = Object.entries(details)
     .filter(([, value]) => value)
@@ -5214,15 +5218,15 @@ function certificateEventsForCertificates(certificates) {
 
 function certificateEventsTable(events) {
   return `<article class="panel stack">
-    <h2>Журнал действий по сертификатам</h2>
+    <h2>Certificate activity log</h2>
     <table class="table">
-      <thead><tr><th>Дата</th><th>Номер</th><th>Студент</th><th>Действие</th><th>Исполнитель</th><th>Детали</th></tr></thead>
+      <thead><tr><th>Date</th><th>Number</th><th>Student</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead>
       <tbody>${events
         .map((event) => {
           const student = userById(event.userId);
           const details = certificateEventDetailsText(event.details);
           return `<tr>
-            <td>${new Date(event.createdAt).toLocaleString("ru-RU")}</td>
+            <td>${new Date(event.createdAt).toLocaleString("en-GB")}</td>
             <td>${escapeHtml(event.certificateNumber)}</td>
             <td>${escapeHtml(displayUserName(student))}<br><span class="muted">${escapeHtml(student?.email ?? "")}</span></td>
             <td>${escapeHtml(certificateEventActionLabel(event.action))}</td>
@@ -5230,7 +5234,7 @@ function certificateEventsTable(events) {
             <td><div class="certificate-event-detail">${details ? escapeHtml(details) : "—"}</div></td>
           </tr>`;
         })
-        .join("") || `<tr><td colspan="6"><span class="muted">Действий пока нет.</span></td></tr>`}</tbody>
+        .join("") || `<tr><td colspan="6"><span class="muted">No actions yet.</span></td></tr>`}</tbody>
     </table>
   </article>`;
 }
@@ -5256,7 +5260,7 @@ function pendingCertificateAssignments(filters) {
 
 function certificateStatusOptions(selectedStatus) {
   const options = [
-    ["", "Все статусы"],
+    ["", "All statuses"],
     ["issued", statusLabel("issued")],
     ["revoked", statusLabel("revoked")],
     ["reissued", statusLabel("reissued")],
@@ -5275,24 +5279,24 @@ function certificateFilterForm(filters) {
   const csvExportHref = `/admin/certificates/export.csv${certificateFilterQuery(filters)}`;
   const excelExportHref = `/admin/certificates/export.xls${certificateFilterQuery(filters)}`;
   return `<form class="form-panel" method="get" action="/admin/certificates">
-    <h2>Фильтры сертификатов</h2>
+    <h2>Certificate filters</h2>
     <div class="admin-edit-grid">
-      <div class="field"><label>Поиск</label><input name="q" value="${escapeHtml(filters.q)}" placeholder="Номер, студент, email или курс" /></div>
-      <div class="field"><label>Студент</label><select name="userId"><option value="">Все студенты</option>${students
+      <div class="field"><label>Search</label><input name="q" value="${escapeHtml(filters.q)}" placeholder="Number, student, email, or course" /></div>
+      <div class="field"><label>Student</label><select name="userId"><option value="">All students</option>${students
         .map((student) => `<option value="${student.id}" ${filters.userId === student.id ? "selected" : ""}>${escapeHtml(displayUserName(student) || student.email)} (${escapeHtml(student.email)})</option>`)
         .join("")}</select></div>
-      <div class="field"><label>Курс</label><select name="courseId"><option value="">Все курсы</option>${courses
+      <div class="field"><label>Course</label><select name="courseId"><option value="">All courses</option>${courses
         .map((course) => `<option value="${course.id}" ${filters.courseId === course.id ? "selected" : ""}>${escapeHtml(course.title)}</option>`)
         .join("")}</select></div>
-      <div class="field"><label>Статус</label><select name="status">${certificateStatusOptions(filters.status)}</select></div>
-      <div class="field"><label>Выдан с</label><input name="issuedFrom" type="date" value="${escapeHtml(filters.issuedFrom)}" /></div>
-      <div class="field"><label>Выдан по</label><input name="issuedTo" type="date" value="${escapeHtml(filters.issuedTo)}" /></div>
+      <div class="field"><label>Status</label><select name="status">${certificateStatusOptions(filters.status)}</select></div>
+      <div class="field"><label>Issued from</label><input name="issuedFrom" type="date" value="${escapeHtml(filters.issuedFrom)}" /></div>
+      <div class="field"><label>Issued to</label><input name="issuedTo" type="date" value="${escapeHtml(filters.issuedTo)}" /></div>
     </div>
     <div class="table-actions">
-      <button class="small-button primary" type="submit">Применить</button>
-      <a class="small-button" href="/admin/certificates">Сбросить</a>
-      <a class="small-button" href="${escapeHtml(csvExportHref)}">Экспорт CSV</a>
-      <a class="small-button" href="${escapeHtml(excelExportHref)}">Excel-реестр</a>
+      <button class="small-button primary" type="submit">Apply</button>
+      <a class="small-button" href="/admin/certificates">Reset</a>
+      <a class="small-button" href="${escapeHtml(csvExportHref)}">Export CSV</a>
+      <a class="small-button" href="${escapeHtml(excelExportHref)}">Excel register</a>
     </div>
   </form>`;
 }
@@ -5302,18 +5306,18 @@ function certificateExportRows(searchParams = new URLSearchParams()) {
   const certificates = filteredCertificates(filters);
   return [
     [
-      "Номер",
-      "Статус",
-      "Студент",
+      "Number",
+      "Status",
+      "Student",
       "Email",
-      "Должность",
-      "Компания",
-      "Курс",
-      "Дата выдачи",
-      "Дата окончания",
-      "Проверка QR",
-      "ID сертификата",
-      "ID назначения"
+      "Position",
+      "Company",
+      "Course",
+      "Issue date",
+      "Expiry date",
+      "QR verification",
+      "Certificate ID",
+      "Assignment ID"
     ],
     ...certificates.map((certificate) => {
       const student = userById(certificate.userId);
@@ -5427,52 +5431,52 @@ function checksExcel(searchParams = new URLSearchParams()) {
   const assignedStudentIds = new Set(assignments.map((assignment) => assignment.userId));
   const staff = userById(params.staffId);
   const filterRows = [
-    ["Параметр", "Значение"],
-    ["Сотрудник", params.staffId ? displayUserName(staff) || staff?.email || "Не найден" : "Все админы и инструкторы"],
-    ["С даты", params.from || "Не задано"],
-    ["По дату", params.to || "Не задано"],
-    ["Зарегистрировано студентов", registeredStudents.length],
-    ["Назначено курсов", assignments.length],
-    ["Уникальных студентов в назначениях", assignedStudentIds.size],
-    ["Общая сумма", formatReportMoney(total, currencies)]
+    ["Parameter", "Value"],
+    ["Staff member", params.staffId ? displayUserName(staff) || staff?.email || "Not found" : "All administrators and instructors"],
+    ["From", params.from || "Not specified"],
+    ["To", params.to || "Not specified"],
+    ["Registered students", registeredStudents.length],
+    ["Assigned courses", assignments.length],
+    ["Unique assigned students", assignedStudentIds.size],
+    ["Total amount", formatReportMoney(total, currencies)]
   ];
   const assignmentRows = [
-    ["Сотрудник", "Студент", "E-mail", "Курс", "Старая цена", "Новая цена", "В сумме", "Дата назначения"],
+    ["Staff member", "Student", "Email", "Course", "Old price", "New price", "Included amount", "Assignment date"],
     ...assignments.map((assignment) => {
       const student = userById(assignment.userId);
       const course = courseById(assignment.courseId);
       const assignedBy = userById(assignment.assignedById);
       const price = courseRevenuePrice(course);
       return [
-        displayUserName(assignedBy) || assignedBy?.email || "Не указано",
-        displayUserName(student) || student?.email || "Студент удален",
+        displayUserName(assignedBy) || assignedBy?.email || "Not specified",
+        displayUserName(student) || student?.email || "Student deleted",
         student?.email ?? "",
-        course?.title ?? "Курс удален",
+        course?.title ?? "Course deleted",
         course?.oldPrice || "",
         course?.newPrice || "",
         formatReportMoney(price.amount, new Set(price.currency ? [price.currency] : [])),
-        new Date(assignment.assignedAt).toLocaleDateString("ru-RU")
+        new Date(assignment.assignedAt).toLocaleDateString("en-GB")
       ];
     })
   ];
   const registeredRows = [
-    ["Сотрудник", "Студент", "E-mail", "Назначений в период", "Дата регистрации"],
+    ["Staff member", "Student", "Email", "Assignments in period", "Registration date"],
     ...registeredStudents.map((student) => {
       const creator = userById(student.createdById);
       const assignmentCount = assignments.filter((assignment) => assignment.userId === student.id).length;
       return [
-        displayUserName(creator) || creator?.email || "Не указано",
+        displayUserName(creator) || creator?.email || "Not specified",
         displayUserName(student) || student.email,
         student.email,
         assignmentCount,
-        new Date(student.createdAt).toLocaleDateString("ru-RU")
+        new Date(student.createdAt).toLocaleDateString("en-GB")
       ];
     })
   ];
-  return excelDocument("Чеки и назначения", [
-    { title: "Итоги и фильтры", rows: filterRows },
-    { title: "Курсы и суммы", rows: assignmentRows },
-    { title: "Зарегистрированные студенты", rows: registeredRows }
+  return excelDocument("Checks and assignments", [
+    { title: "Summary and filters", rows: filterRows },
+    { title: "Courses and amounts", rows: assignmentRows },
+    { title: "Registered students", rows: registeredRows }
   ]);
 }
 
@@ -5489,18 +5493,18 @@ function coursePricesExcel(searchParams = new URLSearchParams()) {
   const params = coursePriceParams(searchParams);
   const courses = filteredCoursePrices(params);
   const rows = [
-    ["Курс", "Статус", "Старая цена", "Новая цена"],
+    ["Course", "Status", "Old price", "New price"],
     ...courses.map((course) => [course.title, statusLabel(course.status), course.oldPrice || "", course.newPrice || ""])
   ];
   const filterRows = [
-    ["Параметр", "Значение"],
-    ["Поиск", params.q || "Не задано"],
-    ["Статус", params.status ? statusLabel(params.status) : "Все статусы"],
-    ["Курсов в выгрузке", courses.length]
+    ["Parameter", "Value"],
+    ["Search", params.q || "Not specified"],
+    ["Status", params.status ? statusLabel(params.status) : "All statuses"],
+    ["Courses in export", courses.length]
   ];
-  return excelDocument("Цены курсов", [
-    { title: "Фильтр", rows: filterRows },
-    { title: "Прайс-лист", rows }
+  return excelDocument("Course prices", [
+    { title: "Filter", rows: filterRows },
+    { title: "Price list", rows }
   ]);
 }
 
@@ -5548,34 +5552,34 @@ function auditAdminAction(admin, pathname, form) {
 
 function auditActionLabel(action = "") {
   const exact = {
-    "/admin/users/create": "Зарегистрирован новый пользователь",
-    "/admin/assignments/create": "Студенту назначен курс",
-    "/admin/course-prices/update": "Изменены цены курсов",
-    "/admin/courses/create": "Создан новый курс",
-    "/admin/homepage/courses": "Обновлена витрина курсов на главной",
-    "/admin/homepage/footer": "Изменен подвал главной страницы",
-    "/admin/notifications/send-pending": "Отправлена очередь писем",
-    "/admin/notifications/templates": "Изменены шаблоны писем",
-    "/admin/notifications/test-smtp": "Проверено подключение SMTP"
+    "/admin/users/create": "New user registered",
+    "/admin/assignments/create": "Course assigned to student",
+    "/admin/course-prices/update": "Course prices updated",
+    "/admin/courses/create": "New course created",
+    "/admin/homepage/courses": "Home page course showcase updated",
+    "/admin/homepage/footer": "Home page footer updated",
+    "/admin/notifications/send-pending": "Email queue sent",
+    "/admin/notifications/templates": "Email templates updated",
+    "/admin/notifications/test-smtp": "SMTP connection checked"
   };
   if (exact[action]) return exact[action];
-  if (/^\/admin\/users\/[^/]+\/update$/.test(action)) return "Изменены данные пользователя";
-  if (/^\/admin\/users\/[^/]+\/photo$/.test(action)) return "Обновлено фото пользователя";
-  if (/^\/admin\/users\/[^/]+\/delete$/.test(action)) return "Удален пользователь";
-  if (/^\/admin\/courses\/[^/]+\/update$/.test(action)) return "Изменена информация о курсе";
-  if (/^\/admin\/courses\/[^/]+\/delete$/.test(action)) return "Удален курс";
-  if (/^\/admin\/courses\/[^/]+\/certificate-template$/.test(action)) return "Изменен шаблон сертификата курса";
-  if (/^\/admin\/courses\/[^/]+\/certificate-designer$/.test(action)) return "Изменен визуальный шаблон сертификата";
-  if (/^\/admin\/courses\/[^/]+\/lessons\/create$/.test(action)) return "Добавлен урок";
-  if (/^\/admin\/courses\/[^/]+\/lessons\/[^/]+\/update$/.test(action)) return "Изменен урок";
-  if (/^\/admin\/courses\/[^/]+\/lessons\/[^/]+\/delete$/.test(action)) return "Удален урок";
-  if (/^\/admin\/courses\/[^/]+\/materials\/create$/.test(action)) return "Добавлен материал курса";
-  if (/^\/admin\/courses\/[^/]+\/materials\/[^/]+\/update$/.test(action)) return "Изменен материал курса";
-  if (/^\/admin\/courses\/[^/]+\/materials\/[^/]+\/delete$/.test(action)) return "Удален материал курса";
-  if (/^\/admin\/certificates\//.test(action)) return "Изменен статус сертификата";
-  if (/^\/admin\/assignments\//.test(action)) return "Изменен прогресс обучения";
-  if (/^\/admin\/checks\//.test(action)) return "Обновлены чеки или инвойсы";
-  return "Административное действие";
+  if (/^\/admin\/users\/[^/]+\/update$/.test(action)) return "User details updated";
+  if (/^\/admin\/users\/[^/]+\/photo$/.test(action)) return "User photo updated";
+  if (/^\/admin\/users\/[^/]+\/delete$/.test(action)) return "User deleted";
+  if (/^\/admin\/courses\/[^/]+\/update$/.test(action)) return "Course information updated";
+  if (/^\/admin\/courses\/[^/]+\/delete$/.test(action)) return "Course deleted";
+  if (/^\/admin\/courses\/[^/]+\/certificate-template$/.test(action)) return "Course certificate template updated";
+  if (/^\/admin\/courses\/[^/]+\/certificate-designer$/.test(action)) return "Certificate visual template updated";
+  if (/^\/admin\/courses\/[^/]+\/lessons\/create$/.test(action)) return "Lesson added";
+  if (/^\/admin\/courses\/[^/]+\/lessons\/[^/]+\/update$/.test(action)) return "Lesson updated";
+  if (/^\/admin\/courses\/[^/]+\/lessons\/[^/]+\/delete$/.test(action)) return "Lesson deleted";
+  if (/^\/admin\/courses\/[^/]+\/materials\/create$/.test(action)) return "Course material added";
+  if (/^\/admin\/courses\/[^/]+\/materials\/[^/]+\/update$/.test(action)) return "Course material updated";
+  if (/^\/admin\/courses\/[^/]+\/materials\/[^/]+\/delete$/.test(action)) return "Course material deleted";
+  if (/^\/admin\/certificates\//.test(action)) return "Certificate status updated";
+  if (/^\/admin\/assignments\//.test(action)) return "Learning progress updated";
+  if (/^\/admin\/checks\//.test(action)) return "Checks or invoices updated";
+  return "Administrative action";
 }
 
 function adminCertificates(user, searchParams = new URLSearchParams()) {
@@ -5588,18 +5592,18 @@ function adminCertificates(user, searchParams = new URLSearchParams()) {
   const returnTo = certificateReturnTo(filters);
   const selectedStudentNotice = selectedUserId
     ? selectedStudent
-      ? `<div class="notice"><strong>Сертификаты студента:</strong> ${escapeHtml(displayUserName(selectedStudent))} (${escapeHtml(selectedStudent.email)}) <a class="small-button" href="/admin/certificates">Показать все</a></div>`
-      : `<div class="notice danger">Студент для выбранного фильтра не найден. <a class="small-button" href="/admin/certificates">Показать все</a></div>`
+      ? `<div class="notice"><strong>Student certificates:</strong> ${escapeHtml(displayUserName(selectedStudent))} (${escapeHtml(selectedStudent.email)}) <a class="small-button" href="/admin/certificates">Show all</a></div>`
+      : `<div class="notice danger">The student for the selected filter was not found. <a class="small-button" href="/admin/certificates">Show all</a></div>`
     : "";
   return adminShell(
     user,
-    "Сертификаты",
+    "Certificates",
     `<section class="section">
-      <div><span class="eyebrow">Сертификаты</span><h1>Выданные сертификаты</h1><p class="lead">Сертификат связан с конкретным студентом, курсом и назначением.</p></div>
+      <div><span class="eyebrow">Certificates</span><h1>Issued certificates</h1><p class="lead">Each certificate is linked to a specific student, course, and assignment.</p></div>
       ${selectedStudentNotice}
       ${certificateFilterForm(filters)}
       <table class="table">
-        <thead><tr><th>Номер</th><th>Студент</th><th>Курс</th><th>Дата</th><th>Истекает</th><th>Действия</th></tr></thead>
+        <thead><tr><th>Number</th><th>Student</th><th>Course</th><th>Issue date</th><th>Expires</th><th>Actions</th></tr></thead>
         <tbody>${certificates
           .map((certificate) => {
             const student = userById(certificate.userId);
@@ -5612,15 +5616,15 @@ function adminCertificates(user, searchParams = new URLSearchParams()) {
               <td>${adminCertificateActions(certificate, returnTo)}</td>
             </tr>`;
           })
-          .join("") || `<tr><td colspan="6"><span class="muted">Сертификаты еще не выданы.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="6"><span class="muted">No certificates have been issued yet.</span></td></tr>`}</tbody>
       </table>
       ${pendingCertificates.length
         ? `<article class="panel stack">
-            <h2>Ожидают фото студента</h2>
+            <h2>Awaiting student photo</h2>
             ${pendingCertificates.map((assignment) => {
               const student = userById(assignment.userId);
               const course = courseById(assignment.courseId);
-              return `<div class="assignment-chip"><span>${escapeHtml(displayUserName(student))}<br><span class="muted">${escapeHtml(student?.email ?? "")}</span></span><span>${escapeHtml(course?.title ?? "")}</span><span class="muted">Сертификат будет создан после загрузки фото.</span></div>`;
+              return `<div class="assignment-chip"><span>${escapeHtml(displayUserName(student))}<br><span class="muted">${escapeHtml(student?.email ?? "")}</span></span><span>${escapeHtml(course?.title ?? "")}</span><span class="muted">The certificate will be created after a photo is uploaded.</span></div>`;
             }).join("")}
           </article>`
         : ""}
@@ -5641,44 +5645,44 @@ function adminNotifications(user, searchParams = new URLSearchParams()) {
   const pagination = paginateItems(notifications, params);
   return adminShell(
     user,
-    "Уведомления",
+    "Notifications",
     `<section class="section">
-      <div><span class="eyebrow">E-mail log</span><h1>Уведомления</h1><p class="lead">Без SMTP события остаются в журнале. Если SMTP настроен через env, очередь можно отправить из этой страницы.</p></div>
+      <div><span class="eyebrow">Email log</span><h1>Notifications</h1><p class="lead">Without SMTP, events remain in the log. When SMTP is configured through environment variables, the queue can be sent from this page.</p></div>
       <article class="panel stack">
         <h2>SMTP</h2>
-        <p class="muted">Статус: ${smtpConfigured() ? "SMTP настроен, новые письма попадают в очередь" : "SMTP не настроен, уведомления сохраняются как лог"}</p>
+        <p class="muted">Status: ${smtpConfigured() ? "SMTP configured; new email enters the queue" : "SMTP is not configured; notifications are saved as a log"}</p>
         <div class="table-actions">
           <form method="post" action="/admin/notifications/test-smtp" class="inline-form">
             <input name="email" type="email" value="${escapeHtml(user.email)}" required />
-            <button class="small-button primary" type="submit">Проверить SMTP</button>
+            <button class="small-button primary" type="submit">Test SMTP</button>
           </form>
           <form method="post" action="/admin/notifications/send-pending">
-            <button class="small-button primary" type="submit">Отправить очередь SMTP</button>
+            <button class="small-button primary" type="submit">Send SMTP queue</button>
           </form>
         </div>
       </article>
       <form class="inline-form" method="get" action="/admin/notifications">
-        <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск по журналу" />
-        <button class="small-button primary" type="submit">Найти</button>
+        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search log" />
+        <button class="small-button primary" type="submit">Search</button>
       </form>
-      <table class="table"><thead><tr><th>Тип</th><th>Получатель</th><th>Событие</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${pagination.items
-        .map((note) => `<tr><td>${escapeHtml(note.type)}</td><td>${escapeHtml(note.recipientEmail)}</td><td>${escapeHtml(note.payload || "")}${note.errorMessage ? `<br><span class="muted">${escapeHtml(note.errorMessage)}</span>` : ""}</td><td>${badge(note.status)}</td><td>${new Date(note.createdAt).toLocaleString("ru-RU")}</td></tr>`)
-        .join("") || `<tr><td colspan="5"><span class="muted">Событий не найдено.</span></td></tr>`}</tbody></table>
+      <table class="table"><thead><tr><th>Type</th><th>Recipient</th><th>Event</th><th>Status</th><th>Date</th></tr></thead><tbody>${pagination.items
+        .map((note) => `<tr><td>${escapeHtml(note.type)}</td><td>${escapeHtml(note.recipientEmail)}</td><td>${escapeHtml(note.payload || "")}${note.errorMessage ? `<br><span class="muted">${escapeHtml(note.errorMessage)}</span>` : ""}</td><td>${badge(note.status)}</td><td>${new Date(note.createdAt).toLocaleString("en-GB")}</td></tr>`)
+        .join("") || `<tr><td colspan="5"><span class="muted">No events found.</span></td></tr>`}</tbody></table>
       ${paginationControls("/admin/notifications", params, pagination)}
       <form class="form-panel" method="post" action="/admin/notifications/templates">
-        <h2>Шаблоны писем</h2>
-        <p class="muted">Доступные переменные: {{payload}}, {{recipientEmail}}, {{date}}, {{platformUrl}}, {{type}}.</p>
+        <h2>Email templates</h2>
+        <p class="muted">Available variables: {{payload}}, {{recipientEmail}}, {{date}}, {{platformUrl}}, {{type}}.</p>
         ${Object.entries(defaultEmailTemplates())
           .map(([type, defaults]) => {
             const template = db.settings?.emailTemplates?.[type] ?? defaults;
             return `<article class="panel stack">
               <h3>${escapeHtml(type)}</h3>
-              <div class="field"><label>Тема</label><input name="subject:${type}" value="${escapeHtml(template.subject)}" /></div>
-              <div class="field"><label>Текст письма</label><textarea name="body:${type}">${escapeHtml(template.body)}</textarea></div>
+              <div class="field"><label>Subject</label><input name="subject:${type}" value="${escapeHtml(template.subject)}" /></div>
+              <div class="field"><label>Email body</label><textarea name="body:${type}">${escapeHtml(template.body)}</textarea></div>
             </article>`;
           })
           .join("")}
-        <button class="button" type="submit">Сохранить шаблоны</button>
+        <button class="button" type="submit">Save templates</button>
       </form>
     </section>`
   );
@@ -5692,23 +5696,23 @@ function adminAudit(user, searchParams = new URLSearchParams()) {
   const pagination = paginateItems(events, params);
   return adminShell(
     user,
-    "Аудит",
+    "Audit log",
     `<section class="section">
-      <div><span class="eyebrow">Безопасность</span><h1>Аудит действий админа</h1><p class="lead">Журнал хранит последние 2000 административных POST-действий без паролей, файлов и CSRF-токенов.</p></div>
+      <div><span class="eyebrow">Security</span><h1>Admin audit log</h1><p class="lead">The log stores the latest 2,000 administrative POST actions without passwords, files, or CSRF tokens.</p></div>
       <form class="inline-form" method="get" action="/admin/audit">
-        <input name="q" value="${escapeHtml(params.q)}" placeholder="Поиск по действию или админу" />
-        <button class="small-button primary" type="submit">Найти</button>
+        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search by action or administrator" />
+        <button class="small-button primary" type="submit">Search</button>
       </form>
       <table class="table">
-        <thead><tr><th>Дата</th><th>Админ</th><th>Действие</th><th></th></tr></thead>
+        <thead><tr><th>Date</th><th>Administrator</th><th>Action</th><th></th></tr></thead>
         <tbody>${pagination.items
           .map((event) => `<tr>
-            <td>${new Date(event.createdAt).toLocaleString("ru-RU")}</td>
+            <td>${new Date(event.createdAt).toLocaleString("en-GB")}</td>
             <td>${escapeHtml(event.adminEmail)}</td>
             <td><strong>${escapeHtml(auditActionLabel(event.action))}</strong></td>
-            <td><a class="small-button" href="/admin/audit/${event.id}">Подробнее</a></td>
+            <td><a class="small-button" href="/admin/audit/${event.id}">Details</a></td>
           </tr>`)
-          .join("") || `<tr><td colspan="4"><span class="muted">Событий не найдено.</span></td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="4"><span class="muted">No events found.</span></td></tr>`}</tbody>
       </table>
       ${paginationControls("/admin/audit", params, pagination)}
     </section>`
@@ -5718,8 +5722,8 @@ function adminAudit(user, searchParams = new URLSearchParams()) {
 function adminAuditDetail(user, event) {
   return adminShell(
     user,
-    "Детали аудита",
-    `<section class="section"><div><span class="eyebrow">Аудит</span><h1>${escapeHtml(auditActionLabel(event.action))}</h1><p class="lead">${new Date(event.createdAt).toLocaleString("ru-RU")} · ${escapeHtml(event.adminEmail)}</p></div><article class="panel stack"><h2>Технические данные</h2><pre class="audit-details"><code>${escapeHtml(JSON.stringify({ action: event.action, details: event.details ?? {} }, null, 2))}</code></pre></article><a class="button secondary" href="/admin/audit">Назад к журналу</a></section>`
+    "Audit details",
+    `<section class="section"><div><span class="eyebrow">Audit</span><h1>${escapeHtml(auditActionLabel(event.action))}</h1><p class="lead">${new Date(event.createdAt).toLocaleString("en-GB")} · ${escapeHtml(event.adminEmail)}</p></div><article class="panel stack"><h2>Technical details</h2><pre class="audit-details"><code>${escapeHtml(JSON.stringify({ action: event.action, details: event.details ?? {} }, null, 2))}</code></pre></article><a class="button secondary" href="/admin/audit">Back to log</a></section>`
   );
 }
 
@@ -5728,13 +5732,13 @@ function studentDashboard(user) {
   const certs = db.certificates.filter((certificate) => certificate.userId === user.id);
   return studentShell(
     user,
-    "Кабинет",
+    "My account",
     `<section class="section">
-      <div><span class="eyebrow">Личный кабинет</span><h1>Обзор обучения</h1><p class="lead">Здесь собраны назначенные курсы, прогресс, результаты тестов и сертификаты.</p></div>
+      <div><span class="eyebrow">My account</span><h1>Learning overview</h1><p class="lead">View your assigned courses, progress, test results, and certificates.</p></div>
       <div class="grid three">
-        <article class="metric"><span class="muted">Назначенные курсы</span><strong class="metric-value">${assignments.length}</strong></article>
-        <article class="metric"><span class="muted">Доступные тесты</span><strong class="metric-value">${assignments.filter(canTakeTest).length}</strong></article>
-        <article class="metric"><span class="muted">Сертификаты</span><strong class="metric-value">${certs.length}</strong></article>
+        <article class="metric"><span class="muted">Assigned courses</span><strong class="metric-value">${assignments.length}</strong></article>
+        <article class="metric"><span class="muted">Available tests</span><strong class="metric-value">${assignments.filter(canTakeTest).length}</strong></article>
+        <article class="metric"><span class="muted">Certificates</span><strong class="metric-value">${certs.length}</strong></article>
       </div>
       <div class="grid three">${assignments.map((assignment) => courseCard(assignment)).join("")}</div>
     </section>`
@@ -5747,13 +5751,13 @@ function courseCard(assignment) {
   return `<article class="card">
     ${courseCoverHtml(course)}
     ${badge(assignment.status)}
-    <h3>${escapeHtml(course?.title ?? "Курс удален")}</h3>
+    <h3>${escapeHtml(course?.title ?? "Course deleted")}</h3>
     <p class="muted">${escapeHtml(course?.shortDescription ?? "")}</p>
     <div class="progress-track"><div class="progress-bar" style="width:${assignment.progressPercent}%"></div></div>
-    <p class="muted">Прогресс: ${assignment.progressPercent}%</p>
+    <p class="muted">Progress: ${assignment.progressPercent}%</p>
     <div class="table-actions">
-      <a class="small-button primary" href="/dashboard/courses/${assignment.id}">Открыть курс</a>
-      ${certificate ? `<a class="small-button" href="/certificates/${certificate.id}.pdf">Сертификат</a>` : ""}
+      <a class="small-button primary" href="/dashboard/courses/${assignment.id}">Open course</a>
+      ${certificate ? `<a class="small-button" href="/certificates/${certificate.id}.pdf">Certificate</a>` : ""}
     </div>
   </article>`;
 }
@@ -5762,9 +5766,9 @@ function studentCourses(user) {
   const assignments = db.assignments.filter((assignment) => assignment.userId === user.id).map(recalculateAssignment);
   return studentShell(
     user,
-    "Мои курсы",
+    "My courses",
     `<section class="section">
-      <div><span class="eyebrow">Мои курсы</span><h1>Назначенные курсы</h1><p class="lead">Тест открывается после завершения обязательных материалов.</p></div>
+      <div><span class="eyebrow">My courses</span><h1>Assigned courses</h1><p class="lead">The test becomes available after you complete the required materials.</p></div>
       <div class="grid three">${assignments.map((assignment) => courseCard(assignment)).join("")}</div>
     </section>`
   );
@@ -5785,20 +5789,22 @@ function studentCourseDetail(user, assignment) {
   const materials = courseMaterials(course);
   const attempts = attemptsFor(assignment.id);
   const latestAttempt = attempts.at(-1);
+  const certificate = activeCertificateForAssignment(assignment.id);
   return studentShell(
     user,
     course.title,
     `<section class="section">
       <div class="section-heading">
-        <div><span class="eyebrow">Курс</span><h1>${escapeHtml(course.title)}</h1><p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p></div>
+        <div><span class="eyebrow">Course</span><h1>${escapeHtml(course.title)}</h1><p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p></div>
         <div class="course-detail-side">
           ${courseCoverHtml(course)}
-          <div class="panel"><strong>${assignment.progressPercent}%</strong><p class="muted">прогресс</p></div>
+          <div class="panel"><strong>${assignment.progressPercent}%</strong><p class="muted">progress</p></div>
         </div>
       </div>
-      ${assignment.status === "completed" && !hasCertificatePhoto(user) ? `<div class="photo-warning"><strong>Курс успешно завершен.</strong><br>Для получения сертификата обязательно загрузите фото в личном кабинете.</div>` : ""}
+      ${assignment.status === "completed" && !hasCertificatePhoto(user) ? `<div class="photo-warning"><strong>The course has been completed successfully.</strong><br>To receive your certificate, upload a photo in your account.</div>` : ""}
+      ${certificate ? `<div class="notice"><strong>Certificate issued:</strong> ${escapeHtml(certificate.certificateNumber)} <a class="small-button primary" href="/certificates/${certificate.id}">Open certificate</a> <a class="small-button" href="/certificates/${certificate.id}.pdf">Download PDF</a></div>` : ""}
       <article class="panel stack">
-        <h2>Материалы</h2>
+        <h2>Materials</h2>
         ${materials
           .map((material) => {
             const progress = assignment.materialProgress?.[material.id]?.status ?? "not_started";
@@ -5806,21 +5812,21 @@ function studentCourseDetail(user, assignment) {
             return `<div class="material-row">
               <div>
                 <strong>${escapeHtml(material.title)}</strong>
-                <p class="muted">${escapeHtml(material.lesson.title)} · ${escapeHtml(material.type)} · ${material.isRequired ? "обязательный" : "дополнительный"}</p>
-                ${unlocked ? materialContentHtml(material) : `<p class="muted">Материал откроется после прохождения предыдущего обязательного урока.</p>`}
+                <p class="muted">${escapeHtml(material.lesson.title)} · ${escapeHtml(material.type)} · ${material.isRequired ? "required" : "optional"}</p>
+                ${unlocked ? materialContentHtml(material) : `<p class="muted">This material will unlock after the previous required lesson is completed.</p>`}
               </div>
               <div>
-                ${progress === "completed" ? `<span class="status-pill">Пройдено</span>` : unlocked ? `<form method="post" action="/dashboard/materials/complete"><input type="hidden" name="assignmentId" value="${assignment.id}" /><input type="hidden" name="materialId" value="${material.id}" /><button class="small-button primary" type="submit">Отметить пройденным</button></form>` : `<span class="status-pill">Закрыто</span>`}
+                ${progress === "completed" ? `<span class="status-pill">Completed</span>` : unlocked ? `<form method="post" action="/dashboard/materials/complete"><input type="hidden" name="assignmentId" value="${assignment.id}" /><input type="hidden" name="materialId" value="${material.id}" /><button class="small-button primary" type="submit">Mark complete</button></form>` : `<span class="status-pill">Locked</span>`}
               </div>
             </div>`;
           })
           .join("")}
       </article>
       <article id="test-result" class="panel stack">
-        <h2>Финальный тест</h2>
-        <p class="muted">Попыток использовано: ${attempts.length} из ${course.test.attemptsLimit + (assignment.extraTestAttempts ?? 0)}. Проходной процент: ${course.test.passingPercent}%.</p>
-        ${latestAttempt && course.test.showResultToUser ? `<div class="notice"><strong>Последний результат:</strong> ${latestAttempt.scorePercent}% · попытка ${latestAttempt.attemptNumber} · ${badge(latestAttempt.status === "passed" ? "test_passed" : "test_failed")}</div>` : ""}
-        ${canTakeTest(assignment) ? `<a class="button" href="/dashboard/tests/${assignment.id}">Пройти тест</a>` : `<div class="notice">Тест станет доступен после обязательных материалов или уже завершен.</div>`}
+        <h2>Final test</h2>
+        <p class="muted">Attempts used: ${attempts.length} of ${course.test.attemptsLimit + (assignment.extraTestAttempts ?? 0)}. Pass mark: ${course.test.passingPercent}%.</p>
+        ${latestAttempt && course.test.showResultToUser ? `<div class="notice"><strong>Latest result:</strong> ${latestAttempt.scorePercent}% · attempt ${latestAttempt.attemptNumber} · ${badge(latestAttempt.status === "passed" ? "test_passed" : "test_failed")}</div>` : ""}
+        ${canTakeTest(assignment) ? `<a class="button" href="/dashboard/tests/${assignment.id}">Take test</a>` : `<div class="notice">The test becomes available after the required materials are completed, or it has already been completed.</div>`}
       </article>
     </section>`
   );
@@ -5829,20 +5835,20 @@ function studentCourseDetail(user, assignment) {
 function studentTestPage(user, assignment) {
   const course = courseById(assignment.courseId);
   if (!canTakeTest(assignment)) {
-    return studentShell(user, "Тест недоступен", `<section class="section"><div class="notice">Тест сейчас недоступен.</div></section>`);
+    return studentShell(user, "Test unavailable", `<section class="section"><div class="notice">The test is not available right now.</div></section>`);
   }
   if (course.test.timeLimitMinutes > 0 && !assignment.activeTestStartedAt) {
     assignment.activeTestStartedAt = now();
     saveDb(db);
   }
   const timeLimitNotice = course.test.timeLimitMinutes > 0
-    ? `<div class="notice"><strong>Лимит времени:</strong> ${course.test.timeLimitMinutes} мин. Отсчет начался при открытии страницы.</div>`
+    ? `<div class="notice"><strong>Time limit:</strong> ${course.test.timeLimitMinutes} min. The timer started when this page was opened.</div>`
     : "";
   return studentShell(
     user,
     course.test.title,
     `<section class="section">
-      <div><span class="eyebrow">Тестирование</span><h1>${escapeHtml(course.test.title)}</h1><p class="lead">Выберите один правильный ответ для каждого вопроса.</p></div>
+      <div><span class="eyebrow">Test</span><h1>${escapeHtml(course.test.title)}</h1><p class="lead">Choose one correct answer for each question.</p></div>
       ${timeLimitNotice}
       <form class="stack" method="post" action="/dashboard/tests/${assignment.id}">
         ${course.test.questions
@@ -5855,7 +5861,7 @@ function studentTestPage(user, assignment) {
             </article>`
           )
           .join("")}
-        <button class="button" type="submit">Завершить тест</button>
+        <button class="button" type="submit">Submit test</button>
       </form>
     </section>`
   );
@@ -5864,20 +5870,20 @@ function studentTestPage(user, assignment) {
 function adminTestPreview(user, course) {
   return adminShell(
     user,
-    `Предпросмотр: ${course.test?.title ?? course.title}`,
+    `Preview: ${course.test?.title ?? course.title}`,
     `<section class="section">
-      <div><span class="eyebrow">Предпросмотр теста</span><h1>${escapeHtml(course.test?.title ?? "Тест")}</h1><p class="lead">Так студент увидит вопросы после завершения обязательных материалов.</p></div>
-      ${course.test?.timeLimitMinutes ? `<div class="notice">Лимит времени: ${course.test.timeLimitMinutes} мин.</div>` : ""}
+      <div><span class="eyebrow">Test preview</span><h1>${escapeHtml(course.test?.title ?? "Test")}</h1><p class="lead">This is how a student sees the questions after completing required materials.</p></div>
+      ${course.test?.timeLimitMinutes ? `<div class="notice">Time limit: ${course.test.timeLimitMinutes} min.</div>` : ""}
       ${(course.test?.questions ?? [])
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((question) => `<article class="panel stack">
           <h2>${escapeHtml(question.questionText)}</h2>
           ${sortedQuestionOptions(question)
-            .map((option) => `<label class="quiz-option"><input type="radio" disabled /> ${escapeHtml(option.optionText)} ${option.isCorrect ? "<span class='muted'>правильный</span>" : ""}</label>`)
+            .map((option) => `<label class="quiz-option"><input type="radio" disabled /> ${escapeHtml(option.optionText)} ${option.isCorrect ? "<span class='muted'>correct</span>" : ""}</label>`)
             .join("")}
         </article>`)
-        .join("") || `<article class="panel">Вопросы пока не добавлены.</article>`}
-      <a class="button secondary" href="/admin/courses/${course.id}">Вернуться к курсу</a>
+        .join("") || `<article class="panel">No questions have been added yet.</article>`}
+      <a class="button secondary" href="/admin/courses/${course.id}">Back to course</a>
     </section>`
   );
 }
@@ -5886,10 +5892,10 @@ function studentTests(user) {
   const attempts = db.testAttempts.filter((attempt) => attempt.userId === user.id);
   return studentShell(
     user,
-    "Пройденные тесты",
+    "Completed tests",
     `<section class="section">
-      <div><span class="eyebrow">История</span><h1>Пройденные тесты</h1></div>
-      <table class="table"><thead><tr><th>Курс</th><th>Попытка</th><th>Результат</th><th>Статус</th></tr></thead><tbody>${attempts
+      <div><span class="eyebrow">History</span><h1>Completed tests</h1></div>
+      <table class="table"><thead><tr><th>Course</th><th>Attempt</th><th>Result</th><th>Status</th></tr></thead><tbody>${attempts
         .map((attempt) => {
           const assignment = db.assignments.find((item) => item.id === attempt.assignmentId);
           const course = courseById(assignment.courseId);
@@ -5910,13 +5916,13 @@ function studentCertificates(user) {
   );
   return studentShell(
     user,
-    "Сертификаты",
+    "Certificates",
     `<section class="section">
-      <div><span class="eyebrow">Сертификаты</span><h1>Мои сертификаты</h1></div>
-      ${pendingCertificates.length && !hasCertificatePhoto(user) ? `<div class="photo-warning"><strong>Есть завершенный курс без сертификата.</strong><br>Загрузите фото в профиле, чтобы система сформировала сертификат.</div>` : ""}
+      <div><span class="eyebrow">Certificates</span><h1>My certificates</h1></div>
+      ${pendingCertificates.length && !hasCertificatePhoto(user) ? `<div class="photo-warning"><strong>You have a completed course without a certificate.</strong><br>Upload a photo in your profile so the system can issue it.</div>` : ""}
       <div class="grid three">${certs
-        .map((certificate) => `<article class="card">${badge(certificate.status)}<h3>${escapeHtml(certificate.snapshotCourseTitle)}</h3><p class="muted">Номер: ${escapeHtml(certificate.certificateNumber)}</p><p class="muted">Действителен до: ${formatDate(certificate.expiresAt)}</p><a class="small-button primary" href="/certificates/${certificate.id}">Открыть</a></article>`)
-        .join("") || `<article class="panel">Сертификаты появятся после успешного теста.</article>`}</div>
+        .map((certificate) => `<article class="card">${badge(certificate.status)}<h3>${escapeHtml(certificate.snapshotCourseTitle)}</h3><p class="muted">Number: ${escapeHtml(certificate.certificateNumber)}</p><p class="muted">Valid until: ${formatDate(certificate.expiresAt)}</p><a class="small-button primary" href="/certificates/${certificate.id}">Open</a></article>`)
+        .join("") || `<article class="panel">Certificates will appear after a successful test.</article>`}</div>
     </section>`
   );
 }
@@ -5930,56 +5936,56 @@ function studentProfile(user) {
   );
   return studentShell(
     user,
-    "Профиль",
+    "Profile",
     `<section class="section">
-      <div><span class="eyebrow">Профиль</span><h1>${escapeHtml(user.firstNameEn)} ${escapeHtml(user.lastNameEn)}</h1><p class="lead">Эти данные обязательны для обучения и оформления сертификата.</p></div>
-      ${pendingCertificates.length && !hasCertificatePhoto(user) ? `<div class="photo-warning"><strong>Курс уже завершен, но сертификат ожидает фото.</strong><br>Загрузите фото в личном кабинете, после этого сертификат будет сформирован автоматически.</div>` : ""}
+      <div><span class="eyebrow">Profile</span><h1>${escapeHtml(user.firstNameEn)} ${escapeHtml(user.lastNameEn)}</h1><p class="lead">These details are required for learning and issuing certificates.</p></div>
+      ${pendingCertificates.length && !hasCertificatePhoto(user) ? `<div class="photo-warning"><strong>The course is complete, but the certificate is waiting for a photo.</strong><br>Upload a photo in your account and the certificate will be issued automatically.</div>` : ""}
       <div class="grid three">
         <article class="panel stack">
-          <h2>Фото для сертификата</h2>
-          ${hasCertificatePhoto(user) ? `<img class="profile-photo" src="${escapeHtml(user.photoUrl)}" alt="Фото студента" />` : `<div class="profile-photo"></div>`}
+          <h2>Certificate photo</h2>
+          ${hasCertificatePhoto(user) ? `<img class="profile-photo" src="${escapeHtml(user.photoUrl)}" alt="Student photo" />` : `<div class="profile-photo"></div>`}
           <form class="stack" method="post" action="/dashboard/profile/photo" enctype="multipart/form-data">
-            <div class="field"><label for="photo">Загрузить фото</label><input id="photo" name="photo" type="file" accept="image/png,image/jpeg,image/webp" required /></div>
-            <button class="button" type="submit">Сохранить фото</button>
+            <div class="field"><label for="photo">Upload photo</label><input id="photo" name="photo" type="file" accept="image/png,image/jpeg,image/webp" required /></div>
+            <button class="button" type="submit">Save photo</button>
           </form>
         </article>
         <form class="form-panel" method="post" action="/dashboard/profile/update" style="grid-column: span 2;">
-          <h2>Обязательные данные</h2>
-          <div class="field"><label>Фамилия</label><input name="lastNameEn" value="${escapeHtml(user.lastNameEn)}" required /></div>
-          <div class="field"><label>Имя</label><input name="firstNameEn" value="${escapeHtml(user.firstNameEn)}" required /></div>
-          <div class="field"><label>Дата рождения</label><input name="birthDate" type="date" value="${escapeHtml(user.birthDate || "")}" required /></div>
-          <div class="field"><label>Почта</label><input name="email" type="email" value="${escapeHtml(user.email)}" required /></div>
-          <div class="field"><label>Должность</label><input name="position" value="${escapeHtml(user.position || "")}" required /></div>
-          <div class="field"><label>Компания — необязательно</label><input name="company" value="${escapeHtml(user.company || "")}" /></div>
-          <button class="button" type="submit">Сохранить профиль</button>
+          <h2>Required details</h2>
+          <div class="field"><label>Last name</label><input name="lastNameEn" value="${escapeHtml(user.lastNameEn)}" required /></div>
+          <div class="field"><label>First name</label><input name="firstNameEn" value="${escapeHtml(user.firstNameEn)}" required /></div>
+          <div class="field"><label>Date of birth</label><input name="birthDate" type="date" value="${escapeHtml(user.birthDate || "")}" required /></div>
+          <div class="field"><label>Email</label><input name="email" type="email" value="${escapeHtml(user.email)}" required /></div>
+          <div class="field"><label>Position</label><input name="position" value="${escapeHtml(user.position || "")}" required /></div>
+          <div class="field"><label>Company - optional</label><input name="company" value="${escapeHtml(user.company || "")}" /></div>
+          <button class="button" type="submit">Save profile</button>
         </form>
       </div>
       <form class="form-panel" method="post" action="/dashboard/profile/password">
-        <h2>Смена пароля</h2>
-        <div class="field"><label>Текущий пароль</label><input name="currentPassword" type="password" required /></div>
-        <div class="field"><label>Новый пароль</label><input name="newPassword" type="password" minlength="8" required /></div>
-        <button class="button" type="submit">Сменить пароль</button>
+        <h2>Change password</h2>
+        <div class="field"><label>Current password</label><input name="currentPassword" type="password" required /></div>
+        <div class="field"><label>New password</label><input name="newPassword" type="password" minlength="8" required /></div>
+        <button class="button" type="submit">Change password</button>
       </form>
     </section>`
   );
 }
 
 function certificatePage(requestUser, certificate) {
-  if (!requestUser) return page("Нет доступа", null, `<main class="page"><div class="notice">Войдите, чтобы открыть сертификат.</div></main>`);
+  if (!requestUser) return page("Access denied", null, `<main class="page"><div class="notice">Sign in to open this certificate.</div></main>`);
   if (requestUser.role !== "admin" && certificate.userId !== requestUser.id) {
-    return page("Нет доступа", requestUser, `<main class="page"><div class="notice">Нельзя открыть чужой сертификат.</div></main>`);
+    return page("Access denied", requestUser, `<main class="page"><div class="notice">You cannot open another student's certificate.</div></main>`);
   }
   const certificateHtml =
     certificate.certificateHtml ||
     renderCertificateTemplate(certificate, certificate.snapshotCertificateTemplateHtml || defaultCertificateTemplate());
   return page(
-    "Сертификат",
+    "Certificate",
     requestUser,
     `<main class="page">
-      ${certificate.status === "issued" ? "" : `<div class="notice danger">Этот сертификат не активен: текущий статус ${escapeHtml(statusLabel(certificate.status))}.</div>`}
+      ${certificate.status === "issued" ? "" : `<div class="notice danger">This certificate is not active: current status ${escapeHtml(statusLabel(certificate.status))}.</div>`}
       <section class="${certificateShellClass(certificateHtml)}">
         ${certificateHtml}
-        <div class="actions" style="justify-content:center;margin-top:24px"><a class="button" href="/certificates/${certificate.id}.pdf">Скачать PDF</a><button class="button secondary" type="button" data-print-certificate>Печать</button></div>
+        <div class="actions" style="justify-content:center;margin-top:24px"><a class="button" href="/certificates/${certificate.id}.pdf">Download PDF</a><button class="button secondary" type="button" data-print-certificate>Print</button></div>
       </section>
     </main>`
   );
@@ -5990,26 +5996,26 @@ function verifyCertificatePage(certificate) {
   const body = certificate
     ? `<main class="page">
         <section class="section">
-          <div><span class="eyebrow">Проверка сертификата</span><h1>Сертификат действителен</h1><p class="lead">Номер найден в реестре Marine LMS.</p></div>
-          ${isValidCertificate ? "" : `<div class="notice danger">Этот сертификат не действителен: он был отозван или заменен новым сертификатом.</div>`}
+          <div><span class="eyebrow">Certificate verification</span><h1>Certificate is valid</h1><p class="lead">The number was found in the Marine LMS register.</p></div>
+          ${isValidCertificate ? "" : `<div class="notice danger">This certificate is not valid: it has been revoked or replaced by a new certificate.</div>`}
           <article class="panel stack">
             ${badge(certificate.status)}
-            <p><strong>Номер:</strong> ${escapeHtml(certificate.certificateNumber)}</p>
-            <p><strong>Студент:</strong> ${escapeHtml(certificate.snapshotFirstName)} ${escapeHtml(certificate.snapshotLastName)}</p>
-            <p><strong>Курс:</strong> ${escapeHtml(certificate.snapshotCourseTitle)}</p>
-            <p><strong>Дата выдачи:</strong> ${new Date(certificate.issuedAt).toLocaleDateString("ru-RU")}</p>
-            <p><strong>Действителен до:</strong> ${formatDate(certificate.expiresAt)}</p>
+            <p><strong>Number:</strong> ${escapeHtml(certificate.certificateNumber)}</p>
+            <p><strong>Student:</strong> ${escapeHtml(certificate.snapshotFirstName)} ${escapeHtml(certificate.snapshotLastName)}</p>
+            <p><strong>Course:</strong> ${escapeHtml(certificate.snapshotCourseTitle)}</p>
+            <p><strong>Issue date:</strong> ${new Date(certificate.issuedAt).toLocaleDateString("en-GB")}</p>
+            <p><strong>Valid until:</strong> ${formatDate(certificate.expiresAt)}</p>
           </article>
         </section>
       </main>`
-    : `<main class="page"><section class="section"><div class="notice danger">Сертификат с таким номером не найден.</div></section></main>`;
-  return page("Проверка сертификата", null, body);
+    : `<main class="page"><section class="section"><div class="notice danger">No certificate was found with this number.</div></section></main>`;
+  return page("Certificate verification", null, body);
 }
 
 async function handlePost(request, response, pathname, user) {
   const form = await parseBody(request);
   if (user && !csrfFormValid(user, form)) {
-    send(response, page("Запрос отклонен", user, `<main class="page"><div class="notice danger">POST-запрос отклонен: неверный CSRF-токен. Обновите страницу и попробуйте снова.</div></main>`), 403);
+    send(response, page("Request rejected", user, `<main class="page"><div class="notice danger">The POST request was rejected: invalid CSRF token. Refresh the page and try again.</div></main>`), 403);
     return;
   }
 
@@ -6017,12 +6023,12 @@ async function handlePost(request, response, pathname, user) {
     const email = form.get("email")?.toString().trim().toLowerCase();
     const password = form.get("password")?.toString() ?? "";
     if (loginRateLimited(request)) {
-      send(response, page("Слишком много попыток", null, `<main class="page"><div class="notice danger">Слишком много попыток входа. Подождите несколько минут и попробуйте снова.</div></main>`), 429);
+      send(response, page("Too many attempts", null, `<main class="page"><div class="notice danger">Too many sign-in attempts. Wait a few minutes and try again.</div></main>`), 429);
       return;
     }
     const found = db.users.find((item) => item.email.toLowerCase() === email && item.status === "active");
     if (!found || !verifyPassword(password, found.passwordHash)) {
-      send(response, page("Ошибка входа", null, `<main class="page"><div class="notice danger">Неверный e-mail или пароль.</div><p><a class="button" href="/login">Вернуться</a></p></main>`), 401);
+      send(response, page("Sign-in error", null, `<main class="page"><div class="notice danger">Invalid email or password.</div><p><a class="button" href="/login">Back</a></p></main>`), 401);
       return;
     }
     clearLoginRateLimit(request);
@@ -6175,7 +6181,7 @@ async function handlePost(request, response, pathname, user) {
     const email = form.get("email")?.toString().trim().toLowerCase() ?? "";
     const emailOwner = db.users.find((item) => item.email.toLowerCase() === email && item.id !== student.id);
     if (emailOwner) {
-      send(response, studentShell(student, "Профиль", `<section class="section"><div class="notice danger">Такой e-mail уже используется другим пользователем.</div><a class="button" href="/dashboard/profile">Вернуться</a></section>`), 400);
+      send(response, studentShell(student, "Profile", `<section class="section"><div class="notice danger">This email address is already used by another user.</div><a class="button" href="/dashboard/profile">Back</a></section>`), 400);
       return;
     }
 
@@ -6212,7 +6218,7 @@ async function handlePost(request, response, pathname, user) {
       redirect(response, "/login?notice=password_changed");
       return;
     }
-    send(response, studentShell(student, "Смена пароля", `<section class="section"><div class="notice danger">Пароль не изменен: проверьте текущий пароль и длину нового пароля.</div><a class="button" href="/dashboard/profile">Вернуться</a></section>`), 400);
+    send(response, studentShell(student, "Change password", `<section class="section"><div class="notice danger">Password not changed: check your current password and the length of the new password.</div><a class="button" href="/dashboard/profile">Back</a></section>`), 400);
     return;
   }
 
@@ -6226,11 +6232,11 @@ async function handlePost(request, response, pathname, user) {
 
     const photo = form.get("photo");
     if (!photo?.buffer?.length || !imageUploadAllowed(photo)) {
-      send(response, studentShell(student, "Фото", `<section class="section"><div class="notice danger">Загрузите файл изображения: JPG, PNG или WebP.</div><a class="button" href="/dashboard/profile">Вернуться</a></section>`), 400);
+      send(response, studentShell(student, "Photo", `<section class="section"><div class="notice danger">Upload an image file in JPG, PNG, or WebP format.</div><a class="button" href="/dashboard/profile">Back</a></section>`), 400);
       return;
     }
     if (photo.buffer.length > 3 * 1024 * 1024) {
-      send(response, studentShell(student, "Фото", `<section class="section"><div class="notice danger">Фото слишком большое. Максимальный размер: 3 MB.</div><a class="button" href="/dashboard/profile">Вернуться</a></section>`), 400);
+      send(response, studentShell(student, "Photo", `<section class="section"><div class="notice danger">The photo is too large. Maximum size: 3 MB.</div><a class="button" href="/dashboard/profile">Back</a></section>`), 400);
       return;
     }
 
@@ -6268,7 +6274,7 @@ async function handlePost(request, response, pathname, user) {
     if (!admin) return;
     auditAdminAction(admin, pathname, form);
     if (isInstructor(admin) && !["/admin/users/create", "/admin/users/update", "/admin/users/photo", "/admin/assignments/create"].includes(pathname)) {
-      send(response, adminShell(admin, "Нет доступа", `<section class="section"><div class="notice danger">Инструктор может создать студента, редактировать его данные, загрузить фото и назначить курс. Это действие запрещено.</div><a class="button" href="/admin/users">К пользователям</a></section>`), 403);
+      send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">An instructor can create a student, edit their details, upload a photo, and assign a course. This action is not permitted.</div><a class="button" href="/admin/users">Users</a></section>`), 403);
       return;
     }
 
@@ -6282,7 +6288,7 @@ async function handlePost(request, response, pathname, user) {
         recipientName: form.get("recipientName")?.toString().trim() ?? "", recipientEmail: form.get("recipientEmail")?.toString().trim() ?? "", recipientCompany: form.get("recipientCompany")?.toString().trim() ?? "",
         period: { from: filterParams.from, to: filterParams.to, event: filterParams.event }, lines, currency: lines.map((line) => line.currency).find(Boolean) ?? "",
         discount: 0, extraCharge: 0, vatRate: 0, comment: "", issueDate: new Date().toISOString().slice(0, 10), dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), status: "draft", paidAt: "", pdfUrl: "", shareToken: opaqueToken(),
-        changes: [{ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: `Создано позиций: ${lines.length}` }]
+        changes: [{ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: `Lines created: ${lines.length}` }]
       };
       invoiceItems().push(invoice);
       await persistInvoicePdf(invoice);
@@ -6311,7 +6317,7 @@ async function handlePost(request, response, pathname, user) {
         db.notifications.push({ id: id("note"), recipientUserId: "", recipientEmail: invoice.recipientEmail, type: "invoice_sent", status: notificationInitialStatus(), payload: `Invoice ${invoice.number}: ${publicBaseUrl}/invoices/${invoice.id}/${invoice.shareToken}.pdf`, errorMessage: "", createdAt: now(), sentAt: "" });
       }
       invoice.changes ??= [];
-      invoice.changes.push({ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: sendEmail ? "Обновлён и отправлен по e-mail" : "Обновлён расчёт и PDF" });
+      invoice.changes.push({ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: sendEmail ? "Updated and sent by email" : "Calculation and PDF updated" });
       await persistInvoicePdf(invoice);
       saveDb(db);
       redirect(response, `/admin/checks/invoices/${invoice.id}`);
@@ -6402,6 +6408,10 @@ async function handlePost(request, response, pathname, user) {
     }
 
     if (pathname === "/admin/course-prices/update") {
+      if (!SHOW_COURSE_PRICES) {
+        redirect(response, "/admin/courses");
+        return;
+      }
       if (!isFullAdmin(admin)) {
         redirect(response, "/admin");
         return;
@@ -6543,7 +6553,7 @@ async function handlePost(request, response, pathname, user) {
 
       const savedPhoto = saveCertificatePhoto(student, photo);
       if (!savedPhoto.ok) {
-        send(response, adminShell(admin, "Фото студента", `<section class="section"><div class="notice danger">${escapeHtml(savedPhoto.message)}</div><a class="button" href="/admin/users">Вернуться</a></section>`), 400);
+        send(response, adminShell(admin, "Student photo", `<section class="section"><div class="notice danger">${escapeHtml(savedPhoto.message)}</div><a class="button" href="/admin/users">Back</a></section>`), 400);
         return;
       }
 
@@ -6614,15 +6624,15 @@ async function handlePost(request, response, pathname, user) {
       const course = courseById(form.get("courseId")?.toString());
       const issuedAt = parseIssueDateInput(form.get("issuedAt"));
       if (!student || !course) {
-        send(response, adminShell(admin, "Сертификат", `<section class="section"><div class="notice danger">Студент или курс не найден.</div><a class="button" href="/admin/users">Вернуться к студентам</a></section>`), 404);
+        send(response, adminShell(admin, "Certificate", `<section class="section"><div class="notice danger">Student or course not found.</div><a class="button" href="/admin/users">Back to students</a></section>`), 404);
         return;
       }
       if (!issuedAt) {
-        send(response, adminShell(admin, "Сертификат", `<section class="section"><div class="notice danger">Укажите корректную дату выдачи сертификата.</div><a class="button" href="/admin/users">Вернуться к студентам</a></section>`), 400);
+        send(response, adminShell(admin, "Certificate", `<section class="section"><div class="notice danger">Enter a valid certificate issue date.</div><a class="button" href="/admin/users">Back to students</a></section>`), 400);
         return;
       }
       if (!hasCertificatePhoto(student)) {
-        send(response, adminShell(admin, "Сертификат", `<section class="section"><div class="notice danger">Перед выдачей сертификата нужно загрузить фото студента.</div><a class="button" href="/admin/users">Вернуться к студентам</a></section>`), 400);
+        send(response, adminShell(admin, "Certificate", `<section class="section"><div class="notice danger">Upload the student photo before issuing a certificate.</div><a class="button" href="/admin/users">Back to students</a></section>`), 400);
         return;
       }
       issueManualCertificate(student, course, admin, { issuedAt });
@@ -6720,7 +6730,7 @@ async function handlePost(request, response, pathname, user) {
         shortDescription: form.get("shortDescription")?.toString() ?? "",
         fullDescription: "",
         goals: form.get("goals")?.toString() ?? "",
-        requirements: "Завершить обязательные материалы и сдать тест.",
+        requirements: "Complete the required materials and pass the test.",
         oldPrice: normalizeCoursePrice(form.get("oldPrice")),
         newPrice: normalizeCoursePrice(form.get("newPrice")),
         status: "active",
@@ -6733,7 +6743,7 @@ async function handlePost(request, response, pathname, user) {
         lessons: [],
         test: {
           id: id("test"),
-          title: "Финальный тест",
+          title: "Final test",
           description: "",
           attemptsLimit: 3,
           passingPercent: 80,
@@ -6747,7 +6757,7 @@ async function handlePost(request, response, pathname, user) {
       };
       const savedImage = saveCourseImage(course, form.get("imageFile"));
       if (!savedImage.ok) {
-        send(response, adminShell(admin, "Курсы", `<section class="section"><div class="notice danger">${escapeHtml(savedImage.message)}</div><a class="button" href="/admin/courses">Вернуться к курсам</a></section>`), 400);
+        send(response, adminShell(admin, "Courses", `<section class="section"><div class="notice danger">${escapeHtml(savedImage.message)}</div><a class="button" href="/admin/courses">Back to courses</a></section>`), 400);
         return;
       }
       updateCourseCatalogMetadata(course, {
@@ -6776,8 +6786,8 @@ async function handlePost(request, response, pathname, user) {
           category: form.get("catalogCategory")?.toString() ?? "",
           positions: form.getAll("catalogPositions").map((value) => value.toString())
         });
-        course.oldPrice = normalizeCoursePrice(form.get("oldPrice"));
-        course.newPrice = normalizeCoursePrice(form.get("newPrice"));
+        if (SHOW_COURSE_PRICES && form.has("oldPrice")) course.oldPrice = normalizeCoursePrice(form.get("oldPrice"));
+        if (SHOW_COURSE_PRICES && form.has("newPrice")) course.newPrice = normalizeCoursePrice(form.get("newPrice"));
         course.status = form.get("status")?.toString() ?? course.status;
         const requestedShowOnHome = form.get("showOnHome") === "on";
         const requestedHomeSortOrder = Number(form.get("homeSortOrder")) > 0 ? Math.round(Number(form.get("homeSortOrder"))) : 999;
@@ -6790,7 +6800,7 @@ async function handlePost(request, response, pathname, user) {
         if (form.get("removeImage") === "on") course.imageUrl = "";
         const savedImage = saveCourseImage(course, form.get("imageFile"));
         if (!savedImage.ok) {
-          send(response, adminShell(admin, "Курс", `<section class="section"><div class="notice danger">${escapeHtml(savedImage.message)}</div><a class="button" href="/admin/courses/${course.id}">Вернуться к курсу</a></section>`), 400);
+          send(response, adminShell(admin, "Course", `<section class="section"><div class="notice danger">${escapeHtml(savedImage.message)}</div><a class="button" href="/admin/courses/${course.id}">Back to course</a></section>`), 400);
           return;
         }
       }
@@ -6802,7 +6812,7 @@ async function handlePost(request, response, pathname, user) {
     const courseDeleteMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/delete$/);
     if (courseDeleteMatch) {
       if (!isFullAdmin(admin)) {
-        send(response, adminShell(admin, "Нет доступа", `<section class="section"><div class="notice danger">Удалять курсы может только администратор.</div></section>`), 403);
+        send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Only an administrator can delete courses.</div></section>`), 403);
         return;
       }
       const course = courseById(courseDeleteMatch[1]);
@@ -6813,11 +6823,11 @@ async function handlePost(request, response, pathname, user) {
       const usage = courseDeletionUsage(course.id);
       if (courseDeletionBlocked(usage)) {
         const details = [
-          usage.assignments ? `назначений: ${usage.assignments}` : "",
-          usage.applications ? `заявок: ${usage.applications}` : "",
-          usage.certificates ? `сертификатов: ${usage.certificates}` : ""
+          usage.assignments ? `assignments: ${usage.assignments}` : "",
+          usage.applications ? `applications: ${usage.applications}` : "",
+          usage.certificates ? `certificates: ${usage.certificates}` : ""
         ].filter(Boolean).join(", ");
-        send(response, adminShell(admin, "Удаление курса", `<section class="section"><div class="notice danger">Курс «${escapeHtml(course.title)}» нельзя удалить: ${escapeHtml(details)}.</div><a class="button" href="/admin/courses/${course.id}">Вернуться к курсу</a></section>`), 409);
+        send(response, adminShell(admin, "Delete course", `<section class="section"><div class="notice danger">Course “${escapeHtml(course.title)}” cannot be deleted: ${escapeHtml(details)}.</div><a class="button" href="/admin/courses/${course.id}">Back to course</a></section>`), 409);
         return;
       }
       db.courses = db.courses.filter((item) => item.id !== course.id);
@@ -7277,7 +7287,7 @@ async function handlePost(request, response, pathname, user) {
     return;
   }
 
-  send(response, page("Не найдено", user, `<main class="page"><div class="notice">Маршрут не найден.</div></main>`), 404);
+  send(response, page("Not found", user, `<main class="page"><div class="notice">Route not found.</div></main>`), 404);
 }
 
 async function handleRequest(request, response) {
@@ -7309,7 +7319,7 @@ async function handleRequest(request, response) {
 
   if (request.method === "POST") {
     if (!sameOriginPost(request)) {
-      send(response, page("Запрос отклонен", user, `<main class="page"><div class="notice danger">POST-запрос отклонен защитой same-origin.</div></main>`), 403);
+      send(response, page("Request rejected", user, `<main class="page"><div class="notice danger">The POST request was rejected by same-origin protection.</div></main>`), 403);
       return;
     }
     await handlePost(request, response, pathname, user);
@@ -7335,7 +7345,7 @@ async function handleRequest(request, response) {
       response,
       isVisible
         ? publicCourseDetail(user, course)
-        : page("Курс не найден", user, `<main class="page"><section class="section"><div class="notice">Курс не найден или недоступен.</div><a class="button" href="/">На главную</a></section></main>`),
+        : page("Course not found", user, `<main class="page"><section class="section"><div class="notice">Course not found or unavailable.</div><a class="button" href="/">Home</a></section></main>`),
       isVisible ? 200 : 404
     );
   }
@@ -7361,7 +7371,7 @@ async function handleRequest(request, response) {
     const admin = requireAdmin(request, response);
     if (!admin) return;
     if (isInstructor(admin) && !["/admin", "/admin/users"].includes(pathname)) {
-      return send(response, adminShell(admin, "Нет доступа", `<section class="section"><div class="notice danger">Инструктору доступна только регистрация студентов и назначение курсов.</div><a class="button" href="/admin/users">К пользователям</a></section>`), 403);
+      return send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">An instructor can only register students and assign courses.</div><a class="button" href="/admin/users">Users</a></section>`), 403);
     }
     if (pathname === "/admin") return send(response, adminDashboard(admin));
     if (pathname === "/admin/applications") return send(response, adminApplications(admin, url.searchParams));
@@ -7382,12 +7392,12 @@ async function handleRequest(request, response) {
       const invoice = invoiceById(invoiceMatch[1]);
       return send(response, invoice ? adminInvoiceDetail(admin, invoice) : adminShell(admin, "Not found", `<section class="section"><div class="notice">Invoice not found.</div></section>`), invoice ? 200 : 404);
     }
-    if (pathname === "/admin/checks/export.xls") return isFullAdmin(admin) ? sendChecksExcel(response, url.searchParams) : send(response, adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), 403);
-    if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), isFullAdmin(admin) ? 200 : 403);
+    if (pathname === "/admin/checks/export.xls") return isFullAdmin(admin) ? sendChecksExcel(response, url.searchParams) : send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
+    if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
     if (pathname === "/admin/courses") return send(response, adminCourses(admin, url.searchParams));
-    if (pathname === "/admin/course-prices/export.xls") return isFullAdmin(admin) ? sendCoursePricesExcel(response, url.searchParams) : send(response, adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), 403);
-    if (pathname === "/admin/course-prices") return send(response, isFullAdmin(admin) ? adminCoursePrices(admin, url.searchParams) : adminShell(admin, "Доступ закрыт", `<section class="section"><div class="notice danger">Недостаточно прав.</div></section>`), isFullAdmin(admin) ? 200 : 403);
+    if (pathname === "/admin/course-prices/export.xls") return SHOW_COURSE_PRICES && isFullAdmin(admin) ? sendCoursePricesExcel(response, url.searchParams) : redirect(response, "/admin/courses");
+    if (pathname === "/admin/course-prices") return SHOW_COURSE_PRICES && isFullAdmin(admin) ? send(response, adminCoursePrices(admin, url.searchParams)) : redirect(response, "/admin/courses");
     if (pathname === "/admin/homepage") return send(response, adminHomepage(admin));
     if (pathname === "/admin/files/import-report.csv") return sendImportQualityCsv(response);
     if (pathname === "/admin/files") return send(response, adminFiles(admin, url.searchParams));
@@ -7399,27 +7409,27 @@ async function handleRequest(request, response) {
     const auditDetailMatch = pathname.match(/^\/admin\/audit\/([^/]+)$/);
     if (auditDetailMatch) {
       const event = (db.auditEvents ?? []).find((item) => item.id === auditDetailMatch[1]);
-      return send(response, event ? adminAuditDetail(admin, event) : adminShell(admin, "Не найдено", `<section class="section"><div class="notice">Запись аудита не найдена.</div></section>`), event ? 200 : 404);
+      return send(response, event ? adminAuditDetail(admin, event) : adminShell(admin, "Not found", `<section class="section"><div class="notice">Audit record not found.</div></section>`), event ? 200 : 404);
     }
     const adminUserMatch = pathname.match(/^\/admin\/users\/([^/]+)$/);
     if (adminUserMatch) {
       const student = db.users.find((item) => item.id === decodeURIComponent(adminUserMatch[1]) && item.role === "student");
-      return send(response, student ? adminStudentDetail(admin, student) : adminShell(admin, "Не найдено", `<div class="notice">Студент не найден.</div>`), student ? 200 : 404);
+      return send(response, student ? adminStudentDetail(admin, student) : adminShell(admin, "Not found", `<div class="notice">Student not found.</div>`), student ? 200 : 404);
     }
     const testPreviewMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/test\/preview$/);
     if (testPreviewMatch) {
       const course = courseById(testPreviewMatch[1]);
-      return send(response, course ? adminTestPreview(admin, course) : adminShell(admin, "Не найдено", `<div class="notice">Курс не найден.</div>`), course ? 200 : 404);
+      return send(response, course ? adminTestPreview(admin, course) : adminShell(admin, "Not found", `<div class="notice">Course not found.</div>`), course ? 200 : 404);
     }
     const certificateTemplatePreviewMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/certificate-template\/preview$/);
     if (certificateTemplatePreviewMatch) {
       const course = courseById(certificateTemplatePreviewMatch[1]);
-      return send(response, course ? adminCertificateTemplatePreview(admin, course) : adminShell(admin, "Не найдено", `<div class="notice">Курс не найден.</div>`), course ? 200 : 404);
+      return send(response, course ? adminCertificateTemplatePreview(admin, course) : adminShell(admin, "Not found", `<div class="notice">Course not found.</div>`), course ? 200 : 404);
     }
     const courseMatch = pathname.match(/^\/admin\/courses\/([^/]+)$/);
     if (courseMatch) {
       const course = courseById(courseMatch[1]);
-      return send(response, course ? adminCourseDetail(admin, course) : adminShell(admin, "Не найдено", `<div class="notice">Курс не найден.</div>`), course ? 200 : 404);
+      return send(response, course ? adminCourseDetail(admin, course) : adminShell(admin, "Not found", `<div class="notice">Course not found.</div>`), course ? 200 : 404);
     }
   }
 
@@ -7435,12 +7445,12 @@ async function handleRequest(request, response) {
     const assignmentMatch = pathname.match(/^\/dashboard\/courses\/([^/]+)$/);
     if (assignmentMatch) {
       const assignment = db.assignments.find((item) => item.id === assignmentMatch[1] && item.userId === student.id);
-      return send(response, assignment ? studentCourseDetail(student, assignment) : studentShell(student, "Не найдено", `<div class="notice">Курс не найден.</div>`), assignment ? 200 : 404);
+      return send(response, assignment ? studentCourseDetail(student, assignment) : studentShell(student, "Not found", `<div class="notice">Course not found.</div>`), assignment ? 200 : 404);
     }
     const testMatch = pathname.match(/^\/dashboard\/tests\/([^/]+)$/);
     if (testMatch) {
       const assignment = db.assignments.find((item) => item.id === testMatch[1] && item.userId === student.id);
-      return send(response, assignment ? studentTestPage(student, assignment) : studentShell(student, "Не найдено", `<div class="notice">Тест не найден.</div>`), assignment ? 200 : 404);
+      return send(response, assignment ? studentTestPage(student, assignment) : studentShell(student, "Not found", `<div class="notice">Test not found.</div>`), assignment ? 200 : 404);
     }
   }
 
@@ -7473,10 +7483,10 @@ async function handleRequest(request, response) {
   const certMatch = pathname.match(/^\/certificates\/([^/]+)$/);
   if (certMatch) {
     const cert = db.certificates.find((certificate) => certificate.id === certMatch[1]);
-    return send(response, cert ? certificatePage(user, cert) : page("Не найдено", user, `<main class="page"><div class="notice">Сертификат не найден.</div></main>`), cert ? 200 : 404);
+    return send(response, cert ? certificatePage(user, cert) : page("Not found", user, `<main class="page"><div class="notice">Certificate not found.</div></main>`), cert ? 200 : 404);
   }
 
-  send(response, page("Не найдено", user, `<main class="page"><div class="notice">Страница не найдена.</div></main>`), 404);
+  send(response, page("Not found", user, `<main class="page"><div class="notice">Page not found.</div></main>`), 404);
 }
 
 const server = createServer((request, response) => {
@@ -7487,7 +7497,7 @@ const server = createServer((request, response) => {
       console.error("Marine LMS request failed:", error);
       if (!response.headersSent) {
         const status = Number(error?.statusCode) === 413 ? 413 : 500;
-        send(response, page("Ошибка", null, `<main class="page"><div class="notice danger">Запрос не удалось обработать. Попробуйте еще раз или обратитесь к администратору.</div></main>`), status);
+        send(response, page("Error", null, `<main class="page"><div class="notice danger">The request could not be processed. Try again or contact an administrator.</div></main>`), status);
       }
     });
   requestQueue = work.catch(() => {});

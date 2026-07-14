@@ -7,20 +7,20 @@ export default function AdminDashboardPage() {
     <section className="section">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">UI-каркас</span>
-          <h1>Админский дашборд</h1>
+          <span className="eyebrow">UI scaffold</span>
+          <h1>Admin dashboard</h1>
           <p className="lead">
-            Макет будущей админ-панели на mock-данных. Рабочая админка — в
-            standalone-сервере после <code>npm run dev</code>.
+            A future admin panel layout using mock data. The live admin panel is in
+            the standalone server after <code>npm run dev</code>.
           </p>
         </div>
         <div className="actions">
           <Link className="button" href="/admin/users">
             <Plus size={17} />
-            Создать пользователя
+            Create user
           </Link>
           <Link className="button secondary" href="/admin/courses">
-            Курсы
+            Courses
             <ArrowRight size={17} />
           </Link>
         </div>
@@ -44,12 +44,12 @@ export default function AdminDashboardPage() {
         })}
       </div>
       <article className="panel">
-        <h2>Где смотреть реальную админку</h2>
+        <h2>Where to access the live admin panel</h2>
         <p className="lead">
-          Заявки, пользователи, курсы, тесты и сертификаты уже работают в{" "}
-          <code>scripts/lms-server.mjs</code>. Откройте{" "}
-          <a href="http://127.0.0.1:3000/admin">127.0.0.1:3000/admin</a> после
-          запуска <code>npm run dev</code>.
+          Applications, users, courses, tests, and certificates already work in{" "}
+          <code>scripts/lms-server.mjs</code>. Open{" "}
+          <a href="http://127.0.0.1:3000/admin">127.0.0.1:3000/admin</a> after
+          running <code>npm run dev</code>.
         </p>
       </article>
     </section>
