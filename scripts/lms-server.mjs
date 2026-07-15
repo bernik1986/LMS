@@ -66,6 +66,7 @@ const productCss = `
 .auth-note { display: grid; gap: 6px; border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 14px; border-radius: var(--radius); }
 .notice { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--primary-strong); padding: 14px; }
 .danger { color: #a23b3b; }
+.notice.success { border-color: #74b68f; background: #edf8f0; color: #17663a; }
 .stack { display: grid; gap: 16px; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .inline-form { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -79,6 +80,7 @@ const productCss = `
 .admin-edit-grid .field-wide { grid-column: 1 / -1; }
 .course-editor-heading { margin-bottom: 16px; }
 .course-editor-heading h1 { margin: 2px 0 0; max-width: none; font-size: 30px; line-height: 1.18; }
+.admin-user-card:target, .admin-staff-row:target { outline: 3px solid var(--accent); outline-offset: 3px; }
 .course-cover { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(135deg, var(--primary-soft), var(--surface-muted)); }
 .course-cover.placeholder { display: grid; place-items: center; color: var(--primary-strong); font-weight: 850; }
 .course-cover.thumb { width: 104px; min-width: 104px; }
@@ -140,7 +142,7 @@ const productCss = `
 .visual-certificate.no-background { background: linear-gradient(135deg, #f8fbfd, #e7f1f8); }
 .visual-certificate.has-pdf-background { background: #fff; }
 .visual-cert-pdf-bg { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: 0; }
-.visual-cert-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 18px; white-space: normal; line-height: 1.12; overflow: hidden; }
+.visual-cert-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 18px; white-space: pre-wrap; line-height: 1.12; overflow: hidden; }
 .visual-cert-field.is-stamp { z-index: 5; }
 .visual-cert-field.align-left { justify-content: flex-start; text-align: left; }
 .visual-cert-field.align-center { justify-content: center; text-align: center; }
@@ -152,7 +154,7 @@ const productCss = `
 .certificate-designer-canvas.no-background { background: linear-gradient(135deg, #f8fbfd, #dcecf6); }
 .certificate-designer-canvas.has-pdf-background { background: #fff; }
 .certificate-designer-pdf-bg { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: 0; }
-.certificate-designer-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 18px; border: 1px dashed rgba(11, 79, 122, 0.6); background: rgba(255, 255, 255, 0.58); cursor: move; line-height: 1.1; overflow: hidden; user-select: none; }
+.certificate-designer-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 18px; border: 1px dashed rgba(11, 79, 122, 0.6); background: rgba(255, 255, 255, 0.58); cursor: move; white-space: pre-wrap; line-height: 1.1; overflow: hidden; user-select: none; }
 .certificate-designer-field.is-stamp { z-index: 5; }
 .certificate-designer-field.is-selected { border: 2px solid var(--accent); background: rgba(255, 255, 255, 0.78); box-shadow: 0 0 0 3px rgba(14, 159, 189, 0.18); }
 .certificate-designer-field.is-selected::after { content: ""; position: absolute; right: -7px; bottom: -7px; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: var(--accent); box-shadow: 0 1px 3px rgba(13, 27, 42, 0.3); pointer-events: none; }
@@ -163,6 +165,7 @@ const productCss = `
 .certificate-designer-tools { display: grid; gap: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: white; padding: 14px; }
 .certificate-designer-tools .field input, .certificate-designer-tools .field select { width: 100%; }
 .certificate-designer-help { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); padding: 10px; color: var(--muted); font-size: 13px; }
+.certificate-designer-delete-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #e4a2a2; border-radius: var(--radius); background: #fff5f5; padding: 10px; color: #8d3030; font-size: 13px; font-weight: 800; }
 @media (max-width: 980px) { .certificate-designer-layout { grid-template-columns: 1fr; } }
 .certificate-event-detail { max-width: 300px; color: var(--muted); font-size: 13px; }
 .template-token-list { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -819,8 +822,11 @@ function cleanFontWeight(value) {
   return ["400", "500", "600", "700", "800", "900"].includes(String(value)) ? String(value) : "700";
 }
 
-function cleanCertificateDesignerText(value, fallback = "") {
-  const text = String(value ?? fallback).replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+function cleanCertificateDesignerText(value, fallback = "", preserveLineBreaks = false) {
+  const raw = String(value ?? fallback).replace(/\r\n?/g, "\n");
+  const text = preserveLineBreaks
+    ? raw.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim()
+    : raw.replace(/\s+/g, " ").trim();
   return text.slice(0, 500);
 }
 
@@ -848,7 +854,7 @@ function normalizeCustomCertificateDesignerField(field, index) {
     visible: field.visible === undefined ? true : Boolean(field.visible),
     editableText: true,
     isCustomText: true,
-    text: cleanCertificateDesignerText(field.text, "New text")
+    text: cleanCertificateDesignerText(field.text, "New text", true)
   };
 }
 
@@ -942,7 +948,7 @@ function normalizeCertificateDesigner(input = {}) {
         fontWeight: cleanFontWeight(field.fontWeight ?? definition.fontWeight),
         visible: field.visible === undefined ? definition.visible : Boolean(field.visible),
         editableText: Boolean(definition.editableText),
-        ...(definition.editableText ? { text: cleanCertificateDesignerText(field.text, definition.text) } : {})
+        ...(definition.editableText ? { text: cleanCertificateDesignerText(field.text, definition.text, true) } : {})
       };
     }), ...customFields]
   };
@@ -977,6 +983,29 @@ function applyCertificateDesignerToCourse(course, designerInput) {
 function setDefaultCertificateDesigner(designerInput) {
   db.settings ??= {};
   db.settings.defaultCertificateDesigner = normalizeCertificateDesigner(designerInput);
+}
+
+function certificateDesignerBackup(course) {
+  return {
+    format: "marine-lms-certificate-template",
+    version: 1,
+    exportedAt: now(),
+    course: { id: course.id, title: course.title },
+    designer: certificateDesignerForCourse(course),
+    certificateTemplateHtml: course.certificateTemplateHtml || defaultCertificateTemplate()
+  };
+}
+
+function restoreCertificateDesignerBackup(course, input) {
+  if (!input || input.format !== "marine-lms-certificate-template" || input.version !== 1 || !input.designer || typeof input.designer !== "object") {
+    throw new Error("This is not a valid Marine LMS certificate template backup.");
+  }
+  const designer = normalizeCertificateDesigner(input.designer);
+  applyCertificateDesignerToCourse(course, designer);
+  if (typeof input.certificateTemplateHtml === "string" && input.certificateTemplateHtml.trim()) {
+    course.certificateTemplateHtml = sanitizeCertificateTemplate(input.certificateTemplateHtml);
+  }
+  return designer;
 }
 
 function certificateDesignerFieldStyle(field) {
@@ -1188,7 +1217,8 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
               <div class="field"><label>Header text</label><input type="text" maxlength="500" data-designer-header-text placeholder="Enter certificate header" /></div>
               <div class="field"><label>Convention reference</label><textarea rows="3" maxlength="500" data-designer-convention-text placeholder="Enter the convention or standard reference"></textarea></div>
               <input name="overlayImageFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden data-overlay-image-files />
-              <div class="table-actions"><button class="small-button" type="button" data-add-text-field>Add text field</button><button class="small-button" type="button" data-add-image-field>Add image</button><button class="small-button danger" type="button" data-remove-custom-field disabled>Remove selected custom element</button></div>
+              <div class="table-actions"><button class="small-button" type="button" data-add-text-field>Add text field</button><button class="small-button" type="button" data-add-image-field>Add image</button></div>
+              <div class="certificate-designer-delete-control" data-custom-delete-control hidden><span>Selected added text or image</span><button class="small-button danger" type="button" data-remove-custom-field disabled>Delete element</button></div>
               <div class="field"><label>PDF or background image</label><input name="backgroundFile" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/gif" /></div>
               <div class="field"><label>Stamp image, always top layer</label><input name="stampFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></div>
               <label class="checkbox-row"><input name="removeStamp" type="checkbox" /> Remove stamp</label>
@@ -1196,6 +1226,10 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
               <label class="checkbox-row"><input name="resetDesigner" type="checkbox" /> Reset layout</label>
               <label class="checkbox-row"><input name="applyToAllCourses" type="checkbox" /> Apply this template to all courses and new courses</label>
               <button class="button" type="submit">Save visual template</button>
+              <div class="certificate-designer-help"><strong>Template backup</strong><br />Download the complete layout before making changes. To restore it later, select the saved JSON file and use Restore backup.</div>
+              <a class="small-button" href="/admin/courses/${course.id}/certificate-designer/export">Download template backup</a>
+              <div class="field"><label>Restore a template backup</label><input name="certificateDesignerBackup" type="file" accept="application/json,.json" /></div>
+              <button class="small-button warning" type="submit" name="restoreDesignerBackup" value="1">Restore backup</button>
               <div class="certificate-designer-help">Use Add image for JPG, PNG, WebP or GIF. Transparent PNG overlays are supported. Drag fields with the mouse; drag the blue corner marker to resize. Stamp is always rendered above text, photo and QR. Existing issued certificates keep their old snapshot.</div>
             </div>
           </div>
@@ -1224,6 +1258,7 @@ function certificateDesignerScript() {
   const addImageField = root.querySelector("[data-add-image-field]");
   const imageFiles = root.querySelector("[data-overlay-image-files]");
   const removeCustomField = root.querySelector("[data-remove-custom-field]");
+  const customDeleteControl = root.querySelector("[data-custom-delete-control]");
   const inputs = {
     visible: root.querySelector("[data-field-visible]"),
     x: root.querySelector("[data-field-x]"),
@@ -1319,6 +1354,7 @@ function certificateDesignerScript() {
     customTextPanel.hidden = !isCustomTextField(field);
     inputs.text.value = isCustomTextField(field) ? field.text || "" : "";
     removeCustomField.disabled = !isCustomField(field);
+    customDeleteControl.hidden = !isCustomField(field);
     inputs.headerText.value = byKey("header")?.text || "";
     inputs.conventionText.value = byKey("convention")?.text || "";
     for (const item of designer.fields) applyField(item);
@@ -1455,6 +1491,7 @@ function certificateDesignerScript() {
   removeCustomField.addEventListener("click", () => {
     const field = selected();
     if (!isCustomField(field)) return;
+    if (!window.confirm("Delete the selected added text or image element?")) return;
     localImageUrls.delete(field.key);
     designer.fields = designer.fields.filter((item) => item.key !== field.key);
     fieldNode(field.key)?.remove();
@@ -1521,7 +1558,9 @@ function decodeHtmlText(value = "") {
     .replaceAll("&gt;", ">")
     .replaceAll("&quot;", '"')
     .replaceAll("&#39;", "'")
-    .replace(/\s+/g, " ")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -1660,33 +1699,34 @@ function drawPdfLibImageFit(page, image, x, y, width, height) {
 }
 
 function drawPdfLibText(page, text, options) {
-  let value = pdfText(text);
+  let value = String(text ?? "").replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").trim();
   if (!value) return;
   const { x, y, width, height, font, fontSize, color, align } = options;
   let size = Math.max(6, Number(fontSize) || 12);
-  let textWidth = 0;
+  let lines = value.split("\n");
+  let lineWidths = [];
   try {
-    textWidth = font.widthOfTextAtSize(value, size);
+    lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
   } catch {
-    value = value.replace(/[^\x20-\x7E]/g, "?");
-    textWidth = font.widthOfTextAtSize(value, size);
+    value = value.replace(/[^\x20-\x7E\n]/g, "?");
+    lines = value.split("\n");
+    lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
   }
-  while (textWidth > width && size > 6) {
+  while (Math.max(...lineWidths, 0) > width && size > 6) {
     size -= 0.5;
-    textWidth = font.widthOfTextAtSize(value, size);
+    lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
   }
-  const drawX =
-    align === "right"
-      ? x + Math.max(0, width - textWidth)
-      : align === "left"
-        ? x
-        : x + Math.max(0, (width - textWidth) / 2);
-  const drawY = y + Math.max(0, (height - size) / 2);
-  try {
-    page.drawText(value, { x: drawX, y: drawY, size, font, color });
-  } catch {
-    const fallback = value.replace(/[^\x20-\x7E]/g, "?");
-    page.drawText(fallback, { x: drawX, y: drawY, size, font, color });
+  const leading = size * 1.12;
+  const blockHeight = lines.length * leading;
+  const baseY = y + Math.max(0, (height - blockHeight) / 2) + (lines.length - 1) * leading;
+  for (const [index, line] of lines.entries()) {
+    const textWidth = lineWidths[index];
+    const drawX = align === "right" ? x + Math.max(0, width - textWidth) : align === "left" ? x : x + Math.max(0, (width - textWidth) / 2);
+    try {
+      page.drawText(line || " ", { x: drawX, y: baseY - index * leading, size, font, color });
+    } catch {
+      page.drawText((line || " ").replace(/[^\x20-\x7E]/g, "?"), { x: drawX, y: baseY - index * leading, size, font, color });
+    }
   }
 }
 
@@ -1814,7 +1854,7 @@ function visualCertificatePdfKitBuffer(certificate, html) {
         width,
         height,
         align: ["left", "right", "center"].includes(align) ? align : "center",
-        lineBreak: false
+        lineBreak: true
       });
     }
 
@@ -2338,6 +2378,16 @@ function sendJson(response, body, status = 200) {
     ...responseSecurityHeaders()
   });
   response.end(JSON.stringify(body));
+}
+
+function sendCertificateDesignerBackup(response, course) {
+  response.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Disposition": `attachment; filename="certificate-template-${course.id}.json"`,
+    "Cache-Control": "private, no-store",
+    ...responseSecurityHeaders()
+  });
+  response.end(JSON.stringify(certificateDesignerBackup(course), null, 2));
 }
 
 function redirect(response, location) {
@@ -3700,7 +3750,24 @@ function page(title, user, body) {
   </head>
   <body>
     ${content}
-    <script nonce="{{CSP_NONCE}}">document.addEventListener("click", (event) => { if (event.target.closest("[data-print-certificate]")) window.print(); });</script>
+    <script nonce="{{CSP_NONCE}}">
+      (() => {
+        const scrollKey = "marine-lms:scroll:" + window.location.pathname;
+        document.addEventListener("click", (event) => { if (event.target.closest("[data-print-certificate]")) window.print(); });
+        document.addEventListener("submit", (event) => {
+          const form = event.target;
+          if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "post" || form.matches("[data-test-wizard], [data-no-scroll-restore]")) return;
+          sessionStorage.setItem(scrollKey, String(window.scrollY));
+        });
+        if (!window.location.hash) {
+          const savedScroll = sessionStorage.getItem(scrollKey);
+          if (savedScroll !== null) {
+            sessionStorage.removeItem(scrollKey);
+            requestAnimationFrame(() => window.scrollTo({ top: Number(savedScroll) || 0, behavior: "instant" }));
+          }
+        }
+      })();
+    </script>
   </body>
 </html>`;
 }
@@ -4084,7 +4151,7 @@ function adminStudentCard(student, viewer = null) {
   const fullAdmin = isFullAdmin(viewer);
   const canAssign = canAssignCourses(viewer);
   const canEdit = canEditStudents(viewer);
-  return `<article class="panel stack admin-user-card">
+  return `<article id="user-${escapeHtml(student.id)}" class="panel stack admin-user-card">
     <div class="admin-user-summary">
       <div>
         <span class="eyebrow">Student</span>
@@ -4177,6 +4244,10 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
   );
   const staff = db.users.filter((item) => ["admin", "instructor"].includes(item.role));
   const pagination = paginateItems(students, params);
+  const createdUser = userById(searchParams.get("created"));
+  const createdNotice = createdUser
+    ? `<div class="notice success">User created: <strong>${escapeHtml(displayUserName(createdUser) || createdUser.email)}</strong>. The page has moved to the new user.</div>`
+    : "";
   return adminShell(
     user,
     "Users",
@@ -4184,11 +4255,12 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
       <div class="section-heading">
         <div><span class="eyebrow">Users</span><h1>Students</h1><p class="lead">An administrator creates students, edits required details, and assigns courses.</p></div>
       </div>
+      ${createdNotice}
       <form class="inline-form" method="get" action="/admin/users">
         <input name="q" value="${escapeHtml(params.q)}" placeholder="Search students" />
         <button class="small-button primary" type="submit">Search</button>
       </form>
-      <form class="form-panel" method="post" action="/admin/users/create">
+      <form class="form-panel" method="post" action="/admin/users/create" enctype="multipart/form-data">
         <h2>${isFullAdmin(user) ? "Create user" : "Create student"}</h2>
         ${isFullAdmin(user)
           ? `<div class="field"><label>Role</label><select name="role"><option value="student">Student</option><option value="instructor">Instructor</option></select></div>`
@@ -4200,6 +4272,7 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
         <div class="field"><label>Position</label><input name="position" required /></div>
         <div class="field"><label>Company - optional</label><input name="company" /></div>
         <div class="field"><label>Phone</label><input name="phone" /></div>
+        <div class="field"><label>Student photo for certificate - optional</label><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" /></div>
         <div class="field"><label>Temporary password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
         <button class="button" type="submit">Create user</button>
       </form>
@@ -4208,7 +4281,7 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
         <table class="table">
           <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
           <tbody>${staff
-            .map((item) => `<tr><td>${escapeHtml(displayUserName(item))}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(roleLabel(item.role))}</td><td>${badge(item.status)}</td></tr>`)
+            .map((item) => `<tr id="user-${escapeHtml(item.id)}" class="admin-staff-row"><td>${escapeHtml(displayUserName(item))}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(roleLabel(item.role))}</td><td>${badge(item.status)}</td></tr>`)
             .join("") || `<tr><td colspan="4"><span class="muted">No staff members found.</span></td></tr>`}</tbody>
         </table>
       </article>` : ""}
@@ -7063,8 +7136,9 @@ async function handlePost(request, response, pathname, user) {
       const role = isFullAdmin(admin) && requestedRole === "instructor" ? "instructor" : "student";
       const password = form.get("password")?.toString() ?? "";
       const duplicate = db.users.some((item) => item.email.toLowerCase() === email.toLowerCase());
+      let createdUser = null;
       if (email && firstNameEn && lastNameEn && birthDate && position && password.length >= 12 && !duplicate) {
-        db.users.push({
+        const student = {
           id: id("user"),
           role,
           email,
@@ -7080,9 +7154,26 @@ async function handlePost(request, response, pathname, user) {
           createdById: admin.id,
           authVersion: 1,
           createdAt: now()
-        });
+        };
+        const photo = form.get("photo");
+        if (photo?.buffer?.length) {
+          const savedPhoto = saveCertificatePhoto(student, photo);
+          if (!savedPhoto.ok) {
+            send(response, adminShell(admin, "Create user", `<section class="section"><div class="notice danger">${escapeHtml(savedPhoto.message)}</div><a class="button" href="/admin/users">Back</a></section>`), 400);
+            return;
+          }
+        }
+        db.users.push(student);
+        createdUser = student;
       }
       saveDb(db);
+      if (createdUser) {
+        const createdStudents = db.users.filter((item) => item.role === "student" && (isFullAdmin(admin) || item.status !== "deleted"));
+        const studentIndex = createdStudents.findIndex((item) => item.id === createdUser.id);
+        const page = createdUser.role === "student" ? Math.max(1, Math.ceil((studentIndex + 1) / 10)) : 1;
+        redirect(response, `/admin/users?created=${encodeURIComponent(createdUser.id)}&page=${page}#user-${encodeURIComponent(createdUser.id)}`);
+        return;
+      }
       redirect(response, "/admin/users");
       return;
     }
@@ -7410,6 +7501,18 @@ async function handlePost(request, response, pathname, user) {
     if (certificateDesignerMatch) {
       const course = courseById(certificateDesignerMatch[1]);
       if (course) {
+        if (form.get("restoreDesignerBackup") === "1") {
+          const backupText = textFromFormFile(form.get("certificateDesignerBackup"));
+          try {
+            restoreCertificateDesignerBackup(course, JSON.parse(backupText));
+          } catch (error) {
+            send(response, adminShell(admin, "Certificate designer", `<section class="section"><div class="notice danger">${escapeHtml(error.message || "Unable to restore the template backup.")}</div><a class="button" href="/admin/courses/${course.id}">Back to course</a></section>`), 400);
+            return;
+          }
+          saveDb(db);
+          redirect(response, `/admin/courses/${course.id}`);
+          return;
+        }
         let designer = certificateDesignerForCourse(course);
         if (form.get("resetDesigner") === "on") {
           designer = defaultCertificateDesigner(
@@ -8005,6 +8108,12 @@ async function handleRequest(request, response) {
     if (adminUserMatch) {
       const student = db.users.find((item) => item.id === decodeURIComponent(adminUserMatch[1]) && item.role === "student");
       return send(response, student ? adminStudentDetail(admin, student) : adminShell(admin, "Not found", `<div class="notice">Student not found.</div>`), student ? 200 : 404);
+    }
+    const certificateDesignerExportMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/certificate-designer\/export$/);
+    if (certificateDesignerExportMatch) {
+      const course = courseById(certificateDesignerExportMatch[1]);
+      if (!isFullAdmin(admin)) return send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
+      return course ? sendCertificateDesignerBackup(response, course) : send(response, adminShell(admin, "Not found", `<div class="notice">Course not found.</div>`), 404);
     }
     const testPreviewMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/test\/preview$/);
     if (testPreviewMatch) {
