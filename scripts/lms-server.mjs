@@ -3960,7 +3960,7 @@ function studentShell(user, title, body) {
 
 function homePage(user, feedbackSent = false) {
   const visibleCourses = homepageCourses();
-  const featuredCourse = visibleCourses[0];
+  const featuredSlides = visibleCourses.slice(0, 6);
   return page(
     "Home",
     user,
@@ -3975,8 +3975,13 @@ function homePage(user, feedbackSent = false) {
             <a class="button secondary" href="/apply">Apply now</a>
           </div>
         </div>
-        <div class="figma-hero-feature">
-          ${featuredCourse ? `${courseCoverHtml(featuredCourse)}<div class="figma-hero-feature-copy"><span>FEATURED COURSE</span><strong>${escapeHtml(featuredCourse.title)}</strong><a href="${coursePublicUrl(featuredCourse)}">Explore course</a></div>` : `<div class="figma-hero-feature-copy"><span>MARITIME LEARNING</span><strong>Training that travels with you.</strong></div>`}
+        <div class="figma-hero-feature" style="--slide-count:${Math.max(featuredSlides.length, 1)}">
+          ${featuredSlides.length
+            ? featuredSlides.map((course, index) => `<article class="figma-hero-slide" style="--slide-index:${index}">
+                ${courseCoverHtml(course)}
+                <div class="figma-hero-feature-copy"><span>FEATURED COURSE</span><strong>${escapeHtml(course.title)}</strong><a href="${coursePublicUrl(course)}">Explore course</a></div>
+              </article>`).join("")
+            : `<div class="figma-hero-feature-copy"><span>MARITIME LEARNING</span><strong>Training that travels with you.</strong></div>`}
         </div>
       </section>
       <section class="section">

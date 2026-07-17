@@ -1060,12 +1060,23 @@ td, th { border-color: var(--line); }
   border-radius: var(--radius-lg);
   background: #cdebf5;
 }
+.figma-hero-slide { position: absolute; inset: 0; display: grid; align-content: end; opacity: 0; animation: figma-hero-slide calc(var(--slide-count) * 3s) ease-in-out infinite; animation-delay: calc(var(--slide-index) * -3s); }
+.figma-hero-slide:only-child { opacity: 1; animation: none; }
 .figma-hero-feature .course-cover, .figma-hero-feature img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .figma-hero-feature::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 34%, rgba(6,45,79,.8)); pointer-events: none; }
 .figma-hero-feature-copy { position: relative; z-index: 1; display: grid; gap: 5px; padding: 24px; color: #fff; }
 .figma-hero-feature-copy span { font-size: 11px; font-weight: 800; letter-spacing: .09em; }
 .figma-hero-feature-copy strong { font-size: 23px; line-height: 1.2; }
 .figma-hero-feature-copy a { width: fit-content; margin-top: 7px; border-bottom: 1px solid currentColor; font-weight: 700; }
+@keyframes figma-hero-slide {
+  0%, 27% { opacity: 1; }
+  33%, 94% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .figma-hero-slide { animation: none; }
+  .figma-hero-slide:not(:first-child) { display: none; }
+}
 .section-heading { align-items: end; }
 .section-heading h2 { margin-bottom: 0; }
 .home-page .grid.three { grid-template-columns: repeat(4, minmax(0, 1fr)); }
