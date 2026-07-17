@@ -120,7 +120,7 @@ jobs:
           npm run audit:prod
           npm run prod:check:no-uploads
 
-          pm2 restart marine-lms --update-env || pm2 start ecosystem.config.cjs --update-env
+          pm2 startOrReload ecosystem.config.cjs --update-env
           pm2 save
           health_url="http://127.0.0.1:${PORT:-3000}/healthz"
           for attempt in $(seq 1 60); do
