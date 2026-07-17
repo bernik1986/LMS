@@ -827,7 +827,7 @@ function cleanCertificateDesignerText(value, fallback = "", preserveLineBreaks =
   const text = preserveLineBreaks
     ? raw.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim()
     : raw.replace(/\s+/g, " ").trim();
-  return text.slice(0, 500);
+  return text.slice(0, 10000);
 }
 
 function isCustomCertificateDesignerFieldKey(value) {
@@ -1213,9 +1213,9 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
                 <div class="field"><label>Align</label><select data-field-align><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
                 <div class="field"><label>Weight</label><select data-field-weight><option value="400">400</option><option value="500">500</option><option value="600">600</option><option value="700">700</option><option value="800">800</option><option value="900">900</option></select></div>
               </div>
-              <div class="field" data-custom-text-panel hidden><label>Text content</label><textarea rows="3" maxlength="500" data-field-text placeholder="Enter text for this field"></textarea></div>
-              <div class="field"><label>Header text</label><input type="text" maxlength="500" data-designer-header-text placeholder="Enter certificate header" /></div>
-              <div class="field"><label>Convention reference</label><textarea rows="3" maxlength="500" data-designer-convention-text placeholder="Enter the convention or standard reference"></textarea></div>
+              <div class="field" data-custom-text-panel hidden><label>Text content</label><textarea rows="5" maxlength="10000" data-field-text placeholder="Enter text for this field"></textarea></div>
+              <div class="field"><label>Header text</label><textarea rows="3" maxlength="10000" data-designer-header-text placeholder="Enter certificate header"></textarea></div>
+              <div class="field"><label>Convention reference</label><textarea rows="8" maxlength="10000" data-designer-convention-text placeholder="Enter the convention or standard reference"></textarea></div>
               <input name="overlayImageFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden data-overlay-image-files />
               <div class="table-actions"><button class="small-button" type="button" data-add-text-field>Add text field</button><button class="small-button" type="button" data-add-image-field>Add image</button></div>
               <div class="certificate-designer-delete-control" data-custom-delete-control hidden><span>Selected added text or image</span><button class="small-button danger" type="button" data-remove-custom-field disabled>Delete element</button></div>
@@ -1378,11 +1378,11 @@ function certificateDesignerScript() {
     const header = byKey("header");
     const convention = byKey("convention");
     if (header) {
-      header.text = inputs.headerText.value.slice(0, 500);
+      header.text = inputs.headerText.value.slice(0, 10000);
       header.visible = Boolean(header.text.trim());
     }
     if (convention) {
-      convention.text = inputs.conventionText.value.slice(0, 500);
+      convention.text = inputs.conventionText.value.slice(0, 10000);
       convention.visible = Boolean(convention.text.trim());
     }
     for (const item of designer.fields) applyField(item);
@@ -1391,7 +1391,7 @@ function certificateDesignerScript() {
   function updateCustomText() {
     const field = selected();
     if (!isCustomTextField(field)) return;
-    field.text = inputs.text.value.slice(0, 500);
+    field.text = inputs.text.value.slice(0, 10000);
     field.visible = Boolean(field.text.trim());
     applyField(field);
     jsonInput.value = JSON.stringify(designer);
