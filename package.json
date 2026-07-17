@@ -26,6 +26,7 @@
     "prod:check:no-uploads": "node scripts/prod-check.mjs --skip-uploads",
     "prod:backup": "node scripts/backup-production.mjs",
     "prod:backup:db": "node scripts/backup-production.mjs --skip-uploads",
+    "prod:purge-users": "node scripts/purge-users.mjs",
     "prod:repair-uploads": "node scripts/repair-upload-paths.mjs",
     "prod:repair-uploads:apply": "node scripts/repair-upload-paths.mjs --apply",
     "prod:start": "node scripts/prod-start.mjs",
