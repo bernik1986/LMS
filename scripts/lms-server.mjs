@@ -100,6 +100,12 @@ const productCss = `
 .imo-news-card h2 { margin: 0; font-size: 26px; line-height: 1.22; }
 .imo-news-card p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
 .imo-news-card .small-button { justify-self: start; margin-top: 4px; }
+.about-training-card { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1.1fr); gap: 28px; align-items: stretch; overflow: hidden; }
+.about-training-visual { min-height: 340px; border-radius: var(--radius); background: linear-gradient(rgba(2, 46, 75, 0.36), rgba(2, 46, 75, 0.36)), url("/assets/homepage/hero-bridge.png") center / cover; }
+.about-training-copy { display: grid; align-content: center; gap: 16px; padding: 8px 0; }
+.about-training-copy p { margin: 0; color: var(--muted); font-size: 19px; line-height: 1.75; }
+.about-standards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.about-standard-item { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); padding: 14px; color: var(--primary-strong); font-weight: 850; }
 .course-prices-table th, .course-prices-table td { padding: 8px 10px; }
 .course-prices-table input { min-width: 120px; min-height: 34px; padding: 7px 9px; }
 .course-prices-table .course-name-cell { font-weight: 850; color: var(--primary-strong); min-width: 220px; }
@@ -177,6 +183,7 @@ const productCss = `
 .quiz-option { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); background: white; padding: 12px; }
 .status-pill { display: inline-flex; width: fit-content; border-radius: 999px; background: var(--primary-soft); color: var(--primary-strong); font-size: 12px; font-weight: 850; padding: 6px 10px; }
 @media (max-width: 820px) { .course-public-hero { grid-template-columns: 1fr; } }
+@media (max-width: 820px) { .about-training-card { grid-template-columns: 1fr; } .about-training-visual { min-height: 220px; } .about-training-copy p { font-size: 17px; } }
 @media print { .topbar, .sidebar, .actions, .button { display: none !important; } body { background: white; } .certificate { box-shadow: none; } }
 `;
 
@@ -2721,6 +2728,107 @@ function courseById(courseId) {
   return db.courses.find((course) => course.id === courseId);
 }
 
+function cloneCourseLessonsForMerge(courses) {
+  let lessonOrder = 1;
+  return courses.flatMap((course) =>
+    [...(course.lessons ?? [])]
+      .sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
+      .map((lesson) => {
+        const lessonId = id("lesson");
+        return {
+          ...structuredClone(lesson),
+          id: lessonId,
+          title: `${course.title}: ${lesson.title}`,
+          sortOrder: lessonOrder++,
+          materials: [...(lesson.materials ?? [])]
+            .sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
+            .map((material, index) => ({
+              ...structuredClone(material),
+              id: id("material"),
+              sortOrder: index + 1,
+              source: {
+                ...(material.source && typeof material.source === "object" ? material.source : {}),
+                mergedFromCourseId: course.id,
+                mergedFromLessonId: lesson.id
+              }
+            }))
+        };
+      })
+  );
+}
+
+function cloneCourseQuestionsForMerge(courses) {
+  let questionOrder = 1;
+  return courses.flatMap((course) =>
+    [...(course.test?.questions ?? [])]
+      .sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
+      .map((question) => ({
+        ...structuredClone(question),
+        id: id("question"),
+        questionText: `${course.title}: ${question.questionText}`,
+        sortOrder: questionOrder++,
+        options: [...(question.options ?? [])]
+          .sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
+          .map((option, index) => ({
+            ...structuredClone(option),
+            id: id("option"),
+            sortOrder: index + 1
+          }))
+      }))
+  );
+}
+
+function mergedCourseFrom(courses, form) {
+  const primary = courses[0];
+  const questions = cloneCourseQuestionsForMerge(courses);
+  const passingPercentValues = courses.map((course) => Number(course.test?.passingPercent)).filter(Number.isFinite);
+  const attemptsLimitValues = courses.map((course) => Number(course.test?.attemptsLimit)).filter(Number.isFinite);
+  const timeLimitValues = courses.map((course) => Number(course.test?.timeLimitMinutes)).filter(Number.isFinite);
+  const course = {
+    id: id("course"),
+    title: form.get("title")?.toString().trim() || courses.map((item) => item.title).join(" + "),
+    shortDescription: form.get("shortDescription")?.toString().trim() || `Merged course from: ${courses.map((item) => item.title).join(", ")}.`,
+    fullDescription: courses.map((item) => item.fullDescription || item.shortDescription || "").filter(Boolean).join("\n\n"),
+    goals: courses.map((item) => item.goals || "").filter(Boolean).join("\n\n"),
+    requirements: courses.map((item) => item.requirements || "").filter(Boolean).join("\n\n") || "Complete the required materials and pass the test.",
+    oldPrice: normalizeCoursePrice(form.get("oldPrice")) || "",
+    newPrice: normalizeCoursePrice(form.get("newPrice")) || "",
+    status: form.get("status") === "inactive" ? "inactive" : "active",
+    isSequential: courses.some((item) => item.isSequential !== false),
+    imageUrl: primary.imageUrl || "",
+    showOnHome: form.get("showOnHome") === "on",
+    homeSortOrder: Number(form.get("homeSortOrder")) > 0 ? Math.round(Number(form.get("homeSortOrder"))) : 999,
+    autoIssueCertificate: courseAutomaticallyIssuesCertificate(primary),
+    certificateTemplateHtml: primary.certificateTemplateHtml || defaultCertificateTemplateForNewCourse(),
+    certificateVisualTemplate: primary.certificateVisualTemplate ? structuredClone(primary.certificateVisualTemplate) : undefined,
+    source: {
+      ...(primary.source && typeof primary.source === "object" ? structuredClone(primary.source) : {}),
+      mergedFromCourseIds: courses.map((item) => item.id),
+      mergedAt: now()
+    },
+    lessons: cloneCourseLessonsForMerge(courses),
+    test: {
+      id: id("test"),
+      title: form.get("testTitle")?.toString().trim() || "Merged final test",
+      description: `Assessment combined from ${courses.length} course(s).`,
+      attemptsLimit: attemptsLimitValues.length ? Math.max(...attemptsLimitValues) : 3,
+      passingPercent: passingPercentValues.length ? Math.max(...passingPercentValues) : 80,
+      timeLimitMinutes: timeLimitValues.length ? Math.max(...timeLimitValues) : 0,
+      showResultToUser: courses.every((item) => item.test?.showResultToUser !== false),
+      allowRetake: courses.some((item) => item.test?.allowRetake !== false),
+      status: questions.length ? "active" : "inactive",
+      questions
+    },
+    createdAt: now()
+  };
+  if (!course.source) course.source = {};
+  updateCourseCatalogMetadata(course, {
+    category: courseCategory(primary),
+    positions: coursePositionsFor(primary)
+  });
+  return course;
+}
+
 function courseDeletionUsage(courseId) {
   return {
     assignments: (db.assignments ?? []).filter((assignment) => assignment.courseId === courseId).length,
@@ -3734,6 +3842,7 @@ function topNav(user) {
     <nav class="public-nav" aria-label="Main navigation">
       <a class="nav-link" href="/courses">Catalogue</a>
       <a class="nav-link" href="/blog">Blog</a>
+      <a class="nav-link" href="/about">About us</a>
       <a class="nav-link" href="/contacts">Contact</a>
     </nav>
     <div class="nav-account">
@@ -3976,6 +4085,39 @@ function contactsPage(user) {
     "Contact",
     user,
     `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">Contact</span><h1>Contact Marine LMS</h1><p class="lead">For training and course applications, use email or submit an application for the course you need.</p></div><a class="button" href="/apply">Apply now</a></div><article class="panel stack"><div><strong>Email</strong><br><a class="link-line" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></div></article></section></main>`
+  );
+}
+
+function aboutPage(user) {
+  return page(
+    "About us",
+    user,
+    `<main class="page">
+      <section class="section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">About us</span>
+            <h1>Maritime training with verified competence</h1>
+            <p class="lead">High-quality education for maritime professionals, delivered in English and aligned with international requirements.</p>
+          </div>
+          <a class="button" href="/courses">View courses</a>
+        </div>
+        <article class="panel about-training-card">
+          <div class="about-training-visual" role="img" aria-label="Ship bridge training environment"></div>
+          <div class="about-training-copy">
+            <p>Our training center provides high-quality education for maritime professionals in full compliance with international standards and regulatory requirements. All courses are delivered exclusively in English using a blended learning approach.</p>
+            <p>Participants first complete an online training program with periodic assessments and a final test, followed by an oral examination and discussion with an instructor. The instructor evaluates the participant's knowledge and, if necessary, provides additional guidance and learning materials.</p>
+            <p>After completing the additional study, the participant may retake the oral examination. An internationally recognized certificate is issued only after the participant has successfully demonstrated the required level of competence.</p>
+          </div>
+        </article>
+        <div class="about-standards" aria-label="Training principles">
+          <div class="about-standard-item">International standards</div>
+          <div class="about-standard-item">English-only delivery</div>
+          <div class="about-standard-item">Blended learning</div>
+          <div class="about-standard-item">Instructor assessment</div>
+        </div>
+      </section>
+    </main>`
   );
 }
 
@@ -5252,6 +5394,43 @@ function adminNewCourse(user) {
   );
 }
 
+function adminMergeCourses(user, error = "") {
+  const courses = [...db.courses].sort((a, b) => a.title.localeCompare(b.title, "en"));
+  return adminShell(
+    user,
+    "Merge courses",
+    `<section class="section">
+      <div class="toolbar">
+        <div><span class="eyebrow">Courses</span><h1>Merge courses</h1><p class="lead">Create a new combined course from two or more existing courses. Source courses remain unchanged.</p></div>
+        <a class="small-button" href="/admin/courses">Back to courses</a>
+      </div>
+      ${error ? `<div class="notice danger">${escapeHtml(error)}</div>` : ""}
+      <form class="form-panel stack" method="post" action="/admin/courses/merge">
+        <div class="admin-edit-grid">
+          <div class="field"><label>New course title</label><input name="title" required placeholder="e.g. Combined Maritime Safety Programme" /></div>
+          <div class="field"><label>Short description</label><textarea name="shortDescription" required placeholder="Brief description for the catalogue"></textarea></div>
+          <div class="field"><label>Old price</label><input name="oldPrice" placeholder="optional" /></div>
+          <div class="field"><label>New price</label><input name="newPrice" placeholder="optional" /></div>
+          <div class="field"><label>Final test title</label><input name="testTitle" placeholder="Merged final test" /></div>
+          <div class="field"><label>Status</label><select name="status"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+        </div>
+        <div class="admin-edit-grid">
+          <label class="checkbox-row"><input name="showOnHome" type="checkbox" /> Show on home page</label>
+          <div class="field"><label>Home page order</label><input name="homeSortOrder" type="number" min="1" value="999" /></div>
+        </div>
+        <article class="panel stack">
+          <h2>Courses to merge</h2>
+          <p class="muted">Select at least two courses. Lessons, materials, and assessment questions will be copied into the new course.</p>
+          <div class="checkbox-list">${courses
+            .map((course) => `<label class="checkbox-row"><input name="courseIds" type="checkbox" value="${escapeHtml(course.id)}" /> ${escapeHtml(course.title)} <span class="muted">${course.lessons?.length ?? 0} lessons, ${course.test?.questions?.length ?? 0} questions</span></label>`)
+            .join("") || `<span class="muted">No courses available.</span>`}</div>
+        </article>
+        <div class="table-actions"><button class="button" type="submit">Create merged course</button><a class="small-button" href="/admin/courses">Cancel</a></div>
+      </form>
+    </section>`
+  );
+}
+
 function adminCourses(user, searchParams = new URLSearchParams()) {
   const params = listParams(searchParams);
   const courses = db.courses.filter((course) =>
@@ -5264,7 +5443,7 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
     `<section class="section">
       <div class="section-heading">
         <div><span class="eyebrow">Courses</span><h1>Course management</h1><p class="lead">A course consists of lessons, required materials, and a final test.</p></div>
-        <div class="table-actions"><a class="button secondary" href="/admin/course-prices">Course prices</a><a class="button secondary" href="/admin/homepage">Configure home page</a>${isFullAdmin(user) ? `<a class="button" href="/admin/courses/new">New course</a>` : ""}</div>
+        <div class="table-actions"><a class="button secondary" href="/admin/course-prices">Course prices</a><a class="button secondary" href="/admin/homepage">Configure home page</a>${isFullAdmin(user) ? `<a class="button secondary" href="/admin/courses/merge">Merge courses</a><a class="button" href="/admin/courses/new">New course</a>` : ""}</div>
       </div>
       <form class="inline-form" method="get" action="/admin/courses">
         <input name="q" value="${escapeHtml(params.q)}" placeholder="Search courses" />
@@ -7458,6 +7637,28 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
 
+    if (pathname === "/admin/courses/merge") {
+      if (!isFullAdmin(admin)) {
+        send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Only an administrator can merge courses.</div></section>`), 403);
+        return;
+      }
+      const selectedIds = [...new Set(form.getAll("courseIds").map((value) => value.toString()))];
+      const selectedCourses = selectedIds.map(courseById).filter(Boolean);
+      if (selectedCourses.length < 2) {
+        send(response, adminMergeCourses(admin, "Select at least two existing courses to merge."), 400);
+        return;
+      }
+      const course = mergedCourseFrom(selectedCourses, form);
+      if (course.showOnHome) {
+        db.settings ??= {};
+        db.settings.homepageCourseSelectionEnabled = true;
+      }
+      db.courses.push(course);
+      saveDb(db);
+      redirect(response, `/admin/courses/${course.id}`);
+      return;
+    }
+
     const courseUpdateMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/update$/);
     if (courseUpdateMatch) {
       const course = courseById(courseUpdateMatch[1]);
@@ -8047,6 +8248,7 @@ async function handleRequest(request, response) {
   if (pathname === "/forgot-password") return send(response, forgotPasswordPage(user, url.searchParams.get("success") === "1"));
   if (pathname === "/reset-password") return send(response, resetPasswordPage(url.searchParams.get("token") ?? "", url.searchParams.get("error") ?? ""));
   if (pathname === "/blog") return send(response, await blogPage(user));
+  if (pathname === "/about") return send(response, aboutPage(user));
   if (pathname === "/contacts") return send(response, contactsPage(user));
   if (pathname === "/terms") { const footer = homeFooterSettings(); return send(response, policyPage(user, footer.termsLabel, footer.termsContent)); }
   if (pathname === "/privacy") { const footer = homeFooterSettings(); return send(response, policyPage(user, footer.privacyLabel, footer.privacyContent)); }
@@ -8113,6 +8315,7 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
     if (pathname === "/admin/courses/new") return send(response, isFullAdmin(admin) ? adminNewCourse(admin) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Only an administrator can create courses.</div></section>`), isFullAdmin(admin) ? 200 : 403);
+    if (pathname === "/admin/courses/merge") return send(response, isFullAdmin(admin) ? adminMergeCourses(admin) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Only an administrator can merge courses.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/courses") return send(response, adminCourses(admin, url.searchParams));
     if (pathname === "/admin/course-prices/export.xls") return isFullAdmin(admin) ? sendCoursePricesExcel(response, url.searchParams) : send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
     if (pathname === "/admin/course-prices") return send(response, isFullAdmin(admin) ? adminCoursePrices(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);

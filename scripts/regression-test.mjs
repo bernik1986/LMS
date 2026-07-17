@@ -142,7 +142,7 @@ async function run() {
     await cacheCsrfToken("/dashboard", studentCookie);
     const studentAdmin = await request("/admin", { headers: { cookie: studentCookie } });
     assert(studentAdmin.response.status === 403, "Student can access the admin area");
-    for (const path of ["/admin/checks", "/admin/course-prices", "/admin/courses/new"]) {
+    for (const path of ["/admin/checks", "/admin/course-prices", "/admin/courses/new", "/admin/courses/merge"]) {
       const page = await request(path, { headers: { cookie: adminCookie } });
       assert(page.response.status === 200, `${path} is unavailable for an admin`);
     }
@@ -167,6 +167,25 @@ async function run() {
     const courseList = await request("/admin/courses", { headers: { cookie: adminCookie } });
     assert(courseList.body.includes("admin-course-avatar") && !courseList.body.includes(alphaDescription), "Course list should show compact avatars and titles without descriptions");
     assert(courseList.body.includes('href="/admin/courses/new"'), "Course list does not provide the New course page");
+    assert(courseList.body.includes('href="/admin/courses/merge"'), "Course list does not provide the Merge courses page");
+    const seededBeforeMerge = readDb().courses.filter((course) => ["course_maritime_safety", "course_first_aid"].includes(course.id));
+    const expectedMergedLessons = seededBeforeMerge.reduce((sum, course) => sum + (course.lessons?.length ?? 0), 0);
+    const expectedMergedQuestions = seededBeforeMerge.reduce((sum, course) => sum + (course.test?.questions?.length ?? 0), 0);
+    const mergedTitle = `Regression Merged Course ${runId}`;
+    const mergedResponse = await postForm("/admin/courses/merge", {
+      title: mergedTitle,
+      shortDescription: "Combined course regression",
+      testTitle: "Combined final assessment",
+      courseIds: ["course_maritime_safety", "course_first_aid"]
+    }, adminCookie);
+    assert(mergedResponse.response.status === 303, "Course merge did not redirect to the merged course");
+    database = readDb();
+    const mergedCourse = database.courses.find((course) => course.title === mergedTitle);
+    assert(mergedCourse, "Merged course was not created");
+    assert(mergedResponse.response.headers.get("location") === `/admin/courses/${mergedCourse.id}`, "Course merge did not redirect to the new course editor");
+    assert((mergedCourse.lessons?.length ?? 0) === expectedMergedLessons, "Merged course did not copy all lessons");
+    assert((mergedCourse.test?.questions?.length ?? 0) === expectedMergedQuestions, "Merged course did not copy all assessment questions");
+    assert(mergedCourse.source?.mergedFromCourseIds?.includes("course_maritime_safety") && mergedCourse.source?.mergedFromCourseIds?.includes("course_first_aid"), "Merged course does not keep source course references");
     const coursePrices = await request("/admin/course-prices", { headers: { cookie: adminCookie } });
     assert(coursePrices.body.includes("Automatic certificate") && coursePrices.body.includes(`autoIssueCertificate:${alpha.id}`), "Course prices do not provide automatic certificate controls");
     await expectRedirect(postForm("/admin/course-prices/update", {
