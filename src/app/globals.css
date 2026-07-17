@@ -1,4 +1,26 @@
 :root {
+  /* Figma foundation tokens: Ocean Light / Marine Portal LMS. */
+  --color-navy: #062d4f;
+  --color-ocean: #0b4f7a;
+  --color-cyan: #18a0be;
+  --color-ink: #0e1a2a;
+  --color-muted: #54667a;
+  --color-page: #f5faff;
+  --color-soft: #e7f4fa;
+  --color-line: #d3e0ea;
+  --color-success: #148f5c;
+  --color-danger: #c72e33;
+  --color-warning: #e3911f;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
   --background: #f4f8fc;
   --surface: #ffffff;
   --surface-muted: #eaf4fb;
@@ -919,4 +941,172 @@ h3 {
     gap: 44px;
     padding: 48px 0;
   }
+}
+
+/* Figma implementation layer.  Kept at the end so legacy functional pages
+   inherit the same visual system while their routes and forms remain intact. */
+:root {
+  --background: var(--color-page);
+  --surface: #fff;
+  --surface-muted: var(--color-soft);
+  --ink: var(--color-ink);
+  --muted: var(--color-muted);
+  --line: var(--color-line);
+  --primary: var(--color-ocean);
+  --primary-strong: var(--color-navy);
+  --primary-soft: #d9eef7;
+  --accent: var(--color-cyan);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --navy: var(--color-navy);
+  --navy-soft: #073a63;
+  --radius: var(--radius-md);
+  --shadow: 0 2px 8px rgba(6, 45, 79, 0.08);
+}
+
+body { background: var(--color-page); line-height: 1.5; }
+.topbar {
+  position: relative;
+  min-height: 72px;
+  padding: 10px clamp(20px, 5vw, 72px);
+  border-bottom-color: var(--line);
+  background: #fff;
+  backdrop-filter: none;
+}
+.brand-logo { width: clamp(142px, 15vw, 186px); height: 46px; }
+.public-nav { gap: 24px; }
+.public-nav .nav-link, .nav-account .nav-link {
+  min-height: 40px;
+  color: var(--color-muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+.public-nav .nav-link:hover, .nav-account .nav-link:hover { color: var(--primary); }
+.nav-account > a:last-child, .nav-account form .nav-link {
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+.nav-account form .nav-link { background: #fff; cursor: pointer; }
+
+h1, h2, h3, p { letter-spacing: 0; }
+h1 { color: var(--color-ink); font-size: clamp(30px, 3vw, 42px); line-height: 1.15; }
+h2 { color: var(--color-ink); font-size: clamp(24px, 2.2vw, 32px); line-height: 1.2; }
+h3 { color: var(--color-ink); }
+.lead { max-width: 650px; color: var(--color-muted); font-size: 17px; line-height: 1.6; }
+.eyebrow { color: var(--primary); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.button, .small-button {
+  min-height: 42px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  font-weight: 750;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+.button { padding: 9px 16px; }
+.button:hover, .small-button.primary:hover { background: var(--primary-strong); box-shadow: none; transform: none; }
+.button.secondary, .small-button:not(.primary) { background: #fff; border-color: var(--line); color: var(--primary-strong); }
+.button.secondary:hover, .small-button:not(.primary):hover { border-color: var(--primary); background: #f7fcff; }
+input, select, textarea {
+  border-color: var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--color-ink);
+  min-height: 42px;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: 3px solid rgba(11,79,122,.12); }
+
+.page, .section { width: min(1320px, calc(100% - 48px)); }
+.page { padding-top: 32px; padding-bottom: 48px; }
+.section { gap: 28px; }
+.panel, .card, .metric, .form-panel, .notice, .photo-warning, .table-wrap, table {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+.panel, .card, .metric, .form-panel { background: #fff; }
+.card { padding: 18px; }
+.card h3 { margin-top: 16px; margin-bottom: 8px; font-size: 18px; }
+.metric { padding: 18px; min-height: 118px; }
+.metric-value { color: var(--primary-strong); font-size: 30px; }
+table { overflow: hidden; }
+th { background: #eef7fc; color: var(--primary-strong); }
+td, th { border-color: var(--line); }
+.badge, .status-pill { border-radius: 999px; box-shadow: none; }
+
+/* Public website */
+.home-page { min-height: auto; }
+.figma-public > .section { margin-top: 0; padding-top: 64px; padding-bottom: 64px; }
+.figma-hero {
+  display: grid;
+  grid-template-columns: minmax(0, .95fr) minmax(420px, 1.05fr);
+  gap: clamp(42px, 8vw, 126px);
+  align-items: center;
+  min-height: 490px;
+  padding: clamp(58px, 8vw, 108px) max(24px, calc((100vw - 1296px) / 2));
+  background: var(--color-soft);
+}
+.figma-hero-copy { max-width: 560px; }
+.figma-hero h1 { margin: 12px 0 20px; font-size: clamp(46px, 4.8vw, 68px); line-height: 1.05; }
+.figma-hero .lead { margin-bottom: 28px; font-size: 19px; }
+.figma-hero-feature {
+  position: relative;
+  display: grid;
+  align-content: end;
+  min-height: 350px;
+  overflow: hidden;
+  border: 1px solid #b9dce9;
+  border-radius: var(--radius-lg);
+  background: #cdebf5;
+}
+.figma-hero-feature .course-cover, .figma-hero-feature img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.figma-hero-feature::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 34%, rgba(6,45,79,.8)); pointer-events: none; }
+.figma-hero-feature-copy { position: relative; z-index: 1; display: grid; gap: 5px; padding: 24px; color: #fff; }
+.figma-hero-feature-copy span { font-size: 11px; font-weight: 800; letter-spacing: .09em; }
+.figma-hero-feature-copy strong { font-size: 23px; line-height: 1.2; }
+.figma-hero-feature-copy a { width: fit-content; margin-top: 7px; border-bottom: 1px solid currentColor; font-weight: 700; }
+.section-heading { align-items: end; }
+.section-heading h2 { margin-bottom: 0; }
+.home-page .grid.three { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.home-page .card, .course-catalog .card { display: flex; flex-direction: column; }
+.home-page .card .course-cover, .home-page .card > img { aspect-ratio: 16 / 10; margin: -18px -18px 0; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.home-page .card .table-actions { margin-top: auto; padding-top: 12px; }
+
+/* Student and admin portals */
+.split-layout { min-height: calc(100vh - 72px); background: var(--color-page); }
+.sidebar { width: 250px; padding: 28px 16px; background: var(--color-navy); }
+.portal-identity { display: grid; gap: 4px; padding: 2px 12px 24px; color: #fff; }
+.portal-identity strong { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.portal-identity span { color: #a8c8dd; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.sidebar-nav { gap: 4px; }
+.sidebar-nav a { border-radius: var(--radius-sm); color: #d9eaf5; font-size: 15px; font-weight: 650; }
+.sidebar-nav a:hover, .sidebar-nav a.active { background: #0b75b5; color: #fff; }
+.content { padding: 36px clamp(24px, 4vw, 56px) 56px; background: var(--color-page); }
+.content .section, .content .page { width: 100%; max-width: 1280px; margin: 0; }
+.content .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.content > .photo-warning { max-width: 1280px; margin: 0 0 20px; background: #e8f7fb; color: var(--color-ink); }
+
+@media (max-width: 1100px) {
+  .home-page .grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .figma-hero { grid-template-columns: 1fr 1fr; gap: 40px; }
+}
+@media (max-width: 800px) {
+  .topbar { grid-template-columns: 1fr auto; gap: 8px; min-height: 64px; padding: 8px 16px; }
+  .brand-logo { width: 138px; height: 40px; }
+  .public-nav { display: none; }
+  .nav-account { grid-column: 2; }
+  .nav-account .nav-link { font-size: 14px; padding: 6px 8px; }
+  .nav-account a[href="/dashboard"], .nav-account a[href="/admin"] { display: none; }
+  .figma-hero { grid-template-columns: 1fr; gap: 28px; min-height: auto; padding: 52px 24px; }
+  .figma-hero h1 { font-size: 44px; }
+  .figma-hero-feature { min-height: 260px; }
+  .page, .section { width: min(100% - 32px, 1320px); }
+  .home-page .grid.three, .content .grid.three { grid-template-columns: 1fr; }
+  .split-layout { display: block; }
+  .sidebar { width: 100%; padding: 16px; }
+  .portal-identity { padding: 0 4px 12px; }
+  .sidebar-nav { display: flex; overflow-x: auto; padding-bottom: 2px; }
+  .sidebar-nav a { flex: 0 0 auto; padding: 9px 12px; }
+  .content { padding: 24px 16px 42px; }
 }

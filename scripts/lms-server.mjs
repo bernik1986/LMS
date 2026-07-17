@@ -187,6 +187,21 @@ const productCss = `
 @media print { .topbar, .sidebar, .actions, .button { display: none !important; } body { background: white; } .certificate { box-shadow: none; } }
 `;
 
+// Loaded after feature-specific styles so the approved Figma foundations win
+// on every existing route without changing its business logic.
+const figmaCss = `
+.small-button { min-height: 42px; border-radius: 6px; border-color: var(--primary); padding: 9px 14px; box-shadow: none; }
+.small-button:not(.primary) { background: #fff; border-color: var(--line); color: var(--primary-strong); }
+.small-button.primary { background: var(--primary); color: #fff; }
+.course-cover { border-radius: 8px; box-shadow: none; }
+.course-cover.admin-course-avatar { border-radius: 8px; }
+.sidebar { background: var(--navy); }
+.sidebar-nav a:hover, .sidebar-nav a.active { background: #0b75b5; color: #fff; }
+.panel, .card, .metric, .form-panel, .imo-news-card { box-shadow: none; }
+.imo-news-card { border-radius: 8px; }
+.course-public-cover { box-shadow: none; }
+`;
+
 // Prices are temporarily hidden only from public visitors while administrators configure them.
 const SHOW_PUBLIC_COURSE_PRICES = false;
 
@@ -3864,7 +3879,7 @@ function page(title, user, body) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)} | Marine LMS</title>
-    <style nonce="{{CSP_NONCE}}">${baseCss}${productCss}</style>
+    <style nonce="{{CSP_NONCE}}">${baseCss}${productCss}${figmaCss}</style>
   </head>
   <body>
     ${content}
@@ -3893,18 +3908,18 @@ function page(title, user, body) {
 function adminShell(user, title, body) {
   const navLinks = isFullAdmin(user)
     ? `<a href="/admin">Dashboard</a>
-          <a href="/admin/applications">Applications</a>
-          <a href="/admin/users">Users</a>
-          <a href="/admin/reports">Reports</a>
-          <a href="/admin/checks">Invoices</a>
-          <a href="/admin/tests">Tests</a>
+          <a href="/admin/users">Students</a>
           <a href="/admin/courses">Courses</a>
-          <a href="/admin/course-prices">Prices</a>
-          <a href="/admin/homepage">Home</a>
-          <a href="/admin/files">Files</a>
+          <a href="/admin/applications">Applications</a>
+          <a href="/admin/tests">Tests &amp; results</a>
+          <a href="/admin/checks">Invoices &amp; reports</a>
           <a href="/admin/certificates">Certificates</a>
           <a href="/admin/notifications">Notifications</a>
-          <a href="/admin/audit">Audit log</a>`
+          <a href="/admin/audit">Audit log</a>
+          <a href="/admin/course-prices">Prices</a>
+          <a href="/admin/homepage">Home page</a>
+          <a href="/admin/files">Files</a>
+          <a href="/admin/reports">Reports</a>`
     : `<a href="/admin">Instructor panel</a>
           <a href="/admin/users">Users</a>`;
   return page(
@@ -3912,7 +3927,7 @@ function adminShell(user, title, body) {
     user,
     `<div class="split-layout">
       <aside class="sidebar">
-        <span class="eyebrow">Administration</span>
+        <div class="portal-identity"><strong>Marine Portal</strong><span>Admin panel</span></div>
         <nav class="sidebar-nav">
           ${navLinks}
         </nav>
@@ -3929,7 +3944,7 @@ function studentShell(user, title, body) {
     user,
     `<div class="split-layout">
       <aside class="sidebar">
-        <span class="eyebrow">My account</span>
+        <div class="portal-identity"><strong>${escapeHtml(displayUserName(user) || user.email)}</strong><span>Student</span></div>
         <nav class="sidebar-nav">
           <a href="/dashboard">Overview</a>
           <a href="/dashboard/courses">My courses</a>
@@ -3945,35 +3960,29 @@ function studentShell(user, title, body) {
 
 function homePage(user, feedbackSent = false) {
   const visibleCourses = homepageCourses();
+  const featuredCourse = visibleCourses[0];
   return page(
     "Home",
     user,
-    `<main class="home-page">
-      <section class="hero">
-        <div class="hero-scenes" aria-hidden="true">
-          <span class="hero-scene hero-scene-bridge"></span>
-          <span class="hero-scene hero-scene-vessel"></span>
-          <span class="hero-scene hero-scene-safety"></span>
-        </div>
-        <div class="hero-copy">
-          <span class="eyebrow">Marine training platform</span>
-          <h1>Marine LMS for training, tests, and certificates</h1>
-          <p class="lead">A private maritime learning platform where administrators create students, assign training, track progress, and issue certificates.</p>
+    `<main class="home-page figma-public">
+      <section class="figma-hero">
+        <div class="figma-hero-copy">
+          <span class="eyebrow">MARITIME EDUCATION</span>
+          <h1>Learn Today.<br />Lead Tomorrow.</h1>
+          <p class="lead">Quality maritime education anytime, anywhere.</p>
           <div class="actions">
-            <a class="button" href="/apply">Apply for a course</a>
-            <a class="button secondary" href="${user ? "/dashboard" : "/login"}">Sign in</a>
+            <a class="button" href="/courses">View courses</a>
+            <a class="button secondary" href="/apply">Apply now</a>
           </div>
-          <div class="hero-meta">
-            <div class="hero-meta-item"><strong>Manual access</strong><span>no self-registration</span></div>
-            <div class="hero-meta-item"><strong>Course control</strong><span>materials before the test</span></div>
-            <div class="hero-meta-item"><strong>Certificates</strong><span>linked to the student and course</span></div>
-          </div>
+        </div>
+        <div class="figma-hero-feature">
+          ${featuredCourse ? `${courseCoverHtml(featuredCourse)}<div class="figma-hero-feature-copy"><span>FEATURED COURSE</span><strong>${escapeHtml(featuredCourse.title)}</strong><a href="${coursePublicUrl(featuredCourse)}">Explore course</a></div>` : `<div class="figma-hero-feature-copy"><span>MARITIME LEARNING</span><strong>Training that travels with you.</strong></div>`}
         </div>
       </section>
       <section class="section">
         <div class="section-heading">
-          <div><span class="eyebrow">Courses</span><h2>Available training programmes</h2></div>
-          <div class="actions"><a class="button secondary" href="/courses">All courses</a><a class="button secondary" href="/apply">Apply now</a></div>
+          <div><span class="eyebrow">Featured courses</span><h2>Choose your next course</h2></div>
+          <div class="actions"><a class="button secondary" href="/courses">View all courses</a></div>
         </div>
         <div class="grid three">
           ${visibleCourses.length
