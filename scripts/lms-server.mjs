@@ -491,6 +491,10 @@ function normalizeDb(data) {
       course.newPrice = "";
       changed = true;
     }
+    if (typeof course.autoIssueCertificate !== "boolean") {
+      course.autoIssueCertificate = true;
+      changed = true;
+    }
     for (const priceKey of ["oldPrice", "newPrice"]) {
       const normalizedPrice = normalizeCoursePrice(course[priceKey]);
       if (course[priceKey] !== normalizedPrice) {
@@ -3599,11 +3603,16 @@ function issueCertificate(assignment, options = {}) {
   return certificate;
 }
 
+function courseAutomaticallyIssuesCertificate(course) {
+  return course?.autoIssueCertificate !== false;
+}
+
 function issuePendingCertificatesForUser(user, options = {}) {
   if (!hasCertificatePhoto(user)) return [];
   const issued = [];
   for (const assignment of db.assignments.filter((item) => item.userId === user.id && item.status === "completed")) {
-    if (!activeCertificateForAssignment(assignment.id)) {
+    const course = courseById(assignment.courseId);
+    if (courseAutomaticallyIssuesCertificate(course) && !activeCertificateForAssignment(assignment.id)) {
       const certificate = issueCertificate(assignment, options);
       if (certificate) issued.push(certificate);
     }
@@ -5218,26 +5227,12 @@ function adminHomepage(user) {
   );
 }
 
-function adminCourses(user, searchParams = new URLSearchParams()) {
-  const params = listParams(searchParams);
-  const courses = db.courses.filter((course) =>
-    matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.oldPrice, course.newPrice, course.status], params.q)
-  );
-  const pagination = paginateItems(courses, params);
+function adminNewCourse(user) {
   return adminShell(
     user,
-    "Courses",
-    `<section class="section">
-      <div class="section-heading">
-        <div><span class="eyebrow">Courses</span><h1>Course management</h1><p class="lead">A course consists of lessons, required materials, and a final test.</p></div>
-        <div class="table-actions"><a class="button secondary" href="/admin/course-prices">Course prices</a><a class="button secondary" href="/admin/homepage">Configure home page</a></div>
-      </div>
-      <form class="inline-form" method="get" action="/admin/courses">
-        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search courses" />
-        <button class="small-button primary" type="submit">Search</button>
-      </form>
+    "New course",
+    `<section class="section"><div class="toolbar"><div><span class="eyebrow">Courses</span><h1>New course</h1><p class="lead">Create the course profile first. Lessons, videos, materials, tests and the certificate are added on the course page after creation.</p></div><a class="small-button" href="/admin/courses">Back to courses</a></div>
       <form class="form-panel" method="post" action="/admin/courses/create" enctype="multipart/form-data">
-        <h2>Create course</h2>
         <div class="field"><label>Title</label><input name="title" required /></div>
         <div class="field"><label>Short description</label><textarea name="shortDescription" required></textarea></div>
         <div class="field"><label>Learning objectives</label><textarea name="goals"></textarea></div>
@@ -5251,7 +5246,29 @@ function adminCourses(user, searchParams = new URLSearchParams()) {
           <label class="checkbox-row"><input name="showOnHome" type="checkbox" /> Show on home page</label>
           <div class="field"><label>Home page order</label><input name="homeSortOrder" type="number" min="1" value="999" /></div>
         </div>
-        <button class="button" type="submit">Create course</button>
+        <div class="table-actions"><button class="button" type="submit">Create course</button><a class="small-button" href="/admin/courses">Cancel</a></div>
+      </form>
+    </section>`
+  );
+}
+
+function adminCourses(user, searchParams = new URLSearchParams()) {
+  const params = listParams(searchParams);
+  const courses = db.courses.filter((course) =>
+    matchesQuery([course.title, course.shortDescription, course.fullDescription, course.goals, course.oldPrice, course.newPrice, course.status], params.q)
+  );
+  const pagination = paginateItems(courses, params);
+  return adminShell(
+    user,
+    "Courses",
+    `<section class="section">
+      <div class="section-heading">
+        <div><span class="eyebrow">Courses</span><h1>Course management</h1><p class="lead">A course consists of lessons, required materials, and a final test.</p></div>
+        <div class="table-actions"><a class="button secondary" href="/admin/course-prices">Course prices</a><a class="button secondary" href="/admin/homepage">Configure home page</a>${isFullAdmin(user) ? `<a class="button" href="/admin/courses/new">New course</a>` : ""}</div>
+      </div>
+      <form class="inline-form" method="get" action="/admin/courses">
+        <input name="q" value="${escapeHtml(params.q)}" placeholder="Search courses" />
+        <button class="small-button primary" type="submit">Search</button>
       </form>
       <table class="table">
         <thead><tr><th>Course</th><th>Price</th><th>Home page</th><th>Status</th><th>Materials</th><th>Test</th><th>Actions</th></tr></thead>
@@ -5317,14 +5334,15 @@ function adminCoursePrices(user, searchParams = new URLSearchParams()) {
       <form id="course-prices-form" class="form-panel" method="post" action="/admin/course-prices/update">
         <input type="hidden" name="returnTo" value="${escapeHtml(returnTo)}" />
         <table class="table course-prices-table">
-          <thead><tr><th>Course</th><th>Old price</th><th>New price</th></tr></thead>
+          <thead><tr><th>Course</th><th>Old price</th><th>New price</th><th>Automatic certificate</th></tr></thead>
           <tbody>${courses
             .map((course) => `<tr>
               <td class="course-name-cell">${escapeHtml(course.title)}</td>
               <td><input name="oldPrice:${course.id}" value="${escapeHtml(course.oldPrice ?? "")}" placeholder="e.g. 250 USD" /></td>
               <td><input name="newPrice:${course.id}" value="${escapeHtml(course.newPrice ?? "")}" placeholder="e.g. 199 USD" /></td>
+              <td><input type="hidden" name="certificateSetting:${course.id}" value="1" /><label class="checkbox-row"><input name="autoIssueCertificate:${course.id}" type="checkbox" ${courseAutomaticallyIssuesCertificate(course) ? "checked" : ""} /> Issue after completion</label></td>
             </tr>`)
-            .join("") || `<tr><td colspan="3"><span class="muted">No courses found.</span></td></tr>`}</tbody>
+            .join("") || `<tr><td colspan="4"><span class="muted">No courses found.</span></td></tr>`}</tbody>
         </table>
         <div class="table-actions"><button class="button" type="submit">Save prices</button></div>
       </form>
@@ -5519,6 +5537,8 @@ function adminCourseDetail(user, course) {
           <code>{{firstName}}</code><code>{{lastName}}</code><code>{{fullName}}</code><code>{{birthDate}}</code><code>{{position}}</code><code>{{company}}</code><code>{{courseTitle}}</code><code>{{certificateNumber}}</code><code>{{issuedAt}}</code><code>{{expiresAt}}</code><code>{{photoImage}}</code><code>{{photoUrl}}</code><code>{{verificationUrl}}</code><code>{{qrCode}}</code>
         </div>
         <form class="stack" method="post" action="/admin/courses/${course.id}/certificate-template" enctype="multipart/form-data">
+          <label class="checkbox-row"><input name="autoIssueCertificate" type="checkbox" ${courseAutomaticallyIssuesCertificate(course) ? "checked" : ""} /> Automatically issue a certificate after the student completes this course</label>
+          <p class="muted">When disabled, course completion is saved normally and an administrator can issue the certificate manually.</p>
           <div class="field"><label>HTML template</label><textarea name="certificateTemplateHtml">${escapeHtml(course.certificateTemplateHtml || defaultCertificateTemplate())}</textarea></div>
           <div class="admin-edit-grid">
             <div class="field"><label>Upload HTML file</label><input name="templateFile" type="file" accept=".html,text/html,text/plain" /></div>
@@ -7062,8 +7082,10 @@ async function handlePost(request, response, pathname, user) {
       for (const course of db.courses) {
         const oldPriceKey = `oldPrice:${course.id}`;
         const newPriceKey = `newPrice:${course.id}`;
+        const certificateSettingKey = `certificateSetting:${course.id}`;
         if (form.has(oldPriceKey)) course.oldPrice = normalizeCoursePrice(form.get(oldPriceKey));
         if (form.has(newPriceKey)) course.newPrice = normalizeCoursePrice(form.get(newPriceKey));
+        if (form.has(certificateSettingKey)) course.autoIssueCertificate = form.has(`autoIssueCertificate:${course.id}`);
       }
       saveDb(db);
       redirect(response, adminReturnTo(form, "/admin/course-prices"));
@@ -7399,6 +7421,7 @@ async function handlePost(request, response, pathname, user) {
         imageUrl: "",
         showOnHome: form.get("showOnHome") === "on",
         homeSortOrder: Number(form.get("homeSortOrder")) > 0 ? Math.round(Number(form.get("homeSortOrder"))) : 999,
+        autoIssueCertificate: true,
         certificateTemplateHtml: defaultCertificateTemplateForNewCourse(),
         source: defaultCertificateSourceForNewCourse(),
         lessons: [],
@@ -7598,6 +7621,7 @@ async function handlePost(request, response, pathname, user) {
       if (course) {
         const uploadedTemplate = textFromFormFile(form.get("templateFile"));
         const textTemplate = form.get("certificateTemplateHtml")?.toString() ?? "";
+        course.autoIssueCertificate = form.get("autoIssueCertificate") === "on";
         course.certificateTemplateHtml =
           form.get("resetTemplate") === "on"
             ? defaultCertificateTemplate()
@@ -7970,7 +7994,7 @@ async function handlePost(request, response, pathname, user) {
       assignment.status = "completed";
       assignment.completedAt = now();
       assignment.progressPercent = 100;
-      issueCertificate(assignment);
+      if (courseAutomaticallyIssuesCertificate(course)) issueCertificate(assignment);
     } else {
       assignment.status = "test_failed";
     }
@@ -8088,6 +8112,7 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/checks/export.xls") return isFullAdmin(admin) ? sendChecksExcel(response, url.searchParams) : send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
     if (pathname === "/admin/checks") return send(response, isFullAdmin(admin) ? adminChecks(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/tests") return send(response, adminTests(admin, url.searchParams));
+    if (pathname === "/admin/courses/new") return send(response, isFullAdmin(admin) ? adminNewCourse(admin) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Only an administrator can create courses.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     if (pathname === "/admin/courses") return send(response, adminCourses(admin, url.searchParams));
     if (pathname === "/admin/course-prices/export.xls") return isFullAdmin(admin) ? sendCoursePricesExcel(response, url.searchParams) : send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), 403);
     if (pathname === "/admin/course-prices") return send(response, isFullAdmin(admin) ? adminCoursePrices(admin, url.searchParams) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);

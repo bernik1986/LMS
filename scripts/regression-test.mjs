@@ -142,7 +142,7 @@ async function run() {
     await cacheCsrfToken("/dashboard", studentCookie);
     const studentAdmin = await request("/admin", { headers: { cookie: studentCookie } });
     assert(studentAdmin.response.status === 403, "Student can access the admin area");
-    for (const path of ["/admin/checks", "/admin/course-prices"]) {
+    for (const path of ["/admin/checks", "/admin/course-prices", "/admin/courses/new"]) {
       const page = await request(path, { headers: { cookie: adminCookie } });
       assert(page.response.status === 200, `${path} is unavailable for an admin`);
     }
@@ -166,12 +166,24 @@ async function run() {
     assert(alpha && beta && removable, "Regression courses were not created");
     const courseList = await request("/admin/courses", { headers: { cookie: adminCookie } });
     assert(courseList.body.includes("admin-course-avatar") && !courseList.body.includes(alphaDescription), "Course list should show compact avatars and titles without descriptions");
+    assert(courseList.body.includes('href="/admin/courses/new"'), "Course list does not provide the New course page");
+    const coursePrices = await request("/admin/course-prices", { headers: { cookie: adminCookie } });
+    assert(coursePrices.body.includes("Automatic certificate") && coursePrices.body.includes(`autoIssueCertificate:${alpha.id}`), "Course prices do not provide automatic certificate controls");
+    await expectRedirect(postForm("/admin/course-prices/update", {
+      [`oldPrice:${alpha.id}`]: "100",
+      [`newPrice:${alpha.id}`]: "80",
+      [`certificateSetting:${alpha.id}`]: "1"
+    }, adminCookie), "/admin/course-prices");
+    assert(readDb().courses.find((course) => course.id === alpha.id).autoIssueCertificate === false, "Automatic certificate setting was not disabled from course prices");
     const homepageEditor = await request("/admin/homepage", { headers: { cookie: adminCookie } });
     assert(homepageEditor.body.includes("admin-course-avatar") && !homepageEditor.body.includes(alphaDescription), "Homepage editor should show compact course avatars without descriptions");
     const removableEditor = await request(`/admin/courses/${removable.id}`, { headers: { cookie: adminCookie } });
     assert(removableEditor.body.includes(`/admin/courses/${removable.id}/delete`), "Course editor does not offer deletion for an unused course");
     await expectRedirect(postForm(`/admin/courses/${removable.id}/delete`, {}, adminCookie), "/admin/courses");
     assert(!readDb().courses.some((course) => course.id === removable.id), "Unused course was not deleted");
+
+    const certificateEditor = await request(`/admin/courses/${alpha.id}`, { headers: { cookie: adminCookie } });
+    assert(certificateEditor.body.includes('name="autoIssueCertificate"') && certificateEditor.body.includes("Automatically issue a certificate"), "Course certificate settings do not provide the automatic issue control");
 
     await expectRedirect(postForm(`/admin/courses/${alpha.id}/update`, {
       title: alpha.title, shortDescription: alpha.shortDescription, fullDescription: "", goals: alpha.goals,
