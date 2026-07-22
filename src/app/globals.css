@@ -1082,6 +1082,7 @@ td, th { border-color: var(--line); }
 .home-page .grid.three { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .home-page .card, .course-catalog .card { display: flex; flex-direction: column; }
 .home-page .card .course-cover, .home-page .card > img { aspect-ratio: 16 / 10; margin: -18px -18px 0; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.course-cover, .course-public-cover { object-position: center 28%; }
 .home-page .card .table-actions { margin-top: auto; padding-top: 12px; }
 
 /* Student and admin portals */

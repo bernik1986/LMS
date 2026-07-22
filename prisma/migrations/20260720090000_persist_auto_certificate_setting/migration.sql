@@ -1,0 +1,2 @@
+ALTER TABLE "Course"
+ADD COLUMN IF NOT EXISTS "autoIssueCertificate" BOOLEAN NOT NULL DEFAULT true;

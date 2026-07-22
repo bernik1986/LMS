@@ -194,6 +194,8 @@ const figmaCss = `
 .small-button:not(.primary) { background: #fff; border-color: var(--line); color: var(--primary-strong); }
 .small-button.primary { background: var(--primary); color: #fff; }
 .course-cover { border-radius: 8px; box-shadow: none; }
+.card .course-cover, .course-public-cover { object-fit: contain; object-position: center; background: #fff; }
+.home-page .card .course-cover, .course-catalog .card .course-cover { aspect-ratio: 1 / 1; }
 .course-cover.admin-course-avatar { border-radius: 8px; }
 .sidebar { background: var(--navy); }
 .sidebar-nav a:hover, .sidebar-nav a.active { background: #0b75b5; color: #fff; }
@@ -2193,10 +2195,12 @@ function clientIp(request) {
 }
 
 function publicOrigin(request) {
-  try {
-    if (process.env.PUBLIC_BASE_URL) return new URL(publicBaseUrl).origin;
-  } catch {
-    // Fall back to the incoming host in local development.
+  if (isProduction) {
+    try {
+      if (process.env.PUBLIC_BASE_URL) return new URL(publicBaseUrl).origin;
+    } catch {
+      // Fall back to the incoming host when a production URL is malformed.
+    }
   }
   const proto = trustProxy ? request.headers["x-forwarded-proto"] || "http" : "http";
   return `${proto}://${request.headers.host}`;
@@ -3136,7 +3140,7 @@ function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
   const sort = searchParams.get("sort") === "title_desc" ? "title_desc" : "title_asc";
   const category = courseCategories.includes(searchParams.get("category")) ? searchParams.get("category") : "";
   const position = coursePositions.includes(searchParams.get("position")) ? searchParams.get("position") : "";
-  const catalogParams = { ...params, sort, category, position, perPage: Math.min(24, Math.max(6, params.perPage)) };
+  const catalogParams = { ...params, sort, category, position, perPage: 12 };
   const allActiveCourses = db.courses.filter((course) => course.status === "active");
   const activeCourses = allActiveCourses
     .filter((course) =>
@@ -3149,7 +3153,7 @@ function publicCoursesCatalog(user, searchParams = new URLSearchParams()) {
   return page(
     "All courses",
     user,
-    `<main class="page">
+    `<main class="page course-catalog">
       <section class="section">
         <div class="section-heading">
           <div><span class="eyebrow">Catalogue</span><h1>All courses</h1><p class="lead">A complete list of active programmes. Open a course to view its details and submit an application.</p></div>

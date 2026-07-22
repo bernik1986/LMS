@@ -402,6 +402,7 @@ async function writeFlatDb(client, flat) {
             imageUrl: course.imageUrl ?? "",
             showOnHome: Boolean(course.showOnHome),
             homeSortOrder: Number(course.homeSortOrder) || 999,
+            autoIssueCertificate: course.autoIssueCertificate !== false,
             certificateTemplateHtml: course.certificateTemplateHtml ?? "",
             createdAt: dateOrNow(course.createdAt)
           },
@@ -797,6 +798,7 @@ function courseData(course) {
     imageUrl: course.imageUrl ?? "",
     showOnHome: Boolean(course.showOnHome),
     homeSortOrder: Number(course.homeSortOrder) || 999,
+    autoIssueCertificate: course.autoIssueCertificate !== false,
     certificateTemplateHtml: course.certificateTemplateHtml ?? "",
     createdAt: dateOrNow(course.createdAt)
   }, "source", course.source);
@@ -1052,6 +1054,7 @@ function mapCourse(course) {
     imageUrl: course.imageUrl,
     showOnHome: course.showOnHome,
     homeSortOrder: course.homeSortOrder,
+    autoIssueCertificate: course.autoIssueCertificate,
     certificateTemplateHtml: course.certificateTemplateHtml,
     source: course.source ?? undefined,
     createdAt: dateTimeString(course.createdAt),

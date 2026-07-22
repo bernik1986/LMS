@@ -136,6 +136,21 @@ async function run() {
     const anonymousDashboard = await request("/dashboard");
     assert(anonymousDashboard.response.status === 303 && anonymousDashboard.response.headers.get("location")?.startsWith("/login"), "Anonymous user can access the dashboard");
 
+    if (!suppliedBaseUrl) {
+      const localhostOrigin = `http://localhost:${port}`;
+      const localOriginLogin = await fetch(`${localhostOrigin}/login`, {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: localhostOrigin,
+          referer: `${localhostOrigin}/login`
+        },
+        body: new URLSearchParams({ email: "student@example.com", password: "Student123!" })
+      });
+      assert(localOriginLogin.status === 303, "Localhost sign-in is rejected when PUBLIC_BASE_URL uses 127.0.0.1");
+    }
+
     const adminCookie = await login("admin@example.com", "Admin123!");
     const studentCookie = await login("student@example.com", "Student123!");
     await cacheCsrfToken("/admin", adminCookie);
