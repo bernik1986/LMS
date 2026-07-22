@@ -1,7 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { once } from "node:events";
 import { resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { createServer as createNetServer } from "node:net";
+import sharp from "sharp";
 
 const runId = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 const suppliedBaseUrl = process.env.TEST_BASE_URL?.replace(/\/$/, "");
@@ -11,6 +12,69 @@ const dbPath = resolve(process.env.LMS_DB_PATH ?? resolve("data/test-artifacts",
 const imoFixturePath = resolve(process.env.IMO_NEWS_FIXTURE_PATH ?? resolve("data/test-artifacts", `imo-news-${runId}.html`));
 const csrfTokens = new Map();
 let assertions = 0;
+
+async function startSmtpFixture(preferredPort = 0) {
+  const messages = [];
+  const sockets = new Set();
+  const state = { rateLimited: false, rcptCommands: 0 };
+  const server = createNetServer((socket) => {
+    sockets.add(socket);
+    socket.setEncoding("utf8");
+    let buffer = "";
+    let receivingData = false;
+    let messageLines = [];
+    socket.write("220 regression.smtp ESMTP ready\r\n");
+    socket.on("data", (chunk) => {
+      buffer += chunk;
+      while (buffer.includes("\r\n")) {
+        const lineEnd = buffer.indexOf("\r\n");
+        const line = buffer.slice(0, lineEnd);
+        buffer = buffer.slice(lineEnd + 2);
+        if (receivingData) {
+          if (line === ".") {
+            messages.push(messageLines.join("\r\n"));
+            messageLines = [];
+            receivingData = false;
+            socket.write("250 2.0.0 queued\r\n");
+          } else {
+            messageLines.push(line.startsWith("..") ? line.slice(1) : line);
+          }
+          continue;
+        }
+        const command = line.toUpperCase();
+        if (command.startsWith("EHLO") || command.startsWith("HELO")) {
+          socket.write("250-regression.smtp\r\n250 SIZE 52428800\r\n");
+        } else if (command.startsWith("MAIL FROM")) {
+          socket.write("250 2.1.0 sender accepted\r\n");
+        } else if (command.startsWith("RCPT TO")) {
+          state.rcptCommands += 1;
+          socket.write(state.rateLimited
+            ? "451 Outbound rate limit exceeded (60.0/1h). Contact support.\r\n"
+            : "250 2.1.5 recipient accepted\r\n");
+        } else if (command === "DATA") {
+          receivingData = true;
+          socket.write("354 End data with <CR><LF>.<CR><LF>\r\n");
+        } else if (command === "QUIT") {
+          socket.write("221 2.0.0 closing connection\r\n");
+          socket.end();
+        } else {
+          socket.write("250 2.0.0 accepted\r\n");
+        }
+      }
+    });
+    socket.on("close", () => sockets.delete(socket));
+  });
+  server.listen(preferredPort, "127.0.0.1");
+  await once(server, "listening");
+  return { server, sockets, messages, state, port: server.address().port };
+}
+
+async function stopSmtpFixture(fixture) {
+  if (!fixture) return;
+  for (const socket of fixture.sockets) socket.destroy();
+  fixture.server.close();
+  await once(fixture.server, "close");
+}
 
 function createImoNewsFixture() {
   const cards = Array.from({ length: 22 }, (_, index) => {
@@ -86,9 +150,8 @@ async function expectRedirect(promise, expectedPath) {
   assert(response.headers.get("location") === expectedPath, `Expected ${expectedPath}, got ${response.headers.get("location")}`);
 }
 
-async function waitForServer(server) {
+async function waitForServer() {
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (server.exitCode !== null) throw new Error("Regression server stopped before becoming ready.");
     try {
       const { response } = await request("/healthz");
       if (response.status === 200) return;
@@ -100,35 +163,50 @@ async function waitForServer(server) {
   throw new Error("Regression server did not become ready.");
 }
 
+async function waitForCondition(check, message) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (check()) return;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+  }
+  throw new Error(message);
+}
+
 async function stopServer(server) {
-  if (server.exitCode !== null) return;
-  server.kill();
-  await Promise.race([once(server, "exit"), new Promise((resolveDelay) => setTimeout(resolveDelay, 3000))]);
+  if (!server?.listening) return;
+  const closed = once(server, "close");
+  server.close();
+  server.closeAllConnections?.();
+  await closed;
 }
 
 async function run() {
   createImoNewsFixture();
-  const server = suppliedBaseUrl ? null : spawn(process.execPath, ["scripts/lms-server.mjs"], {
-    cwd: resolve("."),
-    env: {
-      ...process.env,
+  const suppliedSmtpPort = Number(process.env.TEST_SMTP_PORT ?? 0);
+  const smtpFixture = !suppliedBaseUrl || suppliedSmtpPort ? await startSmtpFixture(suppliedSmtpPort) : null;
+  let server = null;
+  if (!suppliedBaseUrl) {
+    Object.assign(process.env, {
       HOST: "127.0.0.1",
       PORT: String(port),
       PUBLIC_BASE_URL: baseUrl,
       LMS_STORAGE: "json",
       LMS_DB_PATH: dbPath,
       IMO_NEWS_FIXTURE_PATH: imoFixturePath,
-      SMTP_HOST: "",
-      SMTP_FROM: ""
-    },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  let serverOutput = "";
-  server?.stdout.on("data", (chunk) => { serverOutput += chunk.toString(); });
-  server?.stderr.on("data", (chunk) => { serverOutput += chunk.toString(); });
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: String(smtpFixture.port),
+      SMTP_SECURE: "false",
+      SMTP_STARTTLS: "false",
+      SMTP_USER: "",
+      SMTP_PASS: "",
+      SMTP_FROM: "info@maritimeportal.test",
+      SMTP_FROM_NAME: "Maritime Portal",
+      SMTP_RATE_LIMIT_RETRY_MINUTES: "65"
+    });
+    ({ server } = await import("./lms-server.mjs"));
+  }
 
   try {
-    if (server) await waitForServer(server);
+    if (server) await waitForServer();
     else await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
 
     const home = await request("/");
@@ -179,6 +257,7 @@ async function run() {
     assert(database.users.some((item) => item.email === newAdminEmail && item.role === "admin"), "Full administrator cannot create an administrator account");
     const newAdmin = database.users.find((item) => item.email === newAdminEmail);
     assert(newAdmin.mustChangePassword === true, "A new account is not marked for a mandatory first password change");
+    assert(newAdmin.courseNotificationsEnabled === false, "A new account allows course emails before its first sign-in");
     assert(database.notifications.some((note) => note.recipientEmail === newAdminEmail && note.type === "user_registered"), "New users do not receive an account-created notification");
     assert(database.passwordResetTokens.some((token) => token.userId === newAdmin.id), "New users do not receive a one-time account setup token");
     const duplicateUser = await postForm("/admin/users/create", {
@@ -196,6 +275,7 @@ async function run() {
     await expectRedirect(postForm("/first-login", { password: firstAdminPassword, confirmPassword: firstAdminPassword }, newAdminCookie), "/admin?notice=password_changed");
     database = readDb();
     assert(database.users.find((item) => item.id === newAdmin.id).mustChangePassword === false, "Mandatory password change remains after completing first sign-in");
+    assert(database.users.find((item) => item.id === newAdmin.id).courseNotificationsEnabled === true, "Course notifications are not enabled after first sign-in");
     const passwordChangeNotice = database.notifications.find((note) => note.recipientUserId === newAdmin.id && note.type === "password_changed");
     assert(passwordChangeNotice && !passwordChangeNotice.payload.includes(firstAdminPassword), "The first sign-in password is retained in notification history");
     const newAdminPanel = await request("/admin?notice=password_changed", { headers: { cookie: newAdminCookie } });
@@ -254,6 +334,44 @@ async function run() {
     const beta = database.courses.find((course) => course.title === betaTitle);
     const removable = database.courses.find((course) => course.title === removableTitle);
     assert(alpha && beta && removable, "Regression courses were not created");
+
+    const pendingStudentEmail = `regression-pending-${runId}@example.com`;
+    const pendingStudentPassword = "RegressionPending123!";
+    const createPendingStudent = await postForm("/admin/users/create", {
+      role: "student", email: pendingStudentEmail, firstNameEn: "Pending", lastNameEn: "Learner",
+      birthDate: "1995-04-16", position: "Deck Cadet", password: pendingStudentPassword
+    }, adminCookie);
+    assert(createPendingStudent.response.status === 303, "Pending student account creation did not redirect");
+    database = readDb();
+    const pendingStudent = database.users.find((item) => item.email === pendingStudentEmail);
+    assert(pendingStudent?.courseNotificationsEnabled === false, "Pending student course notifications are enabled too early");
+    await expectRedirect(
+      postForm("/admin/assignments/create", { userId: pendingStudent.id, courseId: alpha.id }, adminCookie),
+      "/admin/users"
+    );
+    database = readDb();
+    const pendingAssignment = database.assignments.find((item) => item.userId === pendingStudent.id && item.courseId === alpha.id);
+    const deferredAssignmentNotice = database.notifications.find((note) => note.assignmentId === pendingAssignment?.id && note.type === "course_assigned");
+    assert(pendingAssignment && deferredAssignmentNotice?.status === "deferred", "Course assignment email was not deferred before first sign-in");
+    const pendingFirstSignIn = await postForm("/login", { email: pendingStudentEmail, password: pendingStudentPassword });
+    const pendingStudentCookie = cookieFrom(pendingFirstSignIn.response);
+    assert(
+      pendingFirstSignIn.response.status === 303 && pendingFirstSignIn.response.headers.get("location") === "/first-login" && pendingStudentCookie,
+      "Pending student is not redirected to the mandatory password change"
+    );
+    assert(readDb().notifications.find((note) => note.id === deferredAssignmentNotice.id)?.status === "deferred", "Course email was released before the password change");
+    await cacheCsrfToken("/first-login", pendingStudentCookie);
+    const pendingStudentNewPassword = "FirstPendingPassword123!";
+    await expectRedirect(
+      postForm("/first-login", { password: pendingStudentNewPassword, confirmPassword: pendingStudentNewPassword }, pendingStudentCookie),
+      "/dashboard?notice=password_changed"
+    );
+    await waitForCondition(
+      () => readDb().notifications.find((note) => note.id === deferredAssignmentNotice.id)?.status === "sent",
+      "Deferred course assignment email was not delivered after first sign-in"
+    );
+    assert(readDb().users.find((item) => item.id === pendingStudent.id)?.courseNotificationsEnabled === true, "Pending student notifications remain disabled after first sign-in");
+
     const courseList = await request("/admin/courses", { headers: { cookie: adminCookie } });
     assert(courseList.body.includes("admin-course-avatar") && !courseList.body.includes(alphaDescription), "Course list should show compact avatars and titles without descriptions");
     assert(courseList.body.includes('href="/admin/courses/new"'), "Course list does not provide the New course page");
@@ -361,7 +479,9 @@ async function run() {
     const question = readDb().courses.find((course) => course.id === alpha.id).test.questions[0];
     const testPage = await request(`/dashboard/tests/${assignment.id}`, { headers: { cookie: studentCookie } });
     assert(testPage.response.status === 200 && testPage.body.includes("Regression question"), "Student test is unavailable after materials");
-    const certificatePhoto = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgAI/ScL2YQAAAABJRU5ErkJggg==", "base64");
+    const certificatePhoto = await sharp({
+      create: { width: 64, height: 80, channels: 3, background: { r: 224, g: 236, b: 244 } }
+    }).png().toBuffer();
     const photoUpload = await postMultipart(
       "/admin/users/photo",
       { id: "user_student" },
@@ -409,6 +529,45 @@ async function run() {
       "Certificate reissue notification was not created"
     );
 
+    if (smtpFixture) {
+      await waitForCondition(() => {
+        const current = readDb();
+        const required = [
+          ["user_registered", newAdminEmail],
+          ["password_changed", newAdminEmail],
+          ["course_assigned", pendingStudentEmail],
+          ["certificate_available", "student@example.com"],
+          ["certificate_manual_issue", "student@example.com"],
+          ["certificate_resent", "student@example.com"],
+          ["certificate_reissued", "student@example.com"]
+        ];
+        return required.every(([type, recipientEmail]) => current.notifications.some(
+          (note) => note.type === type && note.recipientEmail === recipientEmail && note.status === "sent"
+        ));
+      }, "Registration, password, or certificate email was not delivered through SMTP");
+      assert(
+        smtpFixture.messages.some((message) => message.includes("Subject: Welcome to Maritime Portal - activate your account") && message.includes("Content-Type: multipart/alternative")),
+        "Account activation email is not a valid multipart message"
+      );
+      assert(
+        smtpFixture.messages.some((message) => message.includes("Subject: Your certificate has been issued") && message.includes("Content-Type: application/pdf")),
+        "Issued certificate email does not contain the PDF attachment"
+      );
+
+      smtpFixture.state.rateLimited = true;
+      await expectRedirect(postForm("/admin/notifications/test-smtp", { email: "rate-limit@example.com" }, adminCookie), "/admin/notifications");
+      let rateLimitDb = readDb();
+      const rateLimitNote = rateLimitDb.notifications.find((note) => note.recipientEmail === "rate-limit@example.com" && note.type === "smtp_test");
+      assert(rateLimitNote?.status === "queued" && rateLimitNote.errorMessage.includes("Automatic retry"), "SMTP rate limit did not preserve the email in the queue");
+      assert(Date.parse(rateLimitDb.settings.emailDeliveryPausedUntil) > Date.now(), "SMTP rate limit did not persist a delivery cooldown");
+      const attemptsAfterLimit = smtpFixture.state.rcptCommands;
+      await expectRedirect(postForm("/admin/notifications/test-smtp", { email: "rate-limit-second@example.com" }, adminCookie), "/admin/notifications");
+      assert(smtpFixture.state.rcptCommands === attemptsAfterLimit, "SMTP cooldown allowed another delivery attempt");
+      const pausedNotificationsPage = await request("/admin/notifications", { headers: { cookie: adminCookie } });
+      assert(pausedNotificationsPage.body.includes("Delivery is paused until") && pausedNotificationsPage.body.includes("disabled"), "SMTP cooldown is not visible in the admin panel");
+      smtpFixture.state.rateLimited = false;
+    }
+
     const audit = await request("/admin/audit", { headers: { cookie: adminCookie } });
     assert(audit.body.includes('href="/admin/audit/'), "Audit log does not include event detail links");
     const auditEvent = readDb().auditEvents.at(-1);
@@ -431,8 +590,8 @@ async function run() {
   } finally {
     if (server) {
       await stopServer(server);
-      if (server.exitCode && !serverOutput.includes("Marine LMS is ready")) process.stderr.write(serverOutput);
     }
+    await stopSmtpFixture(smtpFixture);
   }
 }
 

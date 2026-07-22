@@ -209,10 +209,13 @@ SMTP_USER
 SMTP_PASS
 SMTP_FROM
 SMTP_FROM_NAME
+SMTP_CONNECTION_TIMEOUT_SECONDS
+SMTP_RETRY_MINUTES
+SMTP_RATE_LIMIT_RETRY_MINUTES
 PUBLIC_BASE_URL
 ```
 
-When SMTP is configured, email events enter the delivery queue and can be sent from the administration area. When it is unavailable, events remain logged for operational visibility.
+When SMTP is configured, email events enter the delivery queue and can be sent from the administration area. Course-assignment messages for a newly created account remain in the `deferred` state until the student completes the initial password setup and successfully signs in for the first time; all accumulated assignment messages are then released to the SMTP queue. Temporary SMTP failures preserve the message and create a persisted delivery cooldown; rate-limit responses pause all delivery for 65 minutes by default and the queue resumes automatically. When SMTP is unavailable, events remain logged for operational visibility.
 
 ## 11. Local development and validation
 

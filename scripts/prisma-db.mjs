@@ -13,7 +13,7 @@ const testStatuses = new Set(["active", "inactive"]);
 const questionTypes = new Set(["single_choice", "multiple_choice"]);
 const attemptStatuses = new Set(["in_progress", "passed", "failed", "expired"]);
 const certificateStatuses = new Set(["issued", "revoked", "reissued"]);
-const notificationStatuses = new Set(["queued", "logged", "sent", "failed"]);
+const notificationStatuses = new Set(["deferred", "queued", "logged", "sent", "failed"]);
 
 export function resolveConnectionString(value = process.env.DATABASE_URL) {
   return value || defaultConnectionString;
@@ -376,6 +376,7 @@ async function writeFlatDb(client, flat) {
             createdById: user.createdById ?? "",
             authVersion: Number(user.authVersion) || 1,
             mustChangePassword: Boolean(user.mustChangePassword),
+            courseNotificationsEnabled: user.courseNotificationsEnabled !== false,
             createdAt: dateOrNow(user.createdAt)
           },
           "source",
@@ -622,6 +623,7 @@ async function writeFlatDb(client, flat) {
         id: note.id,
         recipientUserId: userIds.has(note.recipientUserId) ? note.recipientUserId : null,
         recipientEmail: note.recipientEmail ?? "",
+        assignmentId: note.assignmentId ?? "",
         certificateId: note.certificateId ?? "",
         type: note.type ?? "",
         status: enumValue(note.status, notificationStatuses, "logged"),
@@ -782,6 +784,7 @@ function userData(user) {
     createdById: user.createdById ?? "",
     authVersion: Number(user.authVersion) || 1,
     mustChangePassword: Boolean(user.mustChangePassword),
+    courseNotificationsEnabled: user.courseNotificationsEnabled !== false,
     createdAt: dateOrNow(user.createdAt)
   }, "source", user.source);
 }
@@ -883,7 +886,7 @@ function certificateData(certificate) {
 function notificationData(note, userIds) {
   return {
     id: note.id, recipientUserId: userIds.has(note.recipientUserId) ? note.recipientUserId : null,
-    recipientEmail: note.recipientEmail ?? "", certificateId: note.certificateId ?? "", type: note.type ?? "", status: enumValue(note.status, notificationStatuses, "logged"),
+    recipientEmail: note.recipientEmail ?? "", assignmentId: note.assignmentId ?? "", certificateId: note.certificateId ?? "", type: note.type ?? "", status: enumValue(note.status, notificationStatuses, "logged"),
     payload: note.payload ?? "", errorMessage: note.errorMessage ?? "", createdAt: dateOrNow(note.createdAt), sentAt: dateOrNull(note.sentAt)
   };
 }
@@ -1125,6 +1128,7 @@ export async function loadPrismaDb(options = {}) {
           createdById: user.createdById ?? "",
           authVersion: user.authVersion,
           mustChangePassword: Boolean(user.mustChangePassword),
+          courseNotificationsEnabled: user.courseNotificationsEnabled !== false,
           source: user.source ?? undefined,
           createdAt: dateTimeString(user.createdAt)
         })
@@ -1201,6 +1205,7 @@ export async function loadPrismaDb(options = {}) {
         id: note.id,
         recipientUserId: note.recipientUserId ?? "",
         recipientEmail: note.recipientEmail,
+        assignmentId: note.assignmentId ?? "",
         certificateId: note.certificateId ?? "",
         type: note.type,
         status: note.status,

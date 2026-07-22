@@ -88,9 +88,14 @@ SMTP_PASS="пароль_от_почты"
 SMTP_FROM="info@maritimelearning.store"
 SMTP_FROM_NAME="Maritime Portal"
 SMTP_TLS_REJECT_UNAUTHORIZED="true"
+SMTP_CONNECTION_TIMEOUT_SECONDS="30"
+SMTP_RETRY_MINUTES="15"
+SMTP_RATE_LIMIT_RETRY_MINUTES="65"
 ```
 
 Если локальный тест показывает `certificate has expired`, значит у SMTP-сервера просрочен SSL-сертификат. Для локальной диагностики можно временно поставить `SMTP_TLS_REJECT_UNAUTHORIZED="false"` в `.env.local`, но на production лучше обновить SSL почтового сервера или запросить у хостера корректный SMTP host с валидным сертификатом.
+
+При временном ответе SMTP `4xx`, включая `451 Outbound rate limit exceeded`, LMS сохраняет письма в очереди и приостанавливает отправку. Для ограничения на один час пауза по умолчанию составляет 65 минут, после чего очередь запускается автоматически. Пока действует пауза, повторная ручная отправка в админ-панели отключена.
 
 ## 4. База данных
 

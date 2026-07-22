@@ -33,6 +33,9 @@ const maxRequestBodyBytes = Number(process.env.MAX_REQUEST_BODY_MB ?? Math.ceil(
 const sessionTtlMs = Number(process.env.SESSION_TTL_HOURS ?? 12) * 60 * 60 * 1000;
 const passwordResetTtlMs = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 30) * 60 * 1000;
 const accountActivationTtlMs = Math.max(1, Number(process.env.ACCOUNT_ACTIVATION_TTL_HOURS ?? 168)) * 60 * 60 * 1000;
+const smtpConnectionTimeoutMs = Math.max(5, Number(process.env.SMTP_CONNECTION_TIMEOUT_SECONDS ?? 30)) * 1000;
+const smtpTransientRetryMs = Math.max(1, Number(process.env.SMTP_RETRY_MINUTES ?? 15)) * 60 * 1000;
+const smtpRateLimitRetryMs = Math.max(1, Number(process.env.SMTP_RATE_LIMIT_RETRY_MINUTES ?? 65)) * 60 * 1000;
 const emailTemplateDesignVersion = 2;
 const trustProxy = process.env.TRUST_PROXY === "true";
 const isProduction = process.env.NODE_ENV === "production";
@@ -62,7 +65,7 @@ let lastSaveError = null;
 let requestQueue = Promise.resolve();
 let persistedDb = null;
 let imoNewsCache = { items: [], fetchedAt: 0 };
-let queuedNotificationDeliveryScheduled = false;
+let queuedNotificationDeliveryTimer = null;
 
 const baseCss = readFileSync(cssPath, "utf8");
 const productCss = `
@@ -503,6 +506,10 @@ function normalizeDb(data) {
       user.mustChangePassword = false;
       changed = true;
     }
+    if (typeof user.courseNotificationsEnabled !== "boolean") {
+      user.courseNotificationsEnabled = !user.mustChangePassword;
+      changed = true;
+    }
   }
   for (const course of data.courses ?? []) {
     if (course.imageUrl === undefined) {
@@ -595,9 +602,35 @@ function normalizeDb(data) {
     data.passwordResetTokens = [];
     changed = true;
   }
+  let recoveredDeliveryPauseUntil = notificationTimestamp(data.settings.emailDeliveryPausedUntil);
   for (const note of data.notifications ?? []) {
     if (Object.prototype.hasOwnProperty.call(note, "temporaryPassword")) {
       delete note.temporaryPassword;
+      changed = true;
+    }
+    if (note.status === "failed") {
+      const retryDelay = smtpRetryDelay(note.errorMessage);
+      if (retryDelay) {
+        note.status = "queued";
+        note.sentAt = "";
+        recoveredDeliveryPauseUntil = Math.max(recoveredDeliveryPauseUntil, notificationTimestamp(note.createdAt) + retryDelay);
+        changed = true;
+      }
+    }
+    if (note.type === "course_assigned" && note.status !== "sent") {
+      const recipient = (data.users ?? []).find((user) => user.id === note.recipientUserId);
+      const nextStatus = recipient?.courseNotificationsEnabled === false ? "deferred" : note.status === "deferred" ? notificationInitialStatus() : note.status;
+      if (note.status !== nextStatus) {
+        note.status = nextStatus;
+        note.sentAt = "";
+        changed = true;
+      }
+    }
+  }
+  if (recoveredDeliveryPauseUntil > Date.now()) {
+    const recoveredPauseIso = new Date(recoveredDeliveryPauseUntil).toISOString();
+    if (data.settings.emailDeliveryPausedUntil !== recoveredPauseIso) {
+      data.settings.emailDeliveryPausedUntil = recoveredPauseIso;
       changed = true;
     }
   }
@@ -2017,8 +2050,63 @@ function smtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
 }
 
+function notificationTimestamp(value) {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function notificationDeliveryPausedUntil() {
+  const timestamp = notificationTimestamp(db.settings?.emailDeliveryPausedUntil);
+  return timestamp > Date.now() ? timestamp : 0;
+}
+
+function smtpRetryDelay(error) {
+  const message = String(error?.message ?? error ?? "");
+  if (/rate limit exceeded/i.test(message)) return smtpRateLimitRetryMs;
+  if (/SMTP .* failed:\s*4\d\d\b/i.test(message) || /(?:EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timed out)/i.test(message)) {
+    return smtpTransientRetryMs;
+  }
+  return 0;
+}
+
 function notificationInitialStatus() {
   return smtpConfigured() ? "queued" : "logged";
+}
+
+function courseAssignmentNotificationStatus(user) {
+  return user?.courseNotificationsEnabled === false ? "deferred" : notificationInitialStatus();
+}
+
+function queueCourseAssignmentNotification(user, course, assignment) {
+  if (!user || !course || !assignment) return null;
+  const note = {
+    id: id("note"),
+    recipientUserId: user.id,
+    recipientEmail: user.email,
+    assignmentId: assignment.id,
+    type: "course_assigned",
+    status: courseAssignmentNotificationStatus(user),
+    payload: `Course assigned: ${course.title}`,
+    createdAt: now(),
+    sentAt: ""
+  };
+  db.notifications.push(note);
+  return note;
+}
+
+function activateCourseNotifications(user) {
+  if (!user || user.courseNotificationsEnabled !== false) return 0;
+  user.courseNotificationsEnabled = true;
+  let activated = 0;
+  for (const note of db.notifications) {
+    if (note.recipientUserId !== user.id || note.type !== "course_assigned" || note.status !== "deferred") continue;
+    if (note.assignmentId && !db.assignments.some((assignment) => assignment.id === note.assignmentId && assignment.userId === user.id)) continue;
+    note.status = notificationInitialStatus();
+    note.sentAt = "";
+    note.errorMessage = "";
+    activated += 1;
+  }
+  return activated;
 }
 
 function defaultEmailTemplates() {
@@ -2204,6 +2292,10 @@ function smtpBase64Lines(buffer) {
   return Buffer.from(buffer).toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
 }
 
+function smtpDotStuff(message) {
+  return String(message).replace(/(^|\r\n)\./g, "$1..");
+}
+
 function smtpEncodedTextPart(contentType, value) {
   return `Content-Type: ${contentType}; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${smtpBase64Lines(Buffer.from(String(value ?? ""), "utf8"))}\r\n`;
 }
@@ -2261,49 +2353,57 @@ async function sendSmtpMail({ to, subject, body, html = "", attachments = [] }) 
   let socket = secure
     ? tlsConnect({ host: hostName, port: portNumber, servername: hostName, rejectUnauthorized })
     : netConnect({ host: hostName, port: portNumber });
+  const applyTimeout = (activeSocket) => {
+    activeSocket.setTimeout(smtpConnectionTimeoutMs, () => activeSocket.destroy(new Error("SMTP connection timed out")));
+  };
+  applyTimeout(socket);
 
-  await new Promise((resolveSocket, rejectSocket) => {
-    socket.once(secure ? "secureConnect" : "connect", resolveSocket);
-    socket.once("error", rejectSocket);
-  });
-
-  let readResponse = waitSmtpResponse(socket);
-  expectSmtpResponse(await readResponse(), [220], "connection");
-  writeSmtpLine(socket, `EHLO ${host}`);
-  expectSmtpResponse(await readResponse(), [250], "EHLO");
-
-  if (!secure && process.env.SMTP_STARTTLS === "true") {
-    writeSmtpLine(socket, "STARTTLS");
-    expectSmtpResponse(await readResponse(), [220], "STARTTLS");
-    socket = tlsConnect({ socket, servername: hostName, rejectUnauthorized });
+  try {
     await new Promise((resolveSocket, rejectSocket) => {
-      socket.once("secureConnect", resolveSocket);
+      socket.once(secure ? "secureConnect" : "connect", resolveSocket);
       socket.once("error", rejectSocket);
     });
-    readResponse = waitSmtpResponse(socket);
+
+    let readResponse = waitSmtpResponse(socket);
+    expectSmtpResponse(await readResponse(), [220], "connection");
     writeSmtpLine(socket, `EHLO ${host}`);
-    expectSmtpResponse(await readResponse(), [250], "EHLO after STARTTLS");
-  }
+    expectSmtpResponse(await readResponse(), [250], "EHLO");
 
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-    writeSmtpLine(socket, "AUTH LOGIN");
-    expectSmtpResponse(await readResponse(), [334], "AUTH LOGIN");
-    writeSmtpLine(socket, Buffer.from(process.env.SMTP_USER).toString("base64"));
-    expectSmtpResponse(await readResponse(), [334], "SMTP username");
-    writeSmtpLine(socket, Buffer.from(process.env.SMTP_PASS).toString("base64"));
-    expectSmtpResponse(await readResponse(), [235], "SMTP password");
-  }
+    if (!secure && process.env.SMTP_STARTTLS === "true") {
+      writeSmtpLine(socket, "STARTTLS");
+      expectSmtpResponse(await readResponse(), [220], "STARTTLS");
+      socket = tlsConnect({ socket, servername: hostName, rejectUnauthorized });
+      applyTimeout(socket);
+      await new Promise((resolveSocket, rejectSocket) => {
+        socket.once("secureConnect", resolveSocket);
+        socket.once("error", rejectSocket);
+      });
+      readResponse = waitSmtpResponse(socket);
+      writeSmtpLine(socket, `EHLO ${host}`);
+      expectSmtpResponse(await readResponse(), [250], "EHLO after STARTTLS");
+    }
 
-  writeSmtpLine(socket, `MAIL FROM:<${from}>`);
-  expectSmtpResponse(await readResponse(), [250], "MAIL FROM");
-  writeSmtpLine(socket, `RCPT TO:<${to}>`);
-  expectSmtpResponse(await readResponse(), [250, 251], "RCPT TO");
-  writeSmtpLine(socket, "DATA");
-  expectSmtpResponse(await readResponse(), [354], "DATA");
-  socket.write(`${smtpMessage({ from, to, subject, body, html, attachments })}\r\n.\r\n`);
-  expectSmtpResponse(await readResponse(), [250], "message delivery");
-  writeSmtpLine(socket, "QUIT");
-  socket.end();
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      writeSmtpLine(socket, "AUTH LOGIN");
+      expectSmtpResponse(await readResponse(), [334], "AUTH LOGIN");
+      writeSmtpLine(socket, Buffer.from(process.env.SMTP_USER).toString("base64"));
+      expectSmtpResponse(await readResponse(), [334], "SMTP username");
+      writeSmtpLine(socket, Buffer.from(process.env.SMTP_PASS).toString("base64"));
+      expectSmtpResponse(await readResponse(), [235], "SMTP password");
+    }
+
+    writeSmtpLine(socket, `MAIL FROM:<${from}>`);
+    expectSmtpResponse(await readResponse(), [250], "MAIL FROM");
+    writeSmtpLine(socket, `RCPT TO:<${to}>`);
+    expectSmtpResponse(await readResponse(), [250, 251], "RCPT TO");
+    writeSmtpLine(socket, "DATA");
+    expectSmtpResponse(await readResponse(), [354], "DATA");
+    socket.write(`${smtpDotStuff(smtpMessage({ from, to, subject, body, html, attachments }))}\r\n.\r\n`);
+    expectSmtpResponse(await readResponse(), [250], "message delivery");
+    writeSmtpLine(socket, "QUIT");
+  } finally {
+    if (!socket.destroyed) socket.end();
+  }
 }
 
 function certificateForNotification(note) {
@@ -2328,7 +2428,18 @@ async function notificationAttachments(note) {
 async function deliverNotification(note) {
   if (!smtpConfigured()) {
     note.status = "logged";
-    return;
+    note.sentAt = "";
+    return { status: "logged" };
+  }
+  const pausedUntil = notificationDeliveryPausedUntil();
+  if (pausedUntil) {
+    note.status = "queued";
+    note.sentAt = "";
+    note.errorMessage = `Email delivery is paused until ${new Date(pausedUntil).toISOString()} after a temporary SMTP failure.`;
+    return { status: "deferred", pausedUntil };
+  }
+  if (db.settings?.emailDeliveryPausedUntil) {
+    db.settings.emailDeliveryPausedUntil = "";
   }
   const message = emailTemplate(note);
   try {
@@ -2342,28 +2453,194 @@ async function deliverNotification(note) {
     note.status = "sent";
     note.sentAt = now();
     note.errorMessage = "";
+    return { status: "sent" };
   } catch (error) {
+    const retryDelay = smtpRetryDelay(error);
+    note.sentAt = "";
+    if (retryDelay) {
+      db.settings ??= {};
+      const retryAt = Date.now() + retryDelay;
+      db.settings.emailDeliveryPausedUntil = new Date(retryAt).toISOString();
+      note.status = "queued";
+      note.errorMessage = `${error.message} Automatic retry is scheduled after ${new Date(retryAt).toISOString()}.`;
+      return { status: "deferred", pausedUntil: retryAt };
+    }
     note.status = "failed";
     note.errorMessage = error.message;
+    return { status: "failed" };
   }
 }
 
-async function deliverPendingNotifications() {
-  for (const note of db.notifications.filter((item) => ["queued", "failed"].includes(item.status))) {
-    await deliverNotification(note);
+const notificationPreviewOrder = [
+  "smtp_test",
+  "user_registered",
+  "password_recovery",
+  "password_reset",
+  "password_changed",
+  "course_assigned",
+  "photo_required_for_certificate",
+  "certificate_available",
+  "certificate_manual_issue",
+  "certificate_resent",
+  "certificate_reissued",
+  "certificate_revoked",
+  "pending_certificates_issued",
+  "new_application",
+  "feedback_message",
+  "import_video_auto_link",
+  "invoice_sent"
+];
+
+function notificationPreviewPayloads() {
+  const platformUrl = publicBaseUrl.replace(/\/$/, "");
+  return {
+    smtp_test: "Full notification preview suite started successfully.",
+    user_registered: `${platformUrl}/reset-password?token=TEST-PREVIEW-NOT-ACTIVE`,
+    password_recovery: `${platformUrl}/reset-password?token=TEST-PREVIEW-NOT-ACTIVE`,
+    password_reset: `Temporary password was reset by an administrator.\n\nThis is a test preview; no password was changed.`,
+    password_changed: `Your password was changed successfully.\n\nThis is a test preview; no password was changed.`,
+    course_assigned: "Course assigned: Basic Maritime Safety (test preview).",
+    photo_required_for_certificate: "Photo is required before the test certificate can be issued for Basic Maritime Safety.",
+    certificate_available: "Certificate 725645565/22/07/2026 for Basic Maritime Safety is ready (test preview).",
+    certificate_manual_issue: "Certificate 725645565/22/07/2026 for Basic Maritime Safety was issued manually (test preview).",
+    certificate_resent: "Certificate 725645565/22/07/2026 was sent again (test preview).",
+    certificate_reissued: "Certificate 725645565/22/07/2026 was reissued (test preview).",
+    certificate_revoked: "Certificate 725645565/22/07/2026 was revoked (test preview).",
+    pending_certificates_issued: "Certificate 725645565/22/07/2026 was issued after the required photo was uploaded (test preview).",
+    new_application: "Test Student applied for Basic Maritime Safety. This is a test preview; no application was created.",
+    feedback_message: "Name: Test Student\nEmail: preview@example.com\nSubject: Notification preview\nMessage: Test website feedback message.",
+    import_video_auto_link: "Matched videos: 3\nUnmatched videos: 1\nThis is a test preview; no files were changed.",
+    invoice_sent: `Test invoice INV-PREVIEW-001: ${platformUrl}/invoices/TEST-PREVIEW/NOT-ACTIVE.pdf`
+  };
+}
+
+export async function sendNotificationPreviewSuite({ recipientEmail, delayMs = 30000, onProgress = () => {} } = {}) {
+  const normalizedEmail = String(recipientEmail ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error("A valid preview recipient email is required.");
+  }
+  if (!smtpConfigured()) {
+    throw new Error("SMTP is not configured in .env.local.");
+  }
+
+  const previewId = randomUUID();
+  const previewUser = {
+    id: `preview_user_${previewId}`,
+    role: "student",
+    email: normalizedEmail,
+    firstNameEn: "Test",
+    lastNameEn: "Student",
+    birthDate: "1990-01-01",
+    company: "Maritime Portal",
+    position: "Deck Officer",
+    phone: "",
+    photoUrl: "",
+    status: "active",
+    createdById: "",
+    authVersion: 1,
+    mustChangePassword: false,
+    courseNotificationsEnabled: true,
+    createdAt: now()
+  };
+  const issuedAt = "2026-07-22T12:00:00.000Z";
+  const previewCertificate = {
+    id: `preview_certificate_${previewId}`,
+    userId: previewUser.id,
+    courseId: "",
+    assignmentId: "",
+    certificateNumber: "725645565/22/07/2026",
+    status: "issued",
+    issuedAt,
+    expiresAt: addYearsIso(issuedAt, 5),
+    replacesCertificateId: "",
+    revokedAt: "",
+    reissuedAt: "",
+    snapshotFirstName: previewUser.firstNameEn,
+    snapshotLastName: previewUser.lastNameEn,
+    snapshotBirthDate: previewUser.birthDate,
+    snapshotPosition: previewUser.position,
+    snapshotCompany: previewUser.company,
+    snapshotPhotoUrl: "",
+    snapshotCourseTitle: "Basic Maritime Safety",
+    snapshotCertificateTemplateHtml: defaultCertificateTemplate(),
+    certificateHtml: ""
+  };
+  previewCertificate.certificateHtml = renderCertificateTemplate(previewCertificate, previewCertificate.snapshotCertificateTemplateHtml);
+
+  const payloads = notificationPreviewPayloads();
+  const templates = defaultEmailTemplates();
+  const types = notificationPreviewOrder.filter((type) => templates[type]);
+  const results = [];
+  db.users.push(previewUser);
+  db.certificates.push(previewCertificate);
+
+  try {
+    for (let index = 0; index < types.length; index += 1) {
+      const type = types[index];
+      const note = {
+        id: `preview_note_${previewId}_${index + 1}`,
+        recipientUserId: previewUser.id,
+        recipientEmail: normalizedEmail,
+        certificateId: type.startsWith("certificate_") || type === "pending_certificates_issued" ? previewCertificate.id : "",
+        type,
+        status: "queued",
+        payload: payloads[type] ?? "Test notification preview.",
+        createdAt: now(),
+        sentAt: ""
+      };
+      const message = emailTemplate(note);
+      const attachments = await notificationAttachments(note);
+      const subject = `[TEST ${String(index + 1).padStart(2, "0")}/${types.length}] ${message.subject}`;
+      onProgress({ status: "sending", index: index + 1, total: types.length, type, subject, attachmentCount: attachments.length });
+      try {
+        await sendSmtpMail({
+          to: normalizedEmail,
+          subject,
+          body: message.body,
+          html: message.html,
+          attachments
+        });
+      } catch (error) {
+        onProgress({ status: "failed", index: index + 1, total: types.length, type, subject, error: error.message });
+        const previewError = new Error(`Notification preview ${index + 1}/${types.length} (${type}) failed: ${error.message}`);
+        previewError.results = results;
+        throw previewError;
+      }
+      const result = { type, subject, attachmentCount: attachments.length, status: "sent" };
+      results.push(result);
+      onProgress({ status: "sent", index: index + 1, total: types.length, ...result });
+      if (index < types.length - 1 && delayMs > 0) {
+        onProgress({ status: "waiting", index: index + 1, total: types.length, delayMs });
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
+      }
+    }
+    return results;
+  } finally {
+    db.users = db.users.filter((user) => user.id !== previewUser.id);
+    db.certificates = db.certificates.filter((certificate) => certificate.id !== previewCertificate.id);
+  }
+}
+
+async function deliverPendingNotifications({ includeFailed = true } = {}) {
+  if (notificationDeliveryPausedUntil()) return;
+  const statuses = includeFailed ? ["queued", "failed"] : ["queued"];
+  for (const note of db.notifications.filter((item) => statuses.includes(item.status))) {
+    const result = await deliverNotification(note);
+    if (result.status === "deferred") break;
   }
 }
 
 function scheduleQueuedNotificationDelivery() {
-  if (!smtpConfigured() || queuedNotificationDeliveryScheduled) return;
-  queuedNotificationDeliveryScheduled = true;
-  setTimeout(async () => {
-    queuedNotificationDeliveryScheduled = false;
-    const queuedNotes = db.notifications.filter((note) => note.status === "queued");
-    if (!queuedNotes.length) return;
-    for (const note of queuedNotes) await deliverNotification(note);
+  if (!smtpConfigured() || queuedNotificationDeliveryTimer) return;
+  if (!db.notifications.some((note) => note.status === "queued")) return;
+  const pausedUntil = notificationDeliveryPausedUntil();
+  const delay = pausedUntil ? Math.max(250, pausedUntil - Date.now()) : 0;
+  queuedNotificationDeliveryTimer = setTimeout(async () => {
+    queuedNotificationDeliveryTimer = null;
+    await deliverPendingNotifications({ includeFailed: false });
     saveDb(db);
-  }, 0);
+  }, delay);
+  queuedNotificationDeliveryTimer.unref?.();
 }
 
 function getCookie(request, name) {
@@ -2547,8 +2824,9 @@ async function sendFirstLoginCredentials(user, password) {
   // The password is sent once but is never retained in the notification history.
   note.payload = "Password changed during first sign-in. Login details were sent by email.";
   if (note.status !== "sent") {
-    note.status = "logged";
-    note.errorMessage ||= "Login details were not retained for a resend.";
+    note.errorMessage = [note.errorMessage, "The password is not retained; a retry will contain only the password-change confirmation."]
+      .filter(Boolean)
+      .join(" ");
   }
   db.notifications.push(note);
 }
@@ -4000,7 +4278,7 @@ function issueCertificate(assignment, options = {}) {
       status: notificationInitialStatus(),
       payload: `Photo is required before certificate can be issued for ${course.title}.`,
       createdAt: now(),
-      sentAt: now()
+      sentAt: ""
     });
     return null;
   }
@@ -6775,6 +7053,10 @@ function adminNotifications(user, searchParams = new URLSearchParams()) {
       .some((value) => value.toLowerCase().includes(normalizedQuery));
   });
   const pagination = paginateItems(notifications, params);
+  const pausedUntil = notificationDeliveryPausedUntil();
+  const deferredCount = db.notifications.filter((note) => note.status === "deferred").length;
+  const queuedCount = db.notifications.filter((note) => note.status === "queued").length;
+  const failedCount = db.notifications.filter((note) => note.status === "failed").length;
   return adminShell(
     user,
     "Notifications",
@@ -6782,14 +7064,15 @@ function adminNotifications(user, searchParams = new URLSearchParams()) {
       <div><span class="eyebrow">Email log</span><h1>Notifications</h1><p class="lead">Without SMTP, events remain in the log. When SMTP is configured through environment variables, the queue can be sent from this page.</p></div>
       <article class="panel stack">
         <h2>SMTP</h2>
-        <p class="muted">Status: ${smtpConfigured() ? "SMTP configured; new email enters the queue" : "SMTP is not configured; notifications are saved as a log"}</p>
+        <p class="muted">Status: ${smtpConfigured() ? `SMTP configured; ${deferredCount} awaiting first sign-in, ${queuedCount} queued, and ${failedCount} failed` : "SMTP is not configured; notifications are saved as a log"}</p>
+        ${pausedUntil ? `<div class="notice danger">The mail server temporarily rejected outgoing messages. Delivery is paused until ${escapeHtml(new Date(pausedUntil).toLocaleString("en-GB"))}; queued messages will retry automatically.</div>` : ""}
         <div class="table-actions">
           <form method="post" action="/admin/notifications/test-smtp" class="inline-form">
             <input name="email" type="email" value="${escapeHtml(user.email)}" required />
             <button class="small-button primary" type="submit">Test SMTP</button>
           </form>
           <form method="post" action="/admin/notifications/send-pending">
-            <button class="small-button primary" type="submit">Send SMTP queue</button>
+            <button class="small-button primary" type="submit"${pausedUntil ? " disabled" : ""}>Send SMTP queue</button>
           </form>
         </div>
       </article>
@@ -7213,6 +7496,7 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
     clearLoginRateLimit(request);
+    if (!found.mustChangePassword) activateCourseNotifications(found);
     const sessionId = opaqueToken();
     const csrfToken = randomBytes(32).toString("hex");
     db.sessions = (db.sessions ?? []).filter((session) => session.userId !== found.id || new Date(session.expiresAt).getTime() > Date.now());
@@ -7293,6 +7577,7 @@ async function handlePost(request, response, pathname, user) {
     }
     account.passwordHash = hashPassword(password);
     account.mustChangePassword = false;
+    activateCourseNotifications(account);
     invalidateOtherUserSessions(account, request);
     db.passwordResetTokens = (db.passwordResetTokens ?? []).filter((token) => token.userId !== account.id);
     await sendFirstLoginCredentials(account, password);
@@ -7411,7 +7696,7 @@ async function handlePost(request, response, pathname, user) {
         status: notificationInitialStatus(),
         payload: "Password changed in student profile.",
         createdAt: now(),
-        sentAt: now()
+        sentAt: ""
       });
       saveDb(db);
       redirect(response, "/login?notice=password_changed");
@@ -7460,7 +7745,7 @@ async function handlePost(request, response, pathname, user) {
         status: notificationInitialStatus(),
         payload: `${issued.length} pending certificate(s) issued after photo upload.`,
         createdAt: now(),
-        sentAt: now()
+        sentAt: ""
       });
     }
     saveDb(db);
@@ -7663,6 +7948,7 @@ async function handlePost(request, response, pathname, user) {
             createdById: admin.id,
             authVersion: 1,
             mustChangePassword: true,
+            courseNotificationsEnabled: false,
             createdAt: now()
           };
           db.users.push(student);
@@ -7671,7 +7957,7 @@ async function handlePost(request, response, pathname, user) {
           student.createdById = admin.id;
         }
         if (!assignmentFor(student.id, application.courseId)) {
-          db.assignments.push({
+          const assignment = {
             id: id("assign"),
             userId: student.id,
             courseId: application.courseId,
@@ -7682,7 +7968,9 @@ async function handlePost(request, response, pathname, user) {
             completedAt: "",
             progressPercent: 0,
             materialProgress: {}
-          });
+          };
+          db.assignments.push(assignment);
+          queueCourseAssignmentNotification(student, courseById(application.courseId), assignment);
         }
         application.status = "converted_to_user";
       }
@@ -7739,6 +8027,7 @@ async function handlePost(request, response, pathname, user) {
           createdById: admin.id,
           authVersion: 1,
           mustChangePassword: true,
+          courseNotificationsEnabled: false,
           createdAt: now()
         };
         const photo = form.get("photo");
@@ -7815,7 +8104,7 @@ async function handlePost(request, response, pathname, user) {
           status: notificationInitialStatus(),
           payload: `${issued.length} pending certificate(s) issued after admin photo upload.`,
           createdAt: now(),
-          sentAt: now()
+          sentAt: ""
         });
       }
       saveDb(db);
@@ -7859,7 +8148,7 @@ async function handlePost(request, response, pathname, user) {
           status: notificationInitialStatus(),
           payload: "Temporary password was reset by administrator.",
           createdAt: now(),
-          sentAt: now()
+          sentAt: ""
         });
       }
       saveDb(db);
@@ -7893,7 +8182,7 @@ async function handlePost(request, response, pathname, user) {
       const userId = form.get("userId")?.toString();
       const courseId = form.get("courseId")?.toString();
       if (userId && courseId && !assignmentFor(userId, courseId)) {
-        db.assignments.push({
+        const assignment = {
           id: id("assign"),
           userId,
           courseId,
@@ -7904,19 +8193,11 @@ async function handlePost(request, response, pathname, user) {
           completedAt: "",
           progressPercent: 0,
           materialProgress: {}
-        });
+        };
+        db.assignments.push(assignment);
         const student = userById(userId);
         const course = courseById(courseId);
-        db.notifications.push({
-          id: id("note"),
-          recipientUserId: userId,
-          recipientEmail: student.email,
-          type: "course_assigned",
-          status: notificationInitialStatus(),
-          payload: `Course assigned: ${course.title}`,
-          createdAt: now(),
-          sentAt: now()
-        });
+        queueCourseAssignmentNotification(student, course, assignment);
       }
       saveDb(db);
       redirect(response, "/admin/users");
@@ -7929,6 +8210,7 @@ async function handlePost(request, response, pathname, user) {
       const hasCertificate = db.certificates.some((certificate) => certificate.assignmentId === assignmentDeleteMatch[1]);
       if (assignment && !hasCertificate) {
         db.testAttempts = db.testAttempts.filter((attempt) => attempt.assignmentId !== assignment.id);
+        db.notifications = db.notifications.filter((note) => !(note.assignmentId === assignment.id && note.type === "course_assigned" && note.status === "deferred"));
         db.assignments = db.assignments.filter((item) => item.id !== assignment.id);
       }
       saveDb(db);
@@ -8455,7 +8737,7 @@ async function handlePost(request, response, pathname, user) {
             status: notificationInitialStatus(),
             payload: `Certificate revoked: ${certificate.certificateNumber}`,
             createdAt: now(),
-            sentAt: now()
+            sentAt: ""
           });
         }
       }
@@ -8810,7 +9092,7 @@ async function handleRequest(request, response) {
   send(response, page("Not found", user, `<main class="page"><div class="notice">Page not found.</div></main>`), 404);
 }
 
-const server = createServer((request, response) => {
+export const server = createServer((request, response) => {
   const work = requestQueue
     .catch(() => {})
     .then(() => handleRequest(request, response))
@@ -8824,11 +9106,14 @@ const server = createServer((request, response) => {
   requestQueue = work.catch(() => {});
 });
 
-server.listen(port, host, () => {
-  console.log(`Marine LMS is ready: http://${host}:${port}`);
-  console.log(`Storage: ${usePrismaStorage ? `PostgreSQL ${maskedConnectionString(databaseUrl)}` : "JSON data/db.json"}`);
-  if (process.env.NODE_ENV !== "production") {
-    console.log("Demo admin: admin@example.com / Admin123!");
-    console.log("Demo student: student@example.com / Student123!");
-  }
-});
+if (process.env.LMS_CLI_MODE !== "true") {
+  server.listen(port, host, () => {
+    console.log(`Marine LMS is ready: http://${host}:${port}`);
+    console.log(`Storage: ${usePrismaStorage ? `PostgreSQL ${maskedConnectionString(databaseUrl)}` : "JSON data/db.json"}`);
+    scheduleQueuedNotificationDelivery();
+    if (process.env.NODE_ENV !== "production") {
+      console.log("Demo admin: admin@example.com / Admin123!");
+      console.log("Demo student: student@example.com / Student123!");
+    }
+  });
+}

@@ -19,6 +19,7 @@
     "smoke": "node scripts/smoke-test.mjs",
     "test": "node scripts/regression-test.mjs",
     "test:regression": "node scripts/regression-test.mjs",
+    "email:test:all": "node scripts/send-notification-previews.mjs",
     "audit:prod": "npm audit --omit=dev",
     "lint": "eslint .",
     "prod:check": "node scripts/prod-check.mjs",
