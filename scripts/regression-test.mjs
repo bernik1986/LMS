@@ -246,6 +246,13 @@ async function run() {
     const studentCookie = await login("student@example.com", "Student123!");
     await cacheCsrfToken("/admin", adminCookie);
     await cacheCsrfToken("/dashboard", studentCookie);
+    const secondAdminCookie = await login("admin@example.com", "Admin123!");
+    await cacheCsrfToken("/admin", secondAdminCookie);
+    const firstAdminSessionProbe = await postForm("/csrf-session-probe", {}, adminCookie);
+    assert(
+      firstAdminSessionProbe.response.status === 404,
+      "Signing in from a second browser invalidates CSRF tokens in the first browser"
+    );
     const newAdminEmail = `regression-admin-${runId}@example.com`;
     const newAdminPassword = "RegressionAdmin123!";
     const createAdmin = await postForm("/admin/users/create", {
@@ -271,6 +278,8 @@ async function run() {
     const newAdminCookie = cookieFrom(firstAdminSignIn.response);
     assert(firstAdminSignIn.response.status === 303 && firstAdminSignIn.response.headers.get("location") === "/first-login", "A new account is not redirected to set its password");
     await cacheCsrfToken("/first-login", newAdminCookie);
+    database = readDb();
+    const csrfBeforeFirstPasswordChange = database.sessions.find((session) => session.userId === newAdmin.id)?.csrfToken;
     const firstAdminPassword = "FirstAdminPassword123!";
     await expectRedirect(postForm("/first-login", { password: firstAdminPassword, confirmPassword: firstAdminPassword }, newAdminCookie), "/admin?notice=password_changed");
     database = readDb();
@@ -278,9 +287,17 @@ async function run() {
     assert(database.users.find((item) => item.id === newAdmin.id).courseNotificationsEnabled === true, "Course notifications are not enabled after first sign-in");
     const passwordChangeNotice = database.notifications.find((note) => note.recipientUserId === newAdmin.id && note.type === "password_changed");
     assert(passwordChangeNotice && !passwordChangeNotice.payload.includes(firstAdminPassword), "The first sign-in password is retained in notification history");
+    const csrfAfterFirstPasswordChange = database.sessions.find((session) => session.userId === newAdmin.id)?.csrfToken;
+    assert(
+      csrfAfterFirstPasswordChange && csrfAfterFirstPasswordChange !== csrfBeforeFirstPasswordChange,
+      "The CSRF token rotated during the first password change was not persisted in the active session"
+    );
     const newAdminPanel = await request("/admin?notice=password_changed", { headers: { cookie: newAdminCookie } });
     assert(newAdminPanel.response.status === 200, "Created administrator must remain signed in after choosing a password");
     assert(newAdminPanel.body.includes("Password changed. You are signed in."), "The first sign-in confirmation is not shown in the account");
+    await cacheCsrfToken("/admin", newAdminCookie);
+    const postPasswordChangeProbe = await postForm("/csrf-session-probe", {}, newAdminCookie);
+    assert(postPasswordChangeProbe.response.status === 404, "Authenticated forms fail after the first password change");
 
     const instructorEmail = `regression-instructor-${runId}@example.com`;
     const instructorPassword = "RegressionInstructor123!";

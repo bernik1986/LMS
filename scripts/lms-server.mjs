@@ -598,6 +598,12 @@ function normalizeDb(data) {
     data.sessions = [];
     changed = true;
   }
+  for (const session of data.sessions) {
+    if (!session.csrfToken) {
+      session.csrfToken = randomBytes(32).toString("hex");
+      changed = true;
+    }
+  }
   if (!Array.isArray(data.passwordResetTokens)) {
     data.passwordResetTokens = [];
     changed = true;
@@ -2736,7 +2742,8 @@ function invalidateOtherUserSessions(user, request) {
   db.sessions = db.sessions.filter((session) => session.userId !== user.id || session.tokenHash === currentSessionHash);
   currentSession.authVersion = user.authVersion;
   currentSession.lastSeenAt = now();
-  csrfTokens.set(user.id, randomBytes(32).toString("hex"));
+  currentSession.csrfToken = randomBytes(32).toString("hex");
+  csrfTokens.set(user.id, currentSession.csrfToken);
   return true;
 }
 
@@ -2837,7 +2844,13 @@ function currentUser(request) {
   const session = (db.sessions ?? []).find((item) => item.tokenHash === hashSecret(sessionId));
   if (!session || new Date(session.expiresAt).getTime() <= Date.now()) return null;
   const user = db.users.find((item) => item.id === session.userId && item.status === "active");
-  return user && session.authVersion === user.authVersion ? user : null;
+  if (!user || session.authVersion !== user.authVersion) return null;
+  if (!session.csrfToken) {
+    session.csrfToken = randomBytes(32).toString("hex");
+    saveDb(db);
+  }
+  csrfTokens.set(user.id, session.csrfToken);
+  return user;
 }
 
 function pruneExpiredAuthRecords() {
