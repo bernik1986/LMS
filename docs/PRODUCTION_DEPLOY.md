@@ -71,6 +71,7 @@ TRUST_PROXY="true"
 LMS_ALLOW_DEMO_DATA="false"
 SESSION_TTL_HOURS="12"
 PASSWORD_RESET_TTL_MINUTES="30"
+ACCOUNT_ACTIVATION_TTL_HOURS="168"
 ```
 
 Важно: `PUBLIC_BASE_URL` должен быть настоящим HTTPS-доменом. Он попадает в QR-коды сертификатов.

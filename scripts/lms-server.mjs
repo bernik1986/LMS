@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { createHash, pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { connect as netConnect } from "node:net";
@@ -32,6 +32,7 @@ const maxCertificateBackgroundUploadBytes = Number(process.env.MAX_CERTIFICATE_T
 const maxRequestBodyBytes = Number(process.env.MAX_REQUEST_BODY_MB ?? Math.ceil(maxVideoUploadBytes / 1024 / 1024 + 8)) * 1024 * 1024;
 const sessionTtlMs = Number(process.env.SESSION_TTL_HOURS ?? 12) * 60 * 60 * 1000;
 const passwordResetTtlMs = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 30) * 60 * 1000;
+const accountActivationTtlMs = Math.max(1, Number(process.env.ACCOUNT_ACTIVATION_TTL_HOURS ?? 168)) * 60 * 60 * 1000;
 const trustProxy = process.env.TRUST_PROXY === "true";
 const isProduction = process.env.NODE_ENV === "production";
 const allowDemoData = process.env.LMS_ALLOW_DEMO_DATA === "true" || !isProduction;
@@ -496,6 +497,10 @@ function normalizeDb(data) {
       user.authVersion = 1;
       changed = true;
     }
+    if (typeof user.mustChangePassword !== "boolean") {
+      user.mustChangePassword = false;
+      changed = true;
+    }
   }
   for (const course of data.courses ?? []) {
     if (course.imageUrl === undefined) {
@@ -599,6 +604,10 @@ function normalizeDb(data) {
     changed = true;
   } else {
     const defaults = defaultEmailTemplates();
+    const legacyUserRegisteredTemplate = {
+      subject: "Your Marine LMS account is ready",
+      body: "Marine LMS\n\nYour account has been created.\n\n{{payload}}\n\nSign in: {{platformUrl}}/login\n\nUse the temporary password provided separately by your administrator."
+    };
     for (const [type, template] of Object.entries(defaults)) {
       if (!data.settings.emailTemplates[type]) {
         data.settings.emailTemplates[type] = template;
@@ -607,6 +616,14 @@ function normalizeDb(data) {
     }
     if (String(data.settings.emailTemplates.password_recovery?.body ?? "").includes("temporaryPassword")) {
       data.settings.emailTemplates.password_recovery = defaults.password_recovery;
+      changed = true;
+    }
+    const registrationTemplate = data.settings.emailTemplates.user_registered;
+    if (
+      registrationTemplate?.subject === legacyUserRegisteredTemplate.subject &&
+      registrationTemplate?.body === legacyUserRegisteredTemplate.body
+    ) {
+      data.settings.emailTemplates.user_registered = defaults.user_registered;
       changed = true;
     }
   }
@@ -1972,6 +1989,11 @@ function certificatePdfBuffer(certificate) {
   });
 }
 
+function certificatePdfFileName(certificate) {
+  const number = String(certificate.certificateNumber ?? "certificate").replace(/[^a-zA-Z0-9_-]+/g, "-");
+  return `${number || "certificate"}.pdf`;
+}
+
 function textFromFormFile(file) {
   if (!file || typeof file === "string" || !file.buffer?.length) return "";
   if (file.buffer.length > 1024 * 1024) return "";
@@ -1993,8 +2015,8 @@ function defaultEmailTemplates() {
       body: "Marine LMS\n\nNew application received.\n\n{{payload}}\n\nDate: {{date}}"
     },
     user_registered: {
-      subject: "Your Marine LMS account is ready",
-      body: "Marine LMS\n\nYour account has been created.\n\n{{payload}}\n\nSign in: {{platformUrl}}/login\n\nUse the temporary password provided separately by your administrator."
+      subject: "Set up your Marine LMS account",
+      body: "Marine LMS\n\nYour account has been created. Use this unique one-time link to set your password:\n{{payload}}\n\nThe link is valid for seven days. After setting your password, sign in here: {{platformUrl}}/login"
     },
     feedback_message: {
       subject: "New feedback message",
@@ -2119,7 +2141,36 @@ function writeSmtpLine(socket, line) {
   socket.write(`${line}\r\n`);
 }
 
-async function sendSmtpMail({ to, subject, body }) {
+function smtpHeaderValue(value) {
+  return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
+}
+
+function smtpBase64Lines(buffer) {
+  return Buffer.from(buffer).toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
+}
+
+function smtpMessage({ from, to, subject, body, attachments = [] }) {
+  const headers = `From: ${smtpHeaderValue(from)}\r\nTo: ${smtpHeaderValue(to)}\r\nSubject: ${smtpHeaderValue(subject)}\r\nMIME-Version: 1.0`;
+  const safeBody = String(body ?? "").replace(/^\./gm, "..");
+  if (!attachments.length) {
+    return `${headers}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${safeBody}\r\n`;
+  }
+  const boundary = `marine-lms-${randomBytes(18).toString("hex")}`;
+  const parts = [
+    `${headers}\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n`,
+    `--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${safeBody}\r\n`
+  ];
+  for (const attachment of attachments) {
+    const fileName = String(attachment.fileName ?? "attachment").replace(/[\\"\r\n]+/g, "-");
+    parts.push(
+      `--${boundary}\r\nContent-Type: ${attachment.contentType ?? "application/octet-stream"}; name="${fileName}"\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename="${fileName}"\r\n\r\n${smtpBase64Lines(attachment.content)}\r\n`
+    );
+  }
+  parts.push(`--${boundary}--\r\n`);
+  return parts.join("");
+}
+
+async function sendSmtpMail({ to, subject, body, attachments = [] }) {
   const hostName = process.env.SMTP_HOST;
   const portNumber = Number(process.env.SMTP_PORT ?? (process.env.SMTP_SECURE === "true" ? 465 : 587));
   const secure = process.env.SMTP_SECURE === "true";
@@ -2167,11 +2218,29 @@ async function sendSmtpMail({ to, subject, body }) {
   expectSmtpResponse(await readResponse(), [250, 251], "RCPT TO");
   writeSmtpLine(socket, "DATA");
   expectSmtpResponse(await readResponse(), [354], "DATA");
-  const safeBody = body.replace(/^\./gm, "..");
-  socket.write(`From: ${from}\r\nTo: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${safeBody}\r\n.\r\n`);
+  socket.write(`${smtpMessage({ from, to, subject, body, attachments })}\r\n.\r\n`);
   expectSmtpResponse(await readResponse(), [250], "message delivery");
   writeSmtpLine(socket, "QUIT");
   socket.end();
+}
+
+function certificateForNotification(note) {
+  if (!["certificate_available", "certificate_manual_issue", "certificate_resent", "certificate_reissued"].includes(note.type)) return null;
+  return (
+    db.certificates.find((certificate) => certificate.id === note.certificateId) ??
+    db.certificates.find((certificate) => note.payload?.includes(certificate.certificateNumber)) ??
+    null
+  );
+}
+
+async function notificationAttachments(note) {
+  const certificate = certificateForNotification(note);
+  if (!certificate) return [];
+  return [{
+    fileName: certificatePdfFileName(certificate),
+    contentType: "application/pdf",
+    content: await certificatePdfBuffer(certificate)
+  }];
 }
 
 async function deliverNotification(note) {
@@ -2181,7 +2250,12 @@ async function deliverNotification(note) {
   }
   const message = emailTemplate(note);
   try {
-    await sendSmtpMail({ to: note.recipientEmail, subject: message.subject, body: message.body });
+    await sendSmtpMail({
+      to: note.recipientEmail,
+      subject: message.subject,
+      body: message.body,
+      attachments: await notificationAttachments(note)
+    });
     note.status = "sent";
     note.sentAt = now();
     note.errorMessage = "";
@@ -2288,24 +2362,75 @@ function invalidateUserSessions(user) {
   csrfTokens.delete(user.id);
 }
 
-function createPasswordResetToken(user) {
+function permanentlyDeleteStudent(student) {
+  const assignmentIds = new Set(db.assignments.filter((assignment) => assignment.userId === student.id).map((assignment) => assignment.id));
+  const certificateIds = new Set(db.certificates.filter((certificate) => certificate.userId === student.id).map((certificate) => certificate.id));
+  const email = student.email.toLowerCase();
+  const photoPath = normalizeUploadPath(student.photoUrl);
+  const photoSharedByAnotherUser = db.users.some((user) => user.id !== student.id && user.photoUrl === student.photoUrl);
+  const summary = {
+    assignments: assignmentIds.size,
+    attempts: db.testAttempts.filter((attempt) => attempt.userId === student.id || assignmentIds.has(attempt.assignmentId)).length,
+    certificates: certificateIds.size
+  };
+
+  db.testAttempts = db.testAttempts.filter((attempt) => attempt.userId !== student.id && !assignmentIds.has(attempt.assignmentId));
+  db.certificateEvents = (db.certificateEvents ?? []).filter((event) => event.userId !== student.id && !certificateIds.has(event.certificateId));
+  db.certificates = db.certificates.filter((certificate) => certificate.userId !== student.id);
+  db.assignments = db.assignments.filter((assignment) => assignment.userId !== student.id);
+  db.notifications = db.notifications.filter((note) => note.recipientUserId !== student.id && note.recipientEmail.toLowerCase() !== email);
+  db.sessions = (db.sessions ?? []).filter((session) => session.userId !== student.id);
+  db.passwordResetTokens = (db.passwordResetTokens ?? []).filter((token) => token.userId !== student.id);
+  db.applications = db.applications.filter((application) => application.email.toLowerCase() !== email);
+  db.auditEvents = (db.auditEvents ?? []).filter((event) => event.adminUserId !== student.id);
+  db.users = db.users.filter((user) => user.id !== student.id);
+  csrfTokens.delete(student.id);
+
+  return { ...summary, photoPath: photoSharedByAnotherUser ? "" : photoPath };
+}
+
+function deleteUploadFile(path) {
+  if (!path || !existsSync(path)) return;
+  try {
+    unlinkSync(path);
+  } catch {
+    // Database records are already removed; an operator can clean a locked file later.
+  }
+}
+
+function createPasswordResetToken(user, ttlMs = passwordResetTtlMs) {
   const token = opaqueToken();
   db.passwordResetTokens = (db.passwordResetTokens ?? []).filter((item) => item.userId !== user.id);
   db.passwordResetTokens.push({
     id: id("reset"), tokenHash: hashSecret(token), userId: user.id,
-    expiresAt: new Date(Date.now() + passwordResetTtlMs).toISOString(), usedAt: "", createdAt: now()
+    expiresAt: new Date(Date.now() + ttlMs).toISOString(), usedAt: "", createdAt: now()
   });
   return token;
+}
+
+function passwordResetLink(token) {
+  return `${publicBaseUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(token)}`;
 }
 
 async function sendPasswordRecovery(user, token) {
   const note = {
     id: id("note"), recipientUserId: user.id, recipientEmail: user.email, type: "password_recovery",
-    status: notificationInitialStatus(), payload: `${publicBaseUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(token)}`,
+    status: notificationInitialStatus(), payload: passwordResetLink(token),
     createdAt: now(), sentAt: ""
   };
   await deliverNotification(note);
   note.payload = "Password reset link requested.";
+  db.notifications.push(note);
+}
+
+async function sendAccountActivation(user) {
+  const token = createPasswordResetToken(user, accountActivationTtlMs);
+  const note = {
+    id: id("note"), recipientUserId: user.id, recipientEmail: user.email, type: "user_registered",
+    status: notificationInitialStatus(), payload: passwordResetLink(token), createdAt: now(), sentAt: ""
+  };
+  await deliverNotification(note);
+  note.payload = "A one-time account setup link was sent.";
   db.notifications.push(note);
 }
 
@@ -3725,6 +3850,22 @@ function sampleCertificateForCourse(course) {
   return certificate;
 }
 
+function queueCertificateNotification(certificate, user, type, payload) {
+  const note = {
+    id: id("note"),
+    recipientUserId: user.id,
+    recipientEmail: user.email,
+    certificateId: certificate.id,
+    type,
+    status: notificationInitialStatus(),
+    payload,
+    createdAt: now(),
+    sentAt: ""
+  };
+  db.notifications.push(note);
+  return note;
+}
+
 function issueCertificate(assignment, options = {}) {
   const existing = activeCertificateForAssignment(assignment.id);
   if (existing) return existing;
@@ -3747,18 +3888,14 @@ function issueCertificate(assignment, options = {}) {
   const certificate = createCertificateForAssignment(assignment, options);
   if (!certificate) return null;
   const manuallyIssued = options.action === "manual_issue";
-  db.notifications.push({
-    id: id("note"),
-    recipientUserId: user.id,
-    recipientEmail: user.email,
-    type: manuallyIssued ? "certificate_manual_issue" : "certificate_available",
-    status: notificationInitialStatus(),
-    payload: manuallyIssued
+  queueCertificateNotification(
+    certificate,
+    user,
+    manuallyIssued ? "certificate_manual_issue" : "certificate_available",
+    manuallyIssued
       ? `Certificate manually issued: ${certificate.certificateNumber} for ${course.title}.`
-      : `Certificate ${certificate.certificateNumber} is available.`,
-    createdAt: now(),
-    sentAt: ""
-  });
+      : `Certificate ${certificate.certificateNumber} is available.`
+  );
   return certificate;
 }
 
@@ -3824,16 +3961,7 @@ function issueManualCertificate(student, course, admin, options = {}) {
   const assignment = completeAssignmentForManualCertificate(student, course, admin, issuedAt);
   const existing = activeCertificateForAssignment(assignment.id);
   if (existing) {
-    db.notifications.push({
-      id: id("note"),
-      recipientUserId: student.id,
-      recipientEmail: student.email,
-      type: "certificate_resent",
-      status: notificationInitialStatus(),
-      payload: `Certificate resent: ${existing.certificateNumber}`,
-      createdAt: now(),
-      sentAt: ""
-    });
+    queueCertificateNotification(existing, student, "certificate_resent", `Certificate resent: ${existing.certificateNumber}`);
     return existing;
   }
   const certificate = issueCertificate(assignment, { actor: admin, action: "manual_issue", issuedAt });
@@ -4210,7 +4338,7 @@ function resetPasswordPage(token = "", error = "") {
   return page(
     "New password",
     null,
-    `<main class="page"><section class="section"><div><span class="eyebrow">Access</span><h1>New password</h1><p class="lead">The link is valid for 30 minutes and can be used once.</p></div>
+    `<main class="page"><section class="section"><div><span class="eyebrow">Access</span><h1>New password</h1><p class="lead">This one-time link can be used only while it is active.</p></div>
       ${message}
       <form class="form-panel" method="post" action="/reset-password">
         <input type="hidden" name="token" value="${escapeHtml(token)}" />
@@ -4386,6 +4514,15 @@ function adminStudentCard(student, viewer = null) {
           <input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="Temporary password" required />
           <button class="small-button warning" type="submit">Reset password</button>
         </form>
+        <details class="danger-zone">
+          <summary>Delete permanently</summary>
+          <form class="stack" method="post" action="/admin/users/purge" onsubmit="return confirm('Permanently delete this student and all related courses, tests, and certificates? This cannot be undone.');">
+            <input type="hidden" name="id" value="${student.id}" />
+            <p class="notice danger"><strong>Irreversible action.</strong> This deletes the student, assigned courses, test attempts, certificates, notifications, access sessions, recovery links, and the uploaded certificate photo.</p>
+            <label><input name="confirmPermanentDelete" type="checkbox" value="delete" required /> I understand that this cannot be undone.</label>
+            <button class="small-button danger" type="submit">Delete permanently</button>
+          </form>
+        </details>
       </div>` : ""}
     </div>
     <div class="stack">
@@ -4453,6 +4590,11 @@ function adminUsers(user, searchParams = new URLSearchParams(), createForm = {})
   const createdNotice = createdUser
     ? `<div class="notice success">User created: <strong>${escapeHtml(displayUserName(createdUser) || createdUser.email)}</strong>. The page has moved to the new user.</div>`
     : "";
+  const purgedNotice = searchParams.get("purged") === "1"
+    ? `<div class="notice success">The student and all associated learning records were permanently deleted.</div>`
+    : searchParams.get("purgeError") === "1"
+      ? `<div class="notice danger">Permanent deletion was cancelled. Confirm the warning before continuing.</div>`
+      : "";
   return adminShell(
     user,
     "Users",
@@ -4461,6 +4603,7 @@ function adminUsers(user, searchParams = new URLSearchParams(), createForm = {})
         <div><span class="eyebrow">Users</span><h1>Students</h1><p class="lead">An administrator creates students, edits required details, and assigns courses.</p></div>
       </div>
       ${createdNotice}
+      ${purgedNotice}
       <form class="inline-form" method="get" action="/admin/users">
         <input name="q" value="${escapeHtml(params.q)}" placeholder="Search students" />
         <button class="small-button primary" type="submit">Search</button>
@@ -5449,6 +5592,23 @@ function adminNewCourse(user) {
   );
 }
 
+function firstLoginPasswordPage(user, error = "") {
+  const message = error === "invalid" ? `<div class="notice danger">Use a password of at least 12 characters and enter it twice.</div>` : "";
+  return page(
+    "Set your password",
+    null,
+    `<main class="page"><section class="section"><div><span class="eyebrow">First sign-in</span><h1>Set a new password</h1><p class="lead">For your account security, choose a personal password before continuing.</p></div>
+      ${message}
+      <form class="form-panel" method="post" action="/first-login">
+        ${csrfInput(user)}
+        <div class="field"><label>New password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
+        <div class="field"><label>Repeat new password</label><input name="confirmPassword" type="password" minlength="12" autocomplete="new-password" required /></div>
+        <button class="button" type="submit">Save password and continue</button>
+      </form>
+    </section></main>`
+  );
+}
+
 function adminMergeCourses(user, error = "") {
   const courses = [...db.courses].sort((a, b) => a.title.localeCompare(b.title, "en"));
   return adminShell(
@@ -6400,6 +6560,7 @@ function auditAdminAction(admin, pathname, form) {
 function auditActionLabel(action = "") {
   const exact = {
     "/admin/users/create": "New user registered",
+    "/admin/users/purge": "User permanently deleted",
     "/admin/assignments/create": "Course assigned to student",
     "/admin/course-prices/update": "Course prices updated",
     "/admin/courses/create": "New course created",
@@ -6940,7 +7101,7 @@ async function handlePost(request, response, pathname, user) {
     csrfTokens.set(found.id, csrfToken);
     saveDb(db);
     response.writeHead(303, {
-      Location: canAccessAdminPanel(found) ? "/admin" : "/dashboard",
+      Location: found.mustChangePassword ? "/first-login" : (canAccessAdminPanel(found) ? "/admin" : "/dashboard"),
       "Set-Cookie": sessionCookie(sessionId),
       ...responseSecurityHeaders()
     });
@@ -6983,6 +7144,7 @@ async function handlePost(request, response, pathname, user) {
       return redirect(response, "/reset-password?error=invalid");
     }
     userToReset.passwordHash = hashPassword(password);
+    userToReset.mustChangePassword = false;
     invalidateUserSessions(userToReset);
     reset.usedAt = now();
     db.notifications.push({
@@ -6991,6 +7153,25 @@ async function handlePost(request, response, pathname, user) {
     });
     saveDb(db);
     return redirect(response, "/login?notice=password_reset");
+  }
+
+  if (pathname === "/first-login") {
+    const account = requireUser(request, response);
+    if (!account) return;
+    const password = form.get("password")?.toString() ?? "";
+    const confirmPassword = form.get("confirmPassword")?.toString() ?? "";
+    if (!account.mustChangePassword || password.length < 12 || password !== confirmPassword) {
+      return redirect(response, "/first-login?error=invalid");
+    }
+    account.passwordHash = hashPassword(password);
+    account.mustChangePassword = false;
+    invalidateUserSessions(account);
+    db.notifications.push({
+      id: id("note"), recipientUserId: account.id, recipientEmail: account.email, type: "password_changed",
+      status: notificationInitialStatus(), payload: "Password changed during first sign-in.", createdAt: now(), sentAt: ""
+    });
+    saveDb(db);
+    return redirect(response, "/login?notice=password_changed");
   }
 
   if (pathname === "/feedback") {
@@ -7354,6 +7535,7 @@ async function handlePost(request, response, pathname, user) {
             status: "active",
             createdById: admin.id,
             authVersion: 1,
+            mustChangePassword: true,
             createdAt: now()
           };
           db.users.push(student);
@@ -7429,6 +7611,7 @@ async function handlePost(request, response, pathname, user) {
           status: "active",
           createdById: admin.id,
           authVersion: 1,
+          mustChangePassword: true,
           createdAt: now()
         };
         const photo = form.get("photo");
@@ -7440,16 +7623,7 @@ async function handlePost(request, response, pathname, user) {
           }
         }
         db.users.push(student);
-        db.notifications.push({
-          id: id("note"),
-          recipientUserId: student.id,
-          recipientEmail: student.email,
-          type: "user_registered",
-          status: notificationInitialStatus(),
-          payload: `Your ${roleLabel(student.role).toLowerCase()} account has been created.`,
-          createdAt: now(),
-          sentAt: ""
-        });
+        await sendAccountActivation(student);
         createdUser = student;
       }
       saveDb(db);
@@ -7719,6 +7893,21 @@ async function handlePost(request, response, pathname, user) {
       db.courses.push(course);
       saveDb(db);
       redirect(response, `/admin/courses/${course.id}`);
+      return;
+    }
+
+    if (pathname === "/admin/users/purge") {
+      const student = db.users.find((item) => item.id === form.get("id") && item.role === "student");
+      if (!isFullAdmin(admin) || !student || form.get("confirmPermanentDelete") !== "delete") {
+        redirect(response, "/admin/users?purgeError=1");
+        return;
+      }
+      const removed = permanentlyDeleteStudent(student);
+      saveDb(db);
+      await saveQueue;
+      if (lastSaveError) throw lastSaveError;
+      deleteUploadFile(removed.photoPath);
+      redirect(response, "/admin/users?purged=1");
       return;
     }
 
@@ -8169,16 +8358,7 @@ async function handlePost(request, response, pathname, user) {
             newCertificateId: newCertificate.id,
             newCertificateNumber: newCertificate.certificateNumber
           });
-          db.notifications.push({
-            id: id("note"),
-            recipientUserId: student.id,
-            recipientEmail: student.email,
-            type: "certificate_reissued",
-            status: notificationInitialStatus(),
-            payload: `Certificate reissued: ${newCertificate.certificateNumber}`,
-            createdAt: now(),
-            sentAt: now()
-          });
+          queueCertificateNotification(newCertificate, student, "certificate_reissued", `Certificate reissued: ${newCertificate.certificateNumber}`);
         }
       }
       saveDb(db);
@@ -8192,16 +8372,7 @@ async function handlePost(request, response, pathname, user) {
       const student = certificate ? userById(certificate.userId) : null;
       if (certificate && student) {
         logCertificateEvent(certificate, "resent", admin);
-        db.notifications.push({
-          id: id("note"),
-          recipientUserId: student.id,
-          recipientEmail: student.email,
-          type: "certificate_resent",
-          status: notificationInitialStatus(),
-          payload: `Certificate resent: ${certificate.certificateNumber}`,
-          createdAt: now(),
-          sentAt: now()
-        });
+        queueCertificateNotification(certificate, student, "certificate_resent", `Certificate resent: ${certificate.certificateNumber}`);
       }
       saveDb(db);
       redirect(response, returnTo);
@@ -8319,6 +8490,10 @@ async function handleRequest(request, response) {
     });
   }
 
+  if (user?.mustChangePassword && !["/first-login", "/logout"].includes(pathname)) {
+    return redirect(response, "/first-login");
+  }
+
   if (request.method === "POST") {
     if (!sameOriginPost(request)) {
       send(response, page("Request rejected", user, `<main class="page"><div class="notice danger">The POST request was rejected by same-origin protection.</div></main>`), 403);
@@ -8332,6 +8507,13 @@ async function handleRequest(request, response) {
   if (pathname === "/login") return send(response, loginPage(user, url.searchParams.get("notice") ?? ""));
   if (pathname === "/forgot-password") return send(response, forgotPasswordPage(user, url.searchParams.get("success") === "1"));
   if (pathname === "/reset-password") return send(response, resetPasswordPage(url.searchParams.get("token") ?? "", url.searchParams.get("error") ?? ""));
+  if (pathname === "/first-login") {
+    const account = requireUser(request, response);
+    if (!account) return;
+    return account.mustChangePassword
+      ? send(response, firstLoginPasswordPage(account, url.searchParams.get("error") ?? ""))
+      : redirect(response, canAccessAdminPanel(account) ? "/admin" : "/dashboard");
+  }
   if (pathname === "/blog") return send(response, await blogPage(user));
   if (pathname === "/about") return send(response, aboutPage(user));
   if (pathname === "/contacts") return send(response, contactsPage(user));
@@ -8484,7 +8666,7 @@ async function handleRequest(request, response) {
     const pdf = await certificatePdfBuffer(cert);
     response.writeHead(200, {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${cert.certificateNumber.replace(/[^a-zA-Z0-9_-]+/g, "-")}.pdf"`,
+      "Content-Disposition": `attachment; filename="${certificatePdfFileName(cert)}"`,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store"
     });

@@ -164,7 +164,10 @@ async function run() {
     assert(createAdmin.response.status === 303, "Administrator account creation did not redirect");
     let database = readDb();
     assert(database.users.some((item) => item.email === newAdminEmail && item.role === "admin"), "Full administrator cannot create an administrator account");
+    const newAdmin = database.users.find((item) => item.email === newAdminEmail);
+    assert(newAdmin.mustChangePassword === true, "A new account is not marked for a mandatory first password change");
     assert(database.notifications.some((note) => note.recipientEmail === newAdminEmail && note.type === "user_registered"), "New users do not receive an account-created notification");
+    assert(database.passwordResetTokens.some((token) => token.userId === newAdmin.id), "New users do not receive a one-time account setup token");
     const duplicateUser = await postForm("/admin/users/create", {
       role: "student", email: newAdminEmail.toUpperCase(), firstNameEn: "Existing", lastNameEn: "Email",
       birthDate: "1990-01-01", position: "Trainee", company: "Regression company", password: "RegressionStudent123!"
@@ -172,8 +175,16 @@ async function run() {
     assert(duplicateUser.response.status === 409, "Duplicate e-mail creation did not return a clear conflict");
     assert(duplicateUser.body.includes("A user with this e-mail address already exists."), "Duplicate e-mail error is not shown to the administrator");
     assert(duplicateUser.body.includes("Regression company"), "User creation form values are not preserved after a duplicate e-mail error");
-    const newAdminCookie = await login(newAdminEmail, newAdminPassword);
-    const newAdminPanel = await request("/admin", { headers: { cookie: newAdminCookie } });
+    const firstAdminSignIn = await postForm("/login", { email: newAdminEmail, password: newAdminPassword });
+    const newAdminCookie = cookieFrom(firstAdminSignIn.response);
+    assert(firstAdminSignIn.response.status === 303 && firstAdminSignIn.response.headers.get("location") === "/first-login", "A new account is not redirected to set its password");
+    await cacheCsrfToken("/first-login", newAdminCookie);
+    const firstAdminPassword = "FirstAdminPassword123!";
+    await expectRedirect(postForm("/first-login", { password: firstAdminPassword, confirmPassword: firstAdminPassword }, newAdminCookie), "/login?notice=password_changed");
+    const activeNewAdminCookie = await login(newAdminEmail, firstAdminPassword);
+    database = readDb();
+    assert(database.users.find((item) => item.id === newAdmin.id).mustChangePassword === false, "Mandatory password change remains after completing first sign-in");
+    const newAdminPanel = await request("/admin", { headers: { cookie: activeNewAdminCookie } });
     assert(newAdminPanel.response.status === 200, "Created administrator cannot access the admin panel");
 
     const instructorEmail = `regression-instructor-${runId}@example.com`;
@@ -328,6 +339,17 @@ async function run() {
     const auditEvent = readDb().auditEvents.at(-1);
     const auditDetail = await request(`/admin/audit/${auditEvent.id}`, { headers: { cookie: adminCookie } });
     assert(auditDetail.response.status === 200 && auditDetail.body.includes("audit-detail"), "Audit details page is unavailable");
+
+    const purgePage = await request("/admin/users", { headers: { cookie: adminCookie } });
+    assert(purgePage.body.includes("Delete permanently") && purgePage.body.includes("confirmPermanentDelete"), "Permanent user deletion warning is unavailable");
+    await expectRedirect(postForm("/admin/users/purge", { id: "user_student", confirmPermanentDelete: "delete" }, adminCookie), "/admin/users?purged=1");
+    database = readDb();
+    assert(!database.users.some((item) => item.id === "user_student"), "Student was not permanently deleted");
+    assert(!database.assignments.some((item) => item.userId === "user_student"), "Student course assignments were not permanently deleted");
+    assert(!database.testAttempts.some((item) => item.userId === "user_student"), "Student test attempts were not permanently deleted");
+    assert(!database.certificates.some((item) => item.userId === "user_student"), "Student certificates were not permanently deleted");
+    assert(!database.notifications.some((item) => item.recipientUserId === "user_student" || item.recipientEmail === "student@example.com"), "Student notifications were not permanently deleted");
+    assert(!database.passwordResetTokens.some((item) => item.userId === "user_student"), "Student recovery links were not permanently deleted");
 
     console.log(`Regression test passed: ${assertions} assertions`);
     console.log(`Temporary JSON test database: ${dbPath}`);

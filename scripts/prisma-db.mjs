@@ -375,6 +375,7 @@ async function writeFlatDb(client, flat) {
             status: enumValue(user.status, userStatuses, "active"),
             createdById: user.createdById ?? "",
             authVersion: Number(user.authVersion) || 1,
+            mustChangePassword: Boolean(user.mustChangePassword),
             createdAt: dateOrNow(user.createdAt)
           },
           "source",
@@ -621,6 +622,7 @@ async function writeFlatDb(client, flat) {
         id: note.id,
         recipientUserId: userIds.has(note.recipientUserId) ? note.recipientUserId : null,
         recipientEmail: note.recipientEmail ?? "",
+        certificateId: note.certificateId ?? "",
         type: note.type ?? "",
         status: enumValue(note.status, notificationStatuses, "logged"),
         payload: note.payload ?? "",
@@ -779,6 +781,7 @@ function userData(user) {
     status: enumValue(user.status, userStatuses, "active"),
     createdById: user.createdById ?? "",
     authVersion: Number(user.authVersion) || 1,
+    mustChangePassword: Boolean(user.mustChangePassword),
     createdAt: dateOrNow(user.createdAt)
   }, "source", user.source);
 }
@@ -880,7 +883,7 @@ function certificateData(certificate) {
 function notificationData(note, userIds) {
   return {
     id: note.id, recipientUserId: userIds.has(note.recipientUserId) ? note.recipientUserId : null,
-    recipientEmail: note.recipientEmail ?? "", type: note.type ?? "", status: enumValue(note.status, notificationStatuses, "logged"),
+    recipientEmail: note.recipientEmail ?? "", certificateId: note.certificateId ?? "", type: note.type ?? "", status: enumValue(note.status, notificationStatuses, "logged"),
     payload: note.payload ?? "", errorMessage: note.errorMessage ?? "", createdAt: dateOrNow(note.createdAt), sentAt: dateOrNull(note.sentAt)
   };
 }
@@ -1121,6 +1124,7 @@ export async function loadPrismaDb(options = {}) {
           status: user.status,
           createdById: user.createdById ?? "",
           authVersion: user.authVersion,
+          mustChangePassword: Boolean(user.mustChangePassword),
           source: user.source ?? undefined,
           createdAt: dateTimeString(user.createdAt)
         })
@@ -1197,6 +1201,7 @@ export async function loadPrismaDb(options = {}) {
         id: note.id,
         recipientUserId: note.recipientUserId ?? "",
         recipientEmail: note.recipientEmail,
+        certificateId: note.certificateId ?? "",
         type: note.type,
         status: note.status,
         payload: note.payload,

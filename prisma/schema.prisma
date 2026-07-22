@@ -95,6 +95,7 @@ model User {
   status          UserStatus         @default(active)
   createdById     String             @default("")
   authVersion     Int                @default(1)
+  mustChangePassword Boolean          @default(false)
   source          Json?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -316,6 +317,7 @@ model Notification {
   recipientUserId String?
   recipient       User?              @relation(fields: [recipientUserId], references: [id], onDelete: SetNull)
   recipientEmail  String
+  certificateId   String             @default("")
   type            String
   status          NotificationStatus @default(logged)
   payload         String             @db.Text
