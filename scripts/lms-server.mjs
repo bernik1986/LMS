@@ -33,6 +33,7 @@ const maxRequestBodyBytes = Number(process.env.MAX_REQUEST_BODY_MB ?? Math.ceil(
 const sessionTtlMs = Number(process.env.SESSION_TTL_HOURS ?? 12) * 60 * 60 * 1000;
 const passwordResetTtlMs = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 30) * 60 * 1000;
 const accountActivationTtlMs = Math.max(1, Number(process.env.ACCOUNT_ACTIVATION_TTL_HOURS ?? 168)) * 60 * 60 * 1000;
+const emailTemplateDesignVersion = 2;
 const trustProxy = process.env.TRUST_PROXY === "true";
 const isProduction = process.env.NODE_ENV === "production";
 const allowDemoData = process.env.LMS_ALLOW_DEMO_DATA === "true" || !isProduction;
@@ -473,7 +474,8 @@ function createSeedData() {
     auditEvents: [],
     certificateEvents: [],
     settings: {
-      emailTemplates: defaultEmailTemplates()
+      emailTemplates: defaultEmailTemplates(),
+      emailTemplateDesignVersion
     }
   };
 }
@@ -601,6 +603,7 @@ function normalizeDb(data) {
   }
   if (!data.settings.emailTemplates) {
     data.settings.emailTemplates = defaultEmailTemplates();
+    data.settings.emailTemplateDesignVersion = emailTemplateDesignVersion;
     changed = true;
   } else {
     const defaults = defaultEmailTemplates();
@@ -624,6 +627,16 @@ function normalizeDb(data) {
       registrationTemplate?.body === legacyUserRegisteredTemplate.body
     ) {
       data.settings.emailTemplates.user_registered = defaults.user_registered;
+      changed = true;
+    }
+    if (Number(data.settings.emailTemplateDesignVersion ?? 0) < emailTemplateDesignVersion) {
+      for (const [type, template] of Object.entries(data.settings.emailTemplates)) {
+        if (typeof template?.body === "string" && template.body.startsWith("Marine LMS\n\n")) {
+          data.settings.emailTemplates[type] = defaults[type] ?? template;
+          changed = true;
+        }
+      }
+      data.settings.emailTemplateDesignVersion = emailTemplateDesignVersion;
       changed = true;
     }
   }
@@ -2011,72 +2024,72 @@ function notificationInitialStatus() {
 function defaultEmailTemplates() {
   return {
     new_application: {
-      subject: "New course application",
-      body: "Marine LMS\n\nNew application received.\n\n{{payload}}\n\nDate: {{date}}"
+      subject: "New course application received",
+      body: "A new course application has arrived.\n\n**Application details**\n{{payload}}\n\nReceived: {{date}}"
     },
     user_registered: {
-      subject: "Set up your Marine LMS account",
-      body: "Marine LMS\n\nYour account has been created. Use this unique one-time link to set your password:\n{{payload}}\n\nThe link is valid for seven days. After setting your password, sign in here: {{platformUrl}}/login"
+      subject: "Welcome to Maritime Portal - activate your account",
+      body: "**Welcome to Maritime Portal, {{firstName}}.**\n\nYour learning account is ready. Use this secure, one-time link to choose your personal password:\n{{payload}}\n\nThe link is valid for seven days. After activation, sign in at {{platformUrl}}/login."
     },
     feedback_message: {
-      subject: "New feedback message",
-      body: "Marine LMS\n\nA message was sent from the website footer.\n\n{{payload}}\n\nDate: {{date}}"
+      subject: "New website message",
+      body: "A new message was sent through the Maritime Portal website.\n\n**Message details**\n{{payload}}\n\nReceived: {{date}}"
     },
     course_assigned: {
-      subject: "Course assigned",
-      body: "Marine LMS\n\nYou have been assigned to a course.\n\n{{payload}}\n\nLogin: {{platformUrl}}/login"
+      subject: "A new course has been assigned to you",
+      body: "**Your training is ready to begin.**\n\n{{payload}}\n\nOpen your learning account: {{platformUrl}}/login"
     },
     certificate_available: {
-      subject: "Certificate available",
-      body: "Marine LMS\n\nYour certificate is available.\n\n{{payload}}\n\nOpen your dashboard: {{platformUrl}}/dashboard/certificates"
+      subject: "Your Maritime Portal certificate is available",
+      body: "**Congratulations, {{firstName}}.**\n\nYour certificate is now available.\n\n{{payload}}\n\nOpen your certificates: {{platformUrl}}/dashboard/certificates"
     },
     certificate_manual_issue: {
-      subject: "Certificate manually issued",
-      body: "Marine LMS\n\nA certificate was issued by administrator.\n\n{{payload}}\n\nOpen your dashboard: {{platformUrl}}/dashboard/certificates"
+      subject: "Your certificate has been issued",
+      body: "**Congratulations, {{firstName}}.**\n\nAn administrator has issued your certificate.\n\n{{payload}}\n\nOpen your certificates: {{platformUrl}}/dashboard/certificates"
     },
     certificate_resent: {
-      subject: "Certificate resent",
-      body: "Marine LMS\n\nCertificate notification was sent again.\n\n{{payload}}"
+      subject: "Your certificate has been sent again",
+      body: "Your certificate notification has been sent again.\n\n{{payload}}"
     },
     certificate_revoked: {
-      subject: "Certificate revoked",
-      body: "Marine LMS\n\nA certificate was revoked.\n\n{{payload}}"
+      subject: "Certificate status update",
+      body: "There has been an update to one of your certificates.\n\n{{payload}}"
     },
     certificate_reissued: {
-      subject: "Certificate reissued",
-      body: "Marine LMS\n\nA certificate was reissued.\n\n{{payload}}"
+      subject: "Your certificate has been reissued",
+      body: "Your updated certificate is ready.\n\n{{payload}}"
     },
     password_reset: {
-      subject: "Password reset",
-      body: "Marine LMS\n\nYour temporary password was reset.\n\n{{payload}}\n\nLogin: {{platformUrl}}/login"
+      subject: "Your Maritime Portal password was reset",
+      body: "Your password was reset by an administrator.\n\n{{payload}}\n\nSign in: {{platformUrl}}/login"
     },
     password_recovery: {
-      subject: "Password recovery",
-      body: "Marine LMS\n\nUse this one-time link within 30 minutes to choose a new password:\n{{payload}}\n\nIf you did not request this, you can ignore this email."
+      subject: "Reset your Maritime Portal password",
+      body: "Use this secure, one-time link within 30 minutes to choose a new password:\n{{payload}}\n\nIf you did not request this, you can safely ignore this email."
     },
     password_changed: {
-      subject: "Password changed",
-      body: "Marine LMS\n\nYour password was changed.\n\n{{payload}}"
+      subject: "Your Maritime Portal password was changed",
+      body: "**Your password has been changed.**\n\n{{payload}}"
     },
     import_video_auto_link: {
       subject: "Video auto-link report",
-      body: "Marine LMS\n\n{{payload}}\n\nOpen files report: {{platformUrl}}/admin/files"
+      body: "**Video import report**\n\n{{payload}}\n\nOpen the files report: {{platformUrl}}/admin/files"
     },
     photo_required_for_certificate: {
-      subject: "Photo required for certificate",
-      body: "Marine LMS\n\nPhoto is required before your certificate can be issued.\n\n{{payload}}\n\nProfile: {{platformUrl}}/dashboard/profile"
+      subject: "Action required: upload your certificate photo",
+      body: "A profile photo is required before your certificate can be issued.\n\n{{payload}}\n\nOpen your profile: {{platformUrl}}/dashboard/profile"
     },
     pending_certificates_issued: {
-      subject: "Pending certificate issued",
-      body: "Marine LMS\n\nPending certificate was issued after photo upload.\n\n{{payload}}"
+      subject: "Your pending certificate is now available",
+      body: "**Thank you for uploading your photo.**\n\nYour pending certificate has now been issued.\n\n{{payload}}"
     },
     smtp_test: {
-      subject: "SMTP test",
-      body: "Marine LMS\n\nThis is a test email from the admin panel.\n\n{{payload}}\n\nDate: {{date}}"
+      subject: "Maritime Portal email delivery test",
+      body: "This is a test email sent from the Maritime Portal admin panel.\n\n{{payload}}\n\nSent: {{date}}"
     },
     invoice_sent: {
-      subject: "Marine LMS invoice",
-      body: "Marine LMS\n\nYour invoice is ready.\n\n{{payload}}"
+      subject: "Your Maritime Portal invoice is ready",
+      body: "Your invoice is ready to review.\n\n{{payload}}"
     }
   };
 }
@@ -2085,22 +2098,61 @@ function renderTextTemplate(template = "", values = {}) {
   return String(template).replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key) => values[key] ?? "");
 }
 
+function emailRichText(text = "") {
+  const escaped = escapeHtml(text);
+  const withEmphasis = escaped
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const withLinks = withEmphasis.replace(/https?:\/\/[^\s<]+/g, (url) => `<a href="${url}" style="color:#075f91;text-decoration:underline;font-weight:700;word-break:break-word;">${url}</a>`);
+  return withLinks
+    .split(/\n{2,}/)
+    .filter(Boolean)
+    .map((paragraph) => `<p style="margin:0 0 18px;color:#23384d;font:16px/1.6 Arial,Helvetica,sans-serif;">${paragraph.replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+function brandedEmailHtml({ subject, body, recipientFirstName }) {
+  const platformUrl = publicBaseUrl.replace(/\/$/, "");
+  const logoUrl = `${platformUrl}/assets/brand/maritime-portal-logo.png`;
+  const preview = String(body).replace(/\s+/g, " ").slice(0, 120);
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:0;background:#edf5fa;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(preview)}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#edf5fa;padding:28px 12px;"><tr><td align="center">
+    <table role="presentation" width="620" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:620px;background:#ffffff;border:1px solid #c8dce9;border-radius:12px;overflow:hidden;">
+      <tr><td style="padding:26px 34px 22px;background:#ffffff;border-bottom:4px solid #0a719f;"><a href="${escapeHtml(platformUrl)}" style="text-decoration:none;"><img src="${escapeHtml(logoUrl)}" width="190" alt="Maritime Portal" style="display:block;max-width:190px;height:auto;border:0;outline:none;" /></a></td></tr>
+      <tr><td style="padding:32px 34px 14px;"><h1 style="margin:0 0 20px;color:#062d4f;font:700 25px/1.25 Arial,Helvetica,sans-serif;">${escapeHtml(subject)}</h1><p style="margin:0 0 22px;color:#23384d;font:16px/1.6 Arial,Helvetica,sans-serif;">Good day, <strong>${escapeHtml(recipientFirstName)}.</strong></p>${emailRichText(body)}<p style="margin:26px 0 0;color:#23384d;font:16px/1.6 Arial,Helvetica,sans-serif;">We wish you a productive day and successful training.</p><p style="margin:18px 0 0;color:#062d4f;font:16px/1.6 Arial,Helvetica,sans-serif;"><strong>Kind regards,<br />Maritime Portal Training Team</strong></p></td></tr>
+      <tr><td style="padding:20px 34px;background:#062d4f;color:#dcecf5;font:13px/1.5 Arial,Helvetica,sans-serif;">This is an automated message from <a href="${escapeHtml(platformUrl)}" style="color:#ffffff;font-weight:700;text-decoration:underline;">Maritime Portal</a>. Please do not reply to this email.</td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+}
+
 function emailTemplate(note) {
   const template = db.settings?.emailTemplates?.[note.type] ?? defaultEmailTemplates()[note.type];
+  const recipient = db.users.find((user) => user.id === note.recipientUserId) ?? db.users.find((user) => user.email.toLowerCase() === String(note.recipientEmail ?? "").toLowerCase());
+  const fullName = displayUserName(recipient) || note.recipientEmail || "Maritime Portal learner";
+  const firstName = recipient?.firstNameEn?.trim() || fullName;
   const values = {
     payload: note.payload || "",
     recipientEmail: note.recipientEmail || "",
     date: formatDate(note.createdAt || now()),
     platformUrl: publicBaseUrl,
-    type: note.type || ""
+    type: note.type || "",
+    firstName,
+    fullName,
+    greeting: `Good day, ${firstName}.`
   };
   const subject = renderTextTemplate(template?.subject ?? "Marine LMS notification", values);
+  const body = renderTextTemplate(
+    template?.body ?? `Marine LMS\n\n{{payload}}\n\nRecipient: {{recipientEmail}}\nDate: {{date}}`,
+    values
+  );
   return {
     subject,
-    body: renderTextTemplate(
-      template?.body ?? `Marine LMS\n\n{{payload}}\n\nRecipient: {{recipientEmail}}\nDate: {{date}}`,
-      values
-    )
+    body,
+    html: brandedEmailHtml({ subject, body, recipientFirstName: firstName })
   };
 }
 
@@ -2149,16 +2201,31 @@ function smtpBase64Lines(buffer) {
   return Buffer.from(buffer).toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
 }
 
-function smtpMessage({ from, to, subject, body, attachments = [] }) {
+function smtpDotStuff(value = "") {
+  return String(value).replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
+}
+
+function smtpAlternativeParts(boundary, body, html) {
+  return [
+    `--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${smtpDotStuff(body)}\r\n`,
+    `--${boundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${smtpDotStuff(html)}\r\n`,
+    `--${boundary}--\r\n`
+  ].join("");
+}
+
+function smtpMessage({ from, to, subject, body, html = "", attachments = [] }) {
   const headers = `From: ${smtpHeaderValue(from)}\r\nTo: ${smtpHeaderValue(to)}\r\nSubject: ${smtpHeaderValue(subject)}\r\nMIME-Version: 1.0`;
-  const safeBody = String(body ?? "").replace(/^\./gm, "..");
-  if (!attachments.length) {
-    return `${headers}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${safeBody}\r\n`;
+  if (!html && !attachments.length) {
+    return `${headers}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${smtpDotStuff(body)}\r\n`;
   }
-  const boundary = `marine-lms-${randomBytes(18).toString("hex")}`;
+  const alternativeBoundary = `marine-lms-alt-${randomBytes(18).toString("hex")}`;
+  if (!attachments.length) {
+    return `${headers}\r\nContent-Type: multipart/alternative; boundary="${alternativeBoundary}"\r\n\r\n${smtpAlternativeParts(alternativeBoundary, body, html)}`;
+  }
+  const boundary = `marine-lms-mixed-${randomBytes(18).toString("hex")}`;
   const parts = [
     `${headers}\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n`,
-    `--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${safeBody}\r\n`
+    `--${boundary}\r\nContent-Type: multipart/alternative; boundary="${alternativeBoundary}"\r\n\r\n${smtpAlternativeParts(alternativeBoundary, body, html)}`
   ];
   for (const attachment of attachments) {
     const fileName = String(attachment.fileName ?? "attachment").replace(/[\\"\r\n]+/g, "-");
@@ -2170,7 +2237,7 @@ function smtpMessage({ from, to, subject, body, attachments = [] }) {
   return parts.join("");
 }
 
-async function sendSmtpMail({ to, subject, body, attachments = [] }) {
+async function sendSmtpMail({ to, subject, body, html = "", attachments = [] }) {
   const hostName = process.env.SMTP_HOST;
   const portNumber = Number(process.env.SMTP_PORT ?? (process.env.SMTP_SECURE === "true" ? 465 : 587));
   const secure = process.env.SMTP_SECURE === "true";
@@ -2218,7 +2285,7 @@ async function sendSmtpMail({ to, subject, body, attachments = [] }) {
   expectSmtpResponse(await readResponse(), [250, 251], "RCPT TO");
   writeSmtpLine(socket, "DATA");
   expectSmtpResponse(await readResponse(), [354], "DATA");
-  socket.write(`${smtpMessage({ from, to, subject, body, attachments })}\r\n.\r\n`);
+  socket.write(`${smtpMessage({ from, to, subject, body, html, attachments })}\r\n.\r\n`);
   expectSmtpResponse(await readResponse(), [250], "message delivery");
   writeSmtpLine(socket, "QUIT");
   socket.end();
@@ -2254,6 +2321,7 @@ async function deliverNotification(note) {
       to: note.recipientEmail,
       subject: message.subject,
       body: message.body,
+      html: message.html,
       attachments: await notificationAttachments(note)
     });
     note.status = "sent";
@@ -2362,6 +2430,24 @@ function invalidateUserSessions(user) {
   csrfTokens.delete(user.id);
 }
 
+function invalidateOtherUserSessions(user, request) {
+  const currentSessionHash = hashSecret(getCookie(request, "sid"));
+  const currentSession = (db.sessions ?? []).find(
+    (session) => session.userId === user.id && session.tokenHash === currentSessionHash
+  );
+  if (!currentSession) {
+    invalidateUserSessions(user);
+    return false;
+  }
+
+  user.authVersion = (Number(user.authVersion) || 1) + 1;
+  db.sessions = db.sessions.filter((session) => session.userId !== user.id || session.tokenHash === currentSessionHash);
+  currentSession.authVersion = user.authVersion;
+  currentSession.lastSeenAt = now();
+  csrfTokens.set(user.id, randomBytes(32).toString("hex"));
+  return true;
+}
+
 function permanentlyDeleteStudent(student) {
   const assignmentIds = new Set(db.assignments.filter((assignment) => assignment.userId === student.id).map((assignment) => assignment.id));
   const certificateIds = new Set(db.certificates.filter((certificate) => certificate.userId === student.id).map((certificate) => certificate.id));
@@ -2431,6 +2517,24 @@ async function sendAccountActivation(user) {
   };
   await deliverNotification(note);
   note.payload = "A one-time account setup link was sent.";
+  db.notifications.push(note);
+}
+
+async function sendFirstLoginCredentials(user, password) {
+  const note = {
+    id: id("note"), recipientUserId: user.id, recipientEmail: user.email, type: "password_changed",
+    status: notificationInitialStatus(),
+    payload: `Your password was changed during your first sign-in.\n\nLogin: ${user.email}\nPassword: ${password}\n\nYou are already signed in to Marine LMS.`,
+    createdAt: now(), sentAt: ""
+  };
+  await deliverNotification(note);
+
+  // The password is sent once but is never retained in the notification history.
+  note.payload = "Password changed during first sign-in. Login details were sent by email.";
+  if (note.status !== "sent") {
+    note.status = "logged";
+    note.errorMessage ||= "Login details were not retained for a resend.";
+  }
   db.notifications.push(note);
 }
 
@@ -4377,7 +4481,10 @@ function applyPage(user, success = false, selectedCourseId = "") {
   );
 }
 
-function adminDashboard(user) {
+function adminDashboard(user, notice = "") {
+  const passwordChangedNotice = notice === "password_changed"
+    ? `<div class="notice success" role="status">Password changed. You are signed in.</div>`
+    : "";
   if (isInstructor(user)) {
     const students = db.users.filter((item) => item.role === "student" && item.status === "active").length;
     const activeCourses = db.courses.filter((course) => course.status === "active").length;
@@ -4385,6 +4492,7 @@ function adminDashboard(user) {
       user,
       "Instructor panel",
       `<section class="section">
+        ${passwordChangedNotice}
         <div class="section-heading">
           <div><span class="eyebrow">Instructor</span><h1>Training assignment</h1><p class="lead">An instructor can create a student, edit their details, upload a photo, and assign a course. Deletion, reports, and certificates are unavailable.</p></div>
           <div class="actions"><a class="button" href="/admin/users">Users</a></div>
@@ -4409,6 +4517,7 @@ function adminDashboard(user) {
     user,
     "Admin panel",
     `<section class="section">
+      ${passwordChangedNotice}
       <div class="section-heading">
         <div><span class="eyebrow">Learning management</span><h1>Admin dashboard</h1><p class="lead">The operations centre for applications, users, courses, tests, and certificates.</p></div>
         <div class="actions"><a class="button" href="/admin/users">Create user</a><a class="button secondary" href="/admin/courses">Courses</a></div>
@@ -6679,7 +6788,7 @@ function adminNotifications(user, searchParams = new URLSearchParams()) {
       ${paginationControls("/admin/notifications", params, pagination)}
       <form class="form-panel" method="post" action="/admin/notifications/templates">
         <h2>Email templates</h2>
-        <p class="muted">Available variables: {{payload}}, {{recipientEmail}}, {{date}}, {{platformUrl}}, {{type}}.</p>
+        <p class="muted">Every email uses the Maritime Portal design, logo, personal greeting, and signature. Available variables: {{payload}}, {{recipientEmail}}, {{firstName}}, {{fullName}}, {{greeting}}, {{date}}, {{platformUrl}}, {{type}}. Use **bold text**, *italic text*, blank lines, and full https:// links; they are formatted safely in the email.</p>
         ${Object.entries(defaultEmailTemplates())
           .map(([type, defaults]) => {
             const template = db.settings?.emailTemplates?.[type] ?? defaults;
@@ -6735,13 +6844,17 @@ function adminAuditDetail(user, event) {
   );
 }
 
-function studentDashboard(user) {
+function studentDashboard(user, notice = "") {
   const assignments = db.assignments.filter((assignment) => assignment.userId === user.id).map(recalculateAssignment);
   const certs = db.certificates.filter((certificate) => certificate.userId === user.id);
+  const passwordChangedNotice = notice === "password_changed"
+    ? `<div class="notice success" role="status">Password changed. You are signed in.</div>`
+    : "";
   return studentShell(
     user,
     "My account",
     `<section class="section">
+      ${passwordChangedNotice}
       <div><span class="eyebrow">My account</span><h1>Learning overview</h1><p class="lead">View your assigned courses, progress, test results, and certificates.</p></div>
       <div class="grid three">
         <article class="metric"><span class="muted">Assigned courses</span><strong class="metric-value">${assignments.length}</strong></article>
@@ -7165,13 +7278,11 @@ async function handlePost(request, response, pathname, user) {
     }
     account.passwordHash = hashPassword(password);
     account.mustChangePassword = false;
-    invalidateUserSessions(account);
-    db.notifications.push({
-      id: id("note"), recipientUserId: account.id, recipientEmail: account.email, type: "password_changed",
-      status: notificationInitialStatus(), payload: "Password changed during first sign-in.", createdAt: now(), sentAt: ""
-    });
+    invalidateOtherUserSessions(account, request);
+    db.passwordResetTokens = (db.passwordResetTokens ?? []).filter((token) => token.userId !== account.id);
+    await sendFirstLoginCredentials(account, password);
     saveDb(db);
-    return redirect(response, "/login?notice=password_changed");
+    return redirect(response, canAccessAdminPanel(account) ? "/admin?notice=password_changed" : "/dashboard?notice=password_changed");
   }
 
   if (pathname === "/feedback") {
@@ -7422,6 +7533,7 @@ async function handlePost(request, response, pathname, user) {
           body: form.get(`body:${type}`)?.toString() || defaultEmailTemplates()[type].body
         };
       }
+      db.settings.emailTemplateDesignVersion = emailTemplateDesignVersion;
       saveDb(db);
       redirect(response, "/admin/notifications");
       return;
@@ -8558,7 +8670,7 @@ async function handleRequest(request, response) {
     if (isInstructor(admin) && !["/admin", "/admin/users"].includes(pathname)) {
       return send(response, adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">An instructor can only register students and assign courses.</div><a class="button" href="/admin/users">Users</a></section>`), 403);
     }
-    if (pathname === "/admin") return send(response, adminDashboard(admin));
+    if (pathname === "/admin") return send(response, adminDashboard(admin, url.searchParams.get("notice") ?? ""));
     if (pathname === "/admin/applications") return send(response, adminApplications(admin, url.searchParams));
     if (pathname === "/admin/users") return send(response, adminUsers(admin, url.searchParams));
     if (pathname === "/admin/reports") return send(response, adminReports(admin, url.searchParams));
@@ -8631,7 +8743,7 @@ async function handleRequest(request, response) {
     const student = requireUser(request, response);
     if (!student) return;
     if (canAccessAdminPanel(student)) return redirect(response, "/admin");
-    if (pathname === "/dashboard") return send(response, studentDashboard(student));
+    if (pathname === "/dashboard") return send(response, studentDashboard(student, url.searchParams.get("notice") ?? ""));
     if (pathname === "/dashboard/courses") return send(response, studentCourses(student));
     if (pathname === "/dashboard/tests") return send(response, studentTests(student));
     if (pathname === "/dashboard/certificates") return send(response, studentCertificates(student));

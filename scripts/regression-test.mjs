@@ -8,7 +8,7 @@ const suppliedBaseUrl = process.env.TEST_BASE_URL?.replace(/\/$/, "");
 const port = Number(process.env.TEST_PORT ?? 4300 + (Date.now() % 1000));
 const baseUrl = suppliedBaseUrl ?? `http://127.0.0.1:${port}`;
 const dbPath = resolve(process.env.LMS_DB_PATH ?? resolve("data/test-artifacts", `regression-${runId}.json`));
-const imoFixturePath = resolve("data/test-artifacts", `imo-news-${runId}.html`);
+const imoFixturePath = resolve(process.env.IMO_NEWS_FIXTURE_PATH ?? resolve("data/test-artifacts", `imo-news-${runId}.html`));
 const csrfTokens = new Map();
 let assertions = 0;
 
@@ -180,12 +180,14 @@ async function run() {
     assert(firstAdminSignIn.response.status === 303 && firstAdminSignIn.response.headers.get("location") === "/first-login", "A new account is not redirected to set its password");
     await cacheCsrfToken("/first-login", newAdminCookie);
     const firstAdminPassword = "FirstAdminPassword123!";
-    await expectRedirect(postForm("/first-login", { password: firstAdminPassword, confirmPassword: firstAdminPassword }, newAdminCookie), "/login?notice=password_changed");
-    const activeNewAdminCookie = await login(newAdminEmail, firstAdminPassword);
+    await expectRedirect(postForm("/first-login", { password: firstAdminPassword, confirmPassword: firstAdminPassword }, newAdminCookie), "/admin?notice=password_changed");
     database = readDb();
     assert(database.users.find((item) => item.id === newAdmin.id).mustChangePassword === false, "Mandatory password change remains after completing first sign-in");
-    const newAdminPanel = await request("/admin", { headers: { cookie: activeNewAdminCookie } });
-    assert(newAdminPanel.response.status === 200, "Created administrator cannot access the admin panel");
+    const passwordChangeNotice = database.notifications.find((note) => note.recipientUserId === newAdmin.id && note.type === "password_changed");
+    assert(passwordChangeNotice && !passwordChangeNotice.payload.includes(firstAdminPassword), "The first sign-in password is retained in notification history");
+    const newAdminPanel = await request("/admin?notice=password_changed", { headers: { cookie: newAdminCookie } });
+    assert(newAdminPanel.response.status === 200, "Created administrator must remain signed in after choosing a password");
+    assert(newAdminPanel.body.includes("Password changed. You are signed in."), "The first sign-in confirmation is not shown in the account");
 
     const instructorEmail = `regression-instructor-${runId}@example.com`;
     const instructorPassword = "RegressionInstructor123!";
@@ -194,7 +196,18 @@ async function run() {
       birthDate: "1990-01-01", position: "Instructor", password: instructorPassword
     }, adminCookie);
     assert(createInstructor.response.status === 303, "Instructor account creation did not redirect");
-    const instructorCookie = await login(instructorEmail, instructorPassword);
+    const instructorFirstSignIn = await postForm("/login", { email: instructorEmail, password: instructorPassword });
+    const instructorCookie = cookieFrom(instructorFirstSignIn.response);
+    assert(
+      instructorFirstSignIn.response.status === 303 && instructorFirstSignIn.response.headers.get("location") === "/first-login" && instructorCookie,
+      "A newly created instructor is not redirected to set a first password"
+    );
+    await cacheCsrfToken("/first-login", instructorCookie);
+    const instructorFirstPassword = "FirstInstructorPassword123!";
+    await expectRedirect(
+      postForm("/first-login", { password: instructorFirstPassword, confirmPassword: instructorFirstPassword }, instructorCookie),
+      "/admin?notice=password_changed"
+    );
     await cacheCsrfToken("/admin/users", instructorCookie);
     const instructorAdminAttemptEmail = `regression-instructor-request-${runId}@example.com`;
     const instructorAdminAttempt = await postForm("/admin/users/create", {

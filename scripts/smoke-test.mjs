@@ -27,6 +27,16 @@ async function db() {
   return JSON.parse(readFileSync(dbPath, "utf8"));
 }
 
+async function waitForDb(match, message) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const database = await db();
+    const value = match(database);
+    if (value) return { database, value };
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  throw new Error(message);
+}
+
 async function request(path, options = {}) {
   const response = await fetch(base + path, {
     redirect: "manual",
@@ -108,7 +118,7 @@ async function run() {
   assert(studentDashboard.body.includes("photo-warning"), "Student should see certificate photo warning");
 
   const email = `smoke.student.${unique}@example.com`;
-  await postForm(
+  const createUser = await postForm(
     "/admin/users/create",
     {
       firstNameEn: "Smoke",
@@ -122,11 +132,14 @@ async function run() {
     },
     adminCookie
   );
-  let database = await db();
-  const user = database.users.find((item) => item.email === email);
-  assert(user, "Admin user creation failed");
+  assert(createUser.response.status === 303, `Admin user creation failed: ${createUser.response.status}`);
+  let { database, value: user } = await waitForDb(
+    (data) => data.users.find((item) => item.email === email),
+    "Admin user creation was not persisted"
+  );
 
-  await postForm("/admin/users/update", {
+  await cacheCsrfToken("/admin/users", adminCookie);
+  const updateUser = await postForm("/admin/users/update", {
     id: user.id,
     firstNameEn: "Smoke",
     lastNameEn: "Updated",
@@ -136,28 +149,37 @@ async function run() {
     company: "Blue Fleet",
     phone: "+10000000001"
   }, adminCookie);
-  database = await db();
-  assert(database.users.find((item) => item.id === user.id)?.position === "Chief Officer", "Admin user update failed");
+  assert(updateUser.response.status === 303, `Admin user update failed: ${updateUser.response.status}`);
+  ({ database } = await waitForDb(
+    (data) => data.users.find((item) => item.id === user.id)?.position === "Chief Officer",
+    "Admin user update was not persisted"
+  ));
 
   const courseTitle = `Smoke Course ${unique}`;
-  await postForm("/admin/courses/create", {
+  const createCourse = await postForm("/admin/courses/create", {
     title: courseTitle,
     shortDescription: "Smoke course",
     goals: "Validate editor"
   }, adminCookie);
-  database = await db();
-  const course = database.courses.find((item) => item.title === courseTitle);
-  assert(course, "Course creation failed");
+  assert(createCourse.response.status === 303, `Course creation failed: ${createCourse.response.status}`);
+  let course;
+  ({ database, value: course } = await waitForDb(
+    (data) => data.courses.find((item) => item.title === courseTitle),
+    "Course creation was not persisted"
+  ));
 
-  await postForm(`/admin/courses/${course.id}/lessons/create`, {
+  const createLesson = await postForm(`/admin/courses/${course.id}/lessons/create`, {
     title: "Smoke Lesson",
     description: "Smoke lesson"
   }, adminCookie);
-  database = await db();
+  assert(createLesson.response.status === 303, `Lesson creation failed: ${createLesson.response.status}`);
+  ({ database } = await waitForDb(
+    (data) => data.courses.find((item) => item.id === course.id)?.lessons?.[0],
+    "Lesson creation was not persisted"
+  ));
   let lesson = database.courses.find((item) => item.id === course.id).lessons[0];
-  assert(lesson, "Lesson creation failed");
 
-  await postMultipart(
+  const createMaterial = await postMultipart(
     `/admin/courses/${course.id}/materials/create`,
     {
       lessonId: lesson.id,
@@ -169,14 +191,19 @@ async function run() {
     { filename: "brief.txt", type: "text/plain", buffer: Buffer.from("Smoke file") },
     adminCookie
   );
-  database = await db();
+  assert(createMaterial.response.status === 303, `Material upload failed: ${createMaterial.response.status}`);
+  ({ database } = await waitForDb(
+    (data) => data.courses.find((item) => item.id === course.id)?.lessons?.[0]?.materials?.[0]?.content?.startsWith("/uploads/"),
+    "Material upload was not persisted"
+  ));
   lesson = database.courses.find((item) => item.id === course.id).lessons[0];
-  assert(lesson.materials[0]?.content.startsWith("/uploads/"), "Material upload failed");
 
-  await postForm("/admin/assignments/create", { userId: user.id, courseId: course.id }, adminCookie);
-  database = await db();
-  const assignment = database.assignments.find((item) => item.userId === user.id && item.courseId === course.id);
-  assert(assignment, "Assignment creation failed");
+  const createAssignment = await postForm("/admin/assignments/create", { userId: user.id, courseId: course.id }, adminCookie);
+  assert(createAssignment.response.status === 303, `Assignment creation failed: ${createAssignment.response.status}`);
+  ({ database } = await waitForDb(
+    (data) => data.assignments.find((item) => item.userId === user.id && item.courseId === course.id),
+    "Assignment creation was not persisted"
+  ));
 
   const notifications = await request("/admin/notifications?q=course", { headers: { cookie: adminCookie } });
   assert(notifications.body.includes("course_assigned"), "Notification search failed");
