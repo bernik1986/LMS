@@ -164,6 +164,14 @@ async function run() {
     assert(createAdmin.response.status === 303, "Administrator account creation did not redirect");
     let database = readDb();
     assert(database.users.some((item) => item.email === newAdminEmail && item.role === "admin"), "Full administrator cannot create an administrator account");
+    assert(database.notifications.some((note) => note.recipientEmail === newAdminEmail && note.type === "user_registered"), "New users do not receive an account-created notification");
+    const duplicateUser = await postForm("/admin/users/create", {
+      role: "student", email: newAdminEmail.toUpperCase(), firstNameEn: "Existing", lastNameEn: "Email",
+      birthDate: "1990-01-01", position: "Trainee", company: "Regression company", password: "RegressionStudent123!"
+    }, adminCookie);
+    assert(duplicateUser.response.status === 409, "Duplicate e-mail creation did not return a clear conflict");
+    assert(duplicateUser.body.includes("A user with this e-mail address already exists."), "Duplicate e-mail error is not shown to the administrator");
+    assert(duplicateUser.body.includes("Regression company"), "User creation form values are not preserved after a duplicate e-mail error");
     const newAdminCookie = await login(newAdminEmail, newAdminPassword);
     const newAdminPanel = await request("/admin", { headers: { cookie: newAdminCookie } });
     assert(newAdminPanel.response.status === 200, "Created administrator cannot access the admin panel");

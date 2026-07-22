@@ -60,6 +60,7 @@ let lastSaveError = null;
 let requestQueue = Promise.resolve();
 let persistedDb = null;
 let imoNewsCache = { items: [], fetchedAt: 0 };
+let queuedNotificationDeliveryScheduled = false;
 
 const baseCss = readFileSync(cssPath, "utf8");
 const productCss = `
@@ -661,6 +662,7 @@ function cloneDb(data) {
 function saveDb(data) {
   if (!usePrismaStorage) {
     writeFileSync(dbPath, JSON.stringify(data, null, 2), "utf8");
+    scheduleQueuedNotificationDelivery();
     return;
   }
 
@@ -679,6 +681,7 @@ function saveDb(data) {
       lastSaveError = error;
       console.error("Failed to save LMS data to PostgreSQL:", error);
     });
+  scheduleQueuedNotificationDelivery();
 }
 
 let db = await loadDb();
@@ -1989,6 +1992,10 @@ function defaultEmailTemplates() {
       subject: "New course application",
       body: "Marine LMS\n\nNew application received.\n\n{{payload}}\n\nDate: {{date}}"
     },
+    user_registered: {
+      subject: "Your Marine LMS account is ready",
+      body: "Marine LMS\n\nYour account has been created.\n\n{{payload}}\n\nSign in: {{platformUrl}}/login\n\nUse the temporary password provided separately by your administrator."
+    },
     feedback_message: {
       subject: "New feedback message",
       body: "Marine LMS\n\nA message was sent from the website footer.\n\n{{payload}}\n\nDate: {{date}}"
@@ -2100,6 +2107,14 @@ function waitSmtpResponse(socket) {
     });
 }
 
+function expectSmtpResponse(responseText, allowedCodes, action) {
+  const lastLine = String(responseText).trim().split(/\r?\n/).filter(Boolean).at(-1) ?? "";
+  const code = Number(lastLine.slice(0, 3));
+  if (!allowedCodes.includes(code)) {
+    throw new Error(`SMTP ${action} failed: ${lastLine || "unexpected empty response"}`);
+  }
+}
+
 function writeSmtpLine(socket, line) {
   socket.write(`${line}\r\n`);
 }
@@ -2120,13 +2135,13 @@ async function sendSmtpMail({ to, subject, body }) {
   });
 
   let readResponse = waitSmtpResponse(socket);
-  await readResponse();
+  expectSmtpResponse(await readResponse(), [220], "connection");
   writeSmtpLine(socket, `EHLO ${host}`);
-  await readResponse();
+  expectSmtpResponse(await readResponse(), [250], "EHLO");
 
   if (!secure && process.env.SMTP_STARTTLS === "true") {
     writeSmtpLine(socket, "STARTTLS");
-    await readResponse();
+    expectSmtpResponse(await readResponse(), [220], "STARTTLS");
     socket = tlsConnect({ socket, servername: hostName, rejectUnauthorized });
     await new Promise((resolveSocket, rejectSocket) => {
       socket.once("secureConnect", resolveSocket);
@@ -2134,27 +2149,27 @@ async function sendSmtpMail({ to, subject, body }) {
     });
     readResponse = waitSmtpResponse(socket);
     writeSmtpLine(socket, `EHLO ${host}`);
-    await readResponse();
+    expectSmtpResponse(await readResponse(), [250], "EHLO after STARTTLS");
   }
 
   if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     writeSmtpLine(socket, "AUTH LOGIN");
-    await readResponse();
+    expectSmtpResponse(await readResponse(), [334], "AUTH LOGIN");
     writeSmtpLine(socket, Buffer.from(process.env.SMTP_USER).toString("base64"));
-    await readResponse();
+    expectSmtpResponse(await readResponse(), [334], "SMTP username");
     writeSmtpLine(socket, Buffer.from(process.env.SMTP_PASS).toString("base64"));
-    await readResponse();
+    expectSmtpResponse(await readResponse(), [235], "SMTP password");
   }
 
   writeSmtpLine(socket, `MAIL FROM:<${from}>`);
-  await readResponse();
+  expectSmtpResponse(await readResponse(), [250], "MAIL FROM");
   writeSmtpLine(socket, `RCPT TO:<${to}>`);
-  await readResponse();
+  expectSmtpResponse(await readResponse(), [250, 251], "RCPT TO");
   writeSmtpLine(socket, "DATA");
-  await readResponse();
+  expectSmtpResponse(await readResponse(), [354], "DATA");
   const safeBody = body.replace(/^\./gm, "..");
   socket.write(`From: ${from}\r\nTo: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${safeBody}\r\n.\r\n`);
-  await readResponse();
+  expectSmtpResponse(await readResponse(), [250], "message delivery");
   writeSmtpLine(socket, "QUIT");
   socket.end();
 }
@@ -2180,6 +2195,18 @@ async function deliverPendingNotifications() {
   for (const note of db.notifications.filter((item) => ["queued", "failed"].includes(item.status))) {
     await deliverNotification(note);
   }
+}
+
+function scheduleQueuedNotificationDelivery() {
+  if (!smtpConfigured() || queuedNotificationDeliveryScheduled) return;
+  queuedNotificationDeliveryScheduled = true;
+  setTimeout(async () => {
+    queuedNotificationDeliveryScheduled = false;
+    const queuedNotes = db.notifications.filter((note) => note.status === "queued");
+    if (!queuedNotes.length) return;
+    for (const note of queuedNotes) await deliverNotification(note);
+    saveDb(db);
+  }, 0);
 }
 
 function getCookie(request, name) {
@@ -3719,15 +3746,18 @@ function issueCertificate(assignment, options = {}) {
   }
   const certificate = createCertificateForAssignment(assignment, options);
   if (!certificate) return null;
+  const manuallyIssued = options.action === "manual_issue";
   db.notifications.push({
     id: id("note"),
     recipientUserId: user.id,
     recipientEmail: user.email,
-    type: "certificate_available",
+    type: manuallyIssued ? "certificate_manual_issue" : "certificate_available",
     status: notificationInitialStatus(),
-    payload: `Certificate ${certificate.certificateNumber} is available.`,
+    payload: manuallyIssued
+      ? `Certificate manually issued: ${certificate.certificateNumber} for ${course.title}.`
+      : `Certificate ${certificate.certificateNumber} is available.`,
     createdAt: now(),
-    sentAt: now()
+    sentAt: ""
   });
   return certificate;
 }
@@ -3793,19 +3823,20 @@ function issueManualCertificate(student, course, admin, options = {}) {
   const issuedAt = options.issuedAt || now();
   const assignment = completeAssignmentForManualCertificate(student, course, admin, issuedAt);
   const existing = activeCertificateForAssignment(assignment.id);
-  const certificate = issueCertificate(assignment, { actor: admin, action: "manual_issue", issuedAt });
-  if (certificate && certificate.id !== existing?.id) {
+  if (existing) {
     db.notifications.push({
       id: id("note"),
       recipientUserId: student.id,
       recipientEmail: student.email,
-      type: "certificate_manual_issue",
+      type: "certificate_resent",
       status: notificationInitialStatus(),
-      payload: `Certificate manually issued: ${certificate.certificateNumber} for ${course.title}.`,
+      payload: `Certificate resent: ${existing.certificateNumber}`,
       createdAt: now(),
-      sentAt: now()
+      sentAt: ""
     });
+    return existing;
   }
+  const certificate = issueCertificate(assignment, { actor: admin, action: "manual_issue", issuedAt });
   return certificate;
 }
 
@@ -4406,8 +4437,11 @@ function adminStudentCard(student, viewer = null) {
   </article>`;
 }
 
-function adminUsers(user, searchParams = new URLSearchParams()) {
+function adminUsers(user, searchParams = new URLSearchParams(), createForm = {}) {
   const params = listParams(searchParams);
+  const createValues = createForm.values ?? {};
+  const createError = String(createForm.error ?? "").trim();
+  const createRole = ["student", "instructor", "admin"].includes(createValues.role) ? createValues.role : "student";
   const students = db.users.filter((item) =>
     item.role === "student" &&
     (isFullAdmin(user) || item.status !== "deleted") &&
@@ -4433,16 +4467,17 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
       </form>
       <form class="form-panel" method="post" action="/admin/users/create" enctype="multipart/form-data">
         <h2>${isFullAdmin(user) ? "Create user" : "Create student"}</h2>
+        ${createError ? `<div class="notice danger" role="alert">${escapeHtml(createError)}</div>` : ""}
         ${isFullAdmin(user)
-          ? `<div class="field"><label>Role</label><select name="role"><option value="student">Student</option><option value="instructor">Instructor</option><option value="admin">Administrator</option></select></div>`
+          ? `<div class="field"><label>Role</label><select name="role"><option value="student"${createRole === "student" ? " selected" : ""}>Student</option><option value="instructor"${createRole === "instructor" ? " selected" : ""}>Instructor</option><option value="admin"${createRole === "admin" ? " selected" : ""}>Administrator</option></select></div>`
           : `<input type="hidden" name="role" value="student" />`}
-        <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>
-        <div class="field"><label>First name</label><input name="firstNameEn" required /></div>
-        <div class="field"><label>Last name</label><input name="lastNameEn" required /></div>
-        <div class="field"><label>Date of birth</label><input name="birthDate" type="date" required /></div>
-        <div class="field"><label>Position</label><input name="position" required /></div>
-        <div class="field"><label>Company - optional</label><input name="company" /></div>
-        <div class="field"><label>Phone</label><input name="phone" /></div>
+        <div class="field"><label>E-mail</label><input name="email" type="email" value="${escapeHtml(createValues.email ?? "")}" required /></div>
+        <div class="field"><label>First name</label><input name="firstNameEn" value="${escapeHtml(createValues.firstNameEn ?? "")}" required /></div>
+        <div class="field"><label>Last name</label><input name="lastNameEn" value="${escapeHtml(createValues.lastNameEn ?? "")}" required /></div>
+        <div class="field"><label>Date of birth</label><input name="birthDate" type="date" value="${escapeHtml(createValues.birthDate ?? "")}" required /></div>
+        <div class="field"><label>Position</label><input name="position" value="${escapeHtml(createValues.position ?? "")}" required /></div>
+        <div class="field"><label>Company - optional</label><input name="company" value="${escapeHtml(createValues.company ?? "")}" /></div>
+        <div class="field"><label>Phone</label><input name="phone" value="${escapeHtml(createValues.phone ?? "")}" /></div>
         <div class="field"><label>Student photo for certificate - optional</label><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" /></div>
         <div class="field"><label>Temporary password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
         <button class="button" type="submit">Create user</button>
@@ -7357,8 +7392,28 @@ async function handlePost(request, response, pathname, user) {
       const role = isFullAdmin(admin) && ["student", "instructor", "admin"].includes(requestedRole) ? requestedRole : "student";
       const password = form.get("password")?.toString() ?? "";
       const duplicate = db.users.some((item) => item.email.toLowerCase() === email.toLowerCase());
+      if (duplicate) {
+        send(
+          response,
+          adminUsers(admin, new URLSearchParams(), {
+            error: "A user with this e-mail address already exists. Use a different address or edit the existing account.",
+            values: {
+              role,
+              email,
+              firstNameEn,
+              lastNameEn,
+              birthDate,
+              position,
+              company: form.get("company")?.toString().trim() ?? "",
+              phone: form.get("phone")?.toString().trim() ?? ""
+            }
+          }),
+          409
+        );
+        return;
+      }
       let createdUser = null;
-      if (email && firstNameEn && lastNameEn && birthDate && position && password.length >= 12 && !duplicate) {
+      if (email && firstNameEn && lastNameEn && birthDate && position && password.length >= 12) {
         const student = {
           id: id("user"),
           role,
@@ -7385,6 +7440,16 @@ async function handlePost(request, response, pathname, user) {
           }
         }
         db.users.push(student);
+        db.notifications.push({
+          id: id("note"),
+          recipientUserId: student.id,
+          recipientEmail: student.email,
+          type: "user_registered",
+          status: notificationInitialStatus(),
+          payload: `Your ${roleLabel(student.role).toLowerCase()} account has been created.`,
+          createdAt: now(),
+          sentAt: ""
+        });
         createdUser = student;
       }
       saveDb(db);
