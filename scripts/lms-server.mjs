@@ -109,7 +109,9 @@ const productCss = `
 .course-prices-table th, .course-prices-table td { padding: 8px 10px; }
 .course-prices-table input { min-width: 120px; min-height: 34px; padding: 7px 9px; }
 .course-prices-table .course-name-cell { font-weight: 850; color: var(--primary-strong); min-width: 220px; }
-.course-detail-side { display: grid; gap: 12px; min-width: min(320px, 100%); }
+.course-detail-side { display: grid; gap: 12px; width: 260px; min-width: 0; flex: 0 0 260px; }
+.course-detail-side .student-course-cover { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; object-position: center; background: #fff; }
+@media (max-width: 640px) { .course-detail-side { width: min(260px, 100%); flex-basis: auto; align-self: center; } }
 .course-public-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 24px; align-items: start; }
 .course-public-cover { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .course-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
@@ -4432,7 +4434,7 @@ function adminUsers(user, searchParams = new URLSearchParams()) {
       <form class="form-panel" method="post" action="/admin/users/create" enctype="multipart/form-data">
         <h2>${isFullAdmin(user) ? "Create user" : "Create student"}</h2>
         ${isFullAdmin(user)
-          ? `<div class="field"><label>Role</label><select name="role"><option value="student">Student</option><option value="instructor">Instructor</option></select></div>`
+          ? `<div class="field"><label>Role</label><select name="role"><option value="student">Student</option><option value="instructor">Instructor</option><option value="admin">Administrator</option></select></div>`
           : `<input type="hidden" name="role" value="student" />`}
         <div class="field"><label>E-mail</label><input name="email" type="email" required /></div>
         <div class="field"><label>First name</label><input name="firstNameEn" required /></div>
@@ -6607,7 +6609,7 @@ function studentCourseDetail(user, assignment) {
       <div class="section-heading">
         <div><span class="eyebrow">Course</span><h1>${escapeHtml(course.title)}</h1><p class="lead">${escapeHtml(course.fullDescription || course.shortDescription)}</p></div>
         <div class="course-detail-side">
-          ${courseCoverHtml(course)}
+          ${courseCoverHtml(course, "student-course-cover")}
           <div class="panel"><strong>${assignment.progressPercent}%</strong><p class="muted">progress</p></div>
         </div>
       </div>
@@ -7352,7 +7354,7 @@ async function handlePost(request, response, pathname, user) {
       const birthDate = form.get("birthDate")?.toString() ?? "";
       const position = form.get("position")?.toString().trim() ?? "";
       const requestedRole = form.get("role")?.toString() ?? "student";
-      const role = isFullAdmin(admin) && requestedRole === "instructor" ? "instructor" : "student";
+      const role = isFullAdmin(admin) && ["student", "instructor", "admin"].includes(requestedRole) ? requestedRole : "student";
       const password = form.get("password")?.toString() ?? "";
       const duplicate = db.users.some((item) => item.email.toLowerCase() === email.toLowerCase());
       let createdUser = null;

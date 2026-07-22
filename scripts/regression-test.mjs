@@ -155,6 +155,36 @@ async function run() {
     const studentCookie = await login("student@example.com", "Student123!");
     await cacheCsrfToken("/admin", adminCookie);
     await cacheCsrfToken("/dashboard", studentCookie);
+    const newAdminEmail = `regression-admin-${runId}@example.com`;
+    const newAdminPassword = "RegressionAdmin123!";
+    const createAdmin = await postForm("/admin/users/create", {
+      role: "admin", email: newAdminEmail, firstNameEn: "Regression", lastNameEn: "Administrator",
+      birthDate: "1990-01-01", position: "Administrator", password: newAdminPassword
+    }, adminCookie);
+    assert(createAdmin.response.status === 303, "Administrator account creation did not redirect");
+    let database = readDb();
+    assert(database.users.some((item) => item.email === newAdminEmail && item.role === "admin"), "Full administrator cannot create an administrator account");
+    const newAdminCookie = await login(newAdminEmail, newAdminPassword);
+    const newAdminPanel = await request("/admin", { headers: { cookie: newAdminCookie } });
+    assert(newAdminPanel.response.status === 200, "Created administrator cannot access the admin panel");
+
+    const instructorEmail = `regression-instructor-${runId}@example.com`;
+    const instructorPassword = "RegressionInstructor123!";
+    const createInstructor = await postForm("/admin/users/create", {
+      role: "instructor", email: instructorEmail, firstNameEn: "Regression", lastNameEn: "Instructor",
+      birthDate: "1990-01-01", position: "Instructor", password: instructorPassword
+    }, adminCookie);
+    assert(createInstructor.response.status === 303, "Instructor account creation did not redirect");
+    const instructorCookie = await login(instructorEmail, instructorPassword);
+    await cacheCsrfToken("/admin/users", instructorCookie);
+    const instructorAdminAttemptEmail = `regression-instructor-request-${runId}@example.com`;
+    const instructorAdminAttempt = await postForm("/admin/users/create", {
+      role: "admin", email: instructorAdminAttemptEmail, firstNameEn: "Regression", lastNameEn: "Student",
+      birthDate: "1990-01-01", position: "Trainee", password: "RegressionStudent123!"
+    }, instructorCookie);
+    assert(instructorAdminAttempt.response.status === 303, "Instructor user creation did not redirect");
+    database = readDb();
+    assert(database.users.some((item) => item.email === instructorAdminAttemptEmail && item.role === "student"), "Instructor can create an administrator account");
     const studentAdmin = await request("/admin", { headers: { cookie: studentCookie } });
     assert(studentAdmin.response.status === 403, "Student can access the admin area");
     for (const path of ["/admin/checks", "/admin/course-prices", "/admin/courses/new", "/admin/courses/merge"]) {
@@ -174,7 +204,7 @@ async function run() {
       const { response } = await postForm("/admin/courses/create", { title, shortDescription: title === alphaTitle ? alphaDescription : "Regression course", goals: "Regression" }, adminCookie);
       assert(response.status === 303, `Course creation did not redirect for ${title}`);
     }
-    let database = readDb();
+    database = readDb();
     const alpha = database.courses.find((course) => course.title === alphaTitle);
     const beta = database.courses.find((course) => course.title === betaTitle);
     const removable = database.courses.find((course) => course.title === removableTitle);
@@ -272,6 +302,7 @@ async function run() {
     await expectRedirect(postForm("/dashboard/materials/complete", { assignmentId: assignment.id, materialId: firstMaterial.id }, studentCookie), `/dashboard/courses/${assignment.id}`);
     const courseAfterText = await request(`/dashboard/courses/${assignment.id}`, { headers: { cookie: studentCookie } });
     assert(courseAfterText.body.includes("material-text"), "Inline text material is not rendered in the student course");
+    assert(courseAfterText.body.includes("student-course-cover"), "Student course uses an oversized generic course cover");
     const secondMaterial = readDb().courses.find((course) => course.id === alpha.id).lessons[0].materials[1];
     await expectRedirect(postForm("/dashboard/materials/complete", { assignmentId: assignment.id, materialId: secondMaterial.id }, studentCookie), `/dashboard/courses/${assignment.id}`);
     const courseAfterVideo = await request(`/dashboard/courses/${assignment.id}`, { headers: { cookie: studentCookie } });
