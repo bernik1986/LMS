@@ -2194,29 +2194,44 @@ function writeSmtpLine(socket, line) {
 }
 
 function smtpHeaderValue(value) {
-  return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
+  const sanitized = String(value ?? "").replace(/[\r\n]+/g, " ").trim();
+  return /[^\x20-\x7e]/.test(sanitized)
+    ? `=?UTF-8?B?${Buffer.from(sanitized, "utf8").toString("base64")}?=`
+    : sanitized;
 }
 
 function smtpBase64Lines(buffer) {
   return Buffer.from(buffer).toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
 }
 
-function smtpDotStuff(value = "") {
-  return String(value).replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
+function smtpEncodedTextPart(contentType, value) {
+  return `Content-Type: ${contentType}; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${smtpBase64Lines(Buffer.from(String(value ?? ""), "utf8"))}\r\n`;
 }
 
 function smtpAlternativeParts(boundary, body, html) {
   return [
-    `--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${smtpDotStuff(body)}\r\n`,
-    `--${boundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${smtpDotStuff(html)}\r\n`,
+    `--${boundary}\r\n${smtpEncodedTextPart("text/plain", body)}`,
+    `--${boundary}\r\n${smtpEncodedTextPart("text/html", html)}`,
     `--${boundary}--\r\n`
   ].join("");
 }
 
 function smtpMessage({ from, to, subject, body, html = "", attachments = [] }) {
-  const headers = `From: ${smtpHeaderValue(from)}\r\nTo: ${smtpHeaderValue(to)}\r\nSubject: ${smtpHeaderValue(subject)}\r\nMIME-Version: 1.0`;
+  const envelopeFrom = String(from ?? "").replace(/[\r\n<>]+/g, "").trim();
+  const messageIdDomain = envelopeFrom.split("@").at(-1) || "maritimelearning.store";
+  const displayName = process.env.SMTP_FROM_NAME?.trim() || "Maritime Portal";
+  const headers = [
+    `From: ${smtpHeaderValue(displayName)} <${envelopeFrom}>`,
+    `To: ${smtpHeaderValue(to)}`,
+    `Reply-To: ${envelopeFrom}`,
+    `Subject: ${smtpHeaderValue(subject)}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: <${randomBytes(18).toString("hex")}@${messageIdDomain}>`,
+    "MIME-Version: 1.0",
+    "X-Mailer: Maritime Portal LMS"
+  ].join("\r\n");
   if (!html && !attachments.length) {
-    return `${headers}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${smtpDotStuff(body)}\r\n`;
+    return `${headers}\r\n${smtpEncodedTextPart("text/plain", body)}`;
   }
   const alternativeBoundary = `marine-lms-alt-${randomBytes(18).toString("hex")}`;
   if (!attachments.length) {
@@ -2224,7 +2239,7 @@ function smtpMessage({ from, to, subject, body, html = "", attachments = [] }) {
   }
   const boundary = `marine-lms-mixed-${randomBytes(18).toString("hex")}`;
   const parts = [
-    `${headers}\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n`,
+    `${headers}\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`,
     `--${boundary}\r\nContent-Type: multipart/alternative; boundary="${alternativeBoundary}"\r\n\r\n${smtpAlternativeParts(alternativeBoundary, body, html)}`
   ];
   for (const attachment of attachments) {

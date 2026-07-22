@@ -86,6 +86,7 @@ SMTP_STARTTLS="false"
 SMTP_USER="info@maritimelearning.store"
 SMTP_PASS="пароль_от_почты"
 SMTP_FROM="info@maritimelearning.store"
+SMTP_FROM_NAME="Maritime Portal"
 SMTP_TLS_REJECT_UNAUTHORIZED="true"
 ```
 

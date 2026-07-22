@@ -53,6 +53,19 @@ async function postForm(path, fields, cookie = "") {
   });
 }
 
+async function postMultipart(path, fields, file, cookie = "") {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(fields)) form.set(key, String(value));
+  const csrfToken = csrfTokens.get(cookie);
+  if (csrfToken && !form.has("_csrf")) form.set("_csrf", csrfToken);
+  if (file) form.set("photo", new Blob([file.buffer], { type: file.type }), file.name);
+  return request(path, {
+    method: "POST",
+    headers: { origin: baseUrl, ...(cookie ? { cookie } : {}) },
+    body: form
+  });
+}
+
 async function cacheCsrfToken(path, cookie) {
   const { response, body } = await request(path, { headers: { cookie } });
   const match = body.match(/name="_csrf" value="([^"]+)"/);
@@ -271,6 +284,11 @@ async function run() {
       [`certificateSetting:${alpha.id}`]: "1"
     }, adminCookie), "/admin/course-prices");
     assert(readDb().courses.find((course) => course.id === alpha.id).autoIssueCertificate === false, "Automatic certificate setting was not disabled from course prices");
+    await expectRedirect(postForm("/admin/course-prices/update", {
+      [`certificateSetting:${alpha.id}`]: "1",
+      [`autoIssueCertificate:${alpha.id}`]: "on"
+    }, adminCookie), "/admin/course-prices");
+    assert(readDb().courses.find((course) => course.id === alpha.id).autoIssueCertificate === true, "Automatic certificate setting was not restored for certificate flow tests");
     const homepageEditor = await request("/admin/homepage", { headers: { cookie: adminCookie } });
     assert(homepageEditor.body.includes("admin-course-avatar") && !homepageEditor.body.includes(alphaDescription), "Homepage editor should show compact course avatars without descriptions");
     const removableEditor = await request(`/admin/courses/${removable.id}`, { headers: { cookie: adminCookie } });
@@ -343,9 +361,53 @@ async function run() {
     const question = readDb().courses.find((course) => course.id === alpha.id).test.questions[0];
     const testPage = await request(`/dashboard/tests/${assignment.id}`, { headers: { cookie: studentCookie } });
     assert(testPage.response.status === 200 && testPage.body.includes("Regression question"), "Student test is unavailable after materials");
+    const certificatePhoto = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgAI/ScL2YQAAAABJRU5ErkJggg==", "base64");
+    const photoUpload = await postMultipart(
+      "/admin/users/photo",
+      { id: "user_student" },
+      { name: "regression-photo.png", type: "image/png", buffer: certificatePhoto },
+      adminCookie
+    );
+    assert(photoUpload.response.status === 303, "Student certificate photo upload did not redirect");
     await expectRedirect(postForm(`/dashboard/tests/${assignment.id}`, { [question.id]: question.options[0].id }, studentCookie), `/dashboard/courses/${assignment.id}#test-result`);
     const resultPage = await request(`/dashboard/courses/${assignment.id}`, { headers: { cookie: studentCookie } });
     assert(resultPage.body.includes('id="test-result"'), "Test result anchor is missing");
+    database = readDb();
+    const automaticCertificate = database.certificates.find((certificate) => certificate.assignmentId === assignment.id && certificate.status === "issued");
+    assert(automaticCertificate, "Passed course did not issue an automatic certificate");
+    assert(
+      database.notifications.some((note) => note.type === "certificate_available" && note.certificateId === automaticCertificate.id),
+      "Automatic certificate notification was not created"
+    );
+
+    await expectRedirect(
+      postForm("/admin/certificates/issue-manual", { userId: "user_student", courseId: beta.id, issuedAt: "2026-07-22" }, adminCookie),
+      "/admin/certificates?userId=user_student"
+    );
+    database = readDb();
+    const manualCertificate = database.certificates.find((certificate) => certificate.userId === "user_student" && certificate.courseId === beta.id && certificate.status === "issued");
+    assert(manualCertificate, "Manual certificate issue did not create a certificate");
+    assert(
+      database.notifications.some((note) => note.type === "certificate_manual_issue" && note.certificateId === manualCertificate.id),
+      "Manual certificate issue notification was not created"
+    );
+    await expectRedirect(
+      postForm("/admin/certificates/issue-manual", { userId: "user_student", courseId: beta.id, issuedAt: "2026-07-22" }, adminCookie),
+      "/admin/certificates?userId=user_student"
+    );
+    database = readDb();
+    assert(
+      database.notifications.some((note) => note.type === "certificate_resent" && note.certificateId === manualCertificate.id),
+      "Reissuing an existing manual certificate did not create a resend notification"
+    );
+    await expectRedirect(postForm("/admin/certificates/reissue", { id: manualCertificate.id }, adminCookie), "/admin/certificates");
+    database = readDb();
+    const reissuedCertificate = database.certificates.find((certificate) => certificate.replacesCertificateId === manualCertificate.id);
+    assert(reissuedCertificate, "Certificate reissue did not create a replacement certificate");
+    assert(
+      database.notifications.some((note) => note.type === "certificate_reissued" && note.certificateId === reissuedCertificate.id),
+      "Certificate reissue notification was not created"
+    );
 
     const audit = await request("/admin/audit", { headers: { cookie: adminCookie } });
     assert(audit.body.includes('href="/admin/audit/'), "Audit log does not include event detail links");
