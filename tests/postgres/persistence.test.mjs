@@ -206,6 +206,28 @@ function sampleDb() {
         certificateHtml: "<h1>PostgreSQL Persistence Course</h1>"
       }
     ],
+    standaloneCertificates: [
+      {
+        id: "pg_standalone_certificate",
+        courseId: "pg_course",
+        certificateNumber: "725645566/23/07/2026",
+        status: "issued",
+        issuedAt: "2026-07-23T11:00:00.000Z",
+        expiresAt: "2031-07-23T11:00:00.000Z",
+        snapshotFirstName: "Direct",
+        snapshotLastName: "Candidate",
+        snapshotBirthDate: "1985-04-03",
+        snapshotPosition: "",
+        snapshotCompany: "",
+        snapshotPhotoUrl: "/uploads/test/direct-candidate.jpg",
+        snapshotCourseTitle: "PostgreSQL Persistence Course",
+        snapshotCertificateTemplateHtml: "<h1>{{courseTitle}}</h1><p>{{fullName}}</p>",
+        certificateHtml: "<h1>PostgreSQL Persistence Course</h1><p>Direct Candidate</p>",
+        createdById: "pg_admin",
+        createdByEmail: "pg.admin@example.com",
+        createdAt: "2026-07-23T11:00:00.000Z"
+      }
+    ],
     notifications: [
       {
         id: "pg_notification",
@@ -341,6 +363,7 @@ test("replacePrismaDb and loadPrismaDb round-trip every production entity and ne
   assert.equal(summary.options, 2);
   assert.equal(summary.assignments, 1);
   assert.equal(summary.certificates, 1);
+  assert.equal(summary.standaloneCertificates, 1);
 
   const loaded = await loadPrismaDb({ connectionString });
   assert.equal(loaded.users.length, 2);
@@ -350,6 +373,8 @@ test("replacePrismaDb and loadPrismaDb round-trip every production entity and ne
   assert.deepEqual(loaded.assignments[0].materialProgress, { pg_material: true });
   assert.equal(loaded.testAttempts[0].answers[0].selectedOptionId, "pg_option_yes");
   assert.equal(loaded.certificates[0].certificateNumber, "725645565/23/07/2026");
+  assert.equal(loaded.standaloneCertificates[0].certificateNumber, "725645566/23/07/2026");
+  assert.equal(loaded.standaloneCertificates[0].snapshotLastName, "Candidate");
   assert.equal(loaded.notifications[0].certificateId, "pg_certificate");
   assert.equal(loaded.sessions[0].csrfToken, "pg-csrf-token");
   assert.equal(loaded.passwordResetTokens[0].id, "pg_reset");
@@ -391,6 +416,7 @@ test("syncPrismaDb applies updates, inserts, and removals without replacing unre
   assert.equal(loaded.settings.syncMarker, next.settings.syncMarker);
   assert.equal(loaded.users.length, 2);
   assert.equal(loaded.certificates.length, 1);
+  assert.equal(loaded.standaloneCertificates.length, 1);
 });
 
 test("database uniqueness and cascade constraints protect production consistency", async () => {
@@ -415,6 +441,7 @@ test("database uniqueness and cascade constraints protect production consistency
   assert.equal(counts.assignments, 0);
   assert.equal(counts.attempts, 0);
   assert.equal(counts.certificates, 0);
+  assert.equal(counts.standaloneCertificates, 1);
   assert.equal(counts.notifications, 1);
   const detachedNotification = await prisma.notification.findUnique({ where: { id: "pg_notification" } });
   assert.equal(detachedNotification.recipientUserId, null);

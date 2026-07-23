@@ -103,6 +103,7 @@ export function flattenDb(db) {
     assignments: db.assignments ?? [],
     testAttempts: db.testAttempts ?? [],
     certificates: db.certificates ?? [],
+    standaloneCertificates: db.standaloneCertificates ?? [],
     notifications: db.notifications ?? [],
     sessions: db.sessions ?? [],
     passwordResetTokens: db.passwordResetTokens ?? [],
@@ -125,6 +126,7 @@ export function migrationSummary(flat) {
     assignments: flat.assignments.length,
     testAttempts: flat.testAttempts.length,
     certificates: flat.certificates.length,
+    standaloneCertificates: flat.standaloneCertificates.length,
     notifications: flat.notifications.length,
     sessions: flat.sessions.length,
     passwordResetTokens: flat.passwordResetTokens.length,
@@ -164,6 +166,7 @@ export function validateFlatDb(flat) {
   const questionIds = new Set(flat.questions.map((question) => question.id));
   const assignmentIds = new Set(flat.assignments.map((assignment) => assignment.id));
   const certificateIds = new Set(flat.certificates.map((certificate) => certificate.id));
+  const allCertificates = [...flat.certificates, ...flat.standaloneCertificates];
 
   addDuplicateErrors(errors, "users.id", duplicateKeys(flat.users, (user) => user.id));
   addDuplicateErrors(errors, "users.email", duplicateKeys(flat.users, (user) => user.email?.toLowerCase()));
@@ -180,6 +183,9 @@ export function validateFlatDb(flat) {
   addDuplicateErrors(errors, "testAttempts.assignmentId+attemptNumber", duplicateKeys(flat.testAttempts, (attempt) => `${attempt.assignmentId}|${attempt.attemptNumber}`));
   addDuplicateErrors(errors, "certificates.id", duplicateKeys(flat.certificates, (certificate) => certificate.id));
   addDuplicateErrors(errors, "certificates.certificateNumber", duplicateKeys(flat.certificates, (certificate) => certificate.certificateNumber));
+  addDuplicateErrors(errors, "standaloneCertificates.id", duplicateKeys(flat.standaloneCertificates, (certificate) => certificate.id));
+  addDuplicateErrors(errors, "standaloneCertificates.certificateNumber", duplicateKeys(flat.standaloneCertificates, (certificate) => certificate.certificateNumber));
+  addDuplicateErrors(errors, "allCertificates.certificateNumber", duplicateKeys(allCertificates, (certificate) => certificate.certificateNumber));
 
   for (const user of flat.users) {
     if (!user.id || !user.email || !user.passwordHash) {
@@ -189,6 +195,20 @@ export function validateFlatDb(flat) {
   for (const course of flat.courses) {
     if (!course.id || !course.title) {
       errors.push(`courses: ${course.id || "(missing id)"} is missing id or title`);
+    }
+  }
+  for (const certificate of flat.standaloneCertificates) {
+    if (
+      !certificate.id ||
+      !certificate.courseId ||
+      !certificate.certificateNumber ||
+      !certificate.snapshotFirstName ||
+      !certificate.snapshotLastName ||
+      !certificate.snapshotBirthDate ||
+      !certificate.snapshotCourseTitle ||
+      !certificate.snapshotCertificateTemplateHtml
+    ) {
+      errors.push(`standaloneCertificates: ${certificate.id || "(missing id)"} is missing required certificate snapshot data`);
     }
   }
 
@@ -272,6 +292,7 @@ export async function prismaDataCounts(options = {}) {
       optionsCount,
       attempts,
       certificates,
+      standaloneCertificates,
       notifications,
       auditEvents,
       certificateEvents,
@@ -288,6 +309,7 @@ export async function prismaDataCounts(options = {}) {
       prisma.testOption.count(),
       prisma.testAttempt.count(),
       prisma.certificate.count(),
+      prisma.standaloneCertificate.count(),
       prisma.notification.count(),
       prisma.auditEvent.count(),
       prisma.certificateEvent.count(),
@@ -306,6 +328,7 @@ export async function prismaDataCounts(options = {}) {
       options: optionsCount,
       attempts,
       certificates,
+      standaloneCertificates,
       notifications,
       auditEvents,
       certificateEvents,
@@ -327,6 +350,7 @@ async function clearTables(client) {
   await client.certificateEvent.deleteMany();
   await client.auditEvent.deleteMany();
   await client.notification.deleteMany();
+  await client.standaloneCertificate.deleteMany();
   await client.certificate.deleteMany();
   await client.testAttempt.deleteMany();
   await client.testOption.deleteMany();
@@ -617,6 +641,31 @@ async function writeFlatDb(client, flat) {
     });
   }
 
+  if (flat.standaloneCertificates.length) {
+    await client.standaloneCertificate.createMany({
+      data: flat.standaloneCertificates.map((certificate) => ({
+        id: certificate.id,
+        courseId: certificate.courseId,
+        certificateNumber: certificate.certificateNumber,
+        status: enumValue(certificate.status, certificateStatuses, "issued"),
+        issuedAt: dateOrNow(certificate.issuedAt),
+        expiresAt: dateOrNow(certificate.expiresAt),
+        snapshotFirstName: certificate.snapshotFirstName ?? "",
+        snapshotLastName: certificate.snapshotLastName ?? "",
+        snapshotBirthDate: dateOrNow(certificate.snapshotBirthDate),
+        snapshotPosition: certificate.snapshotPosition ?? "",
+        snapshotCompany: certificate.snapshotCompany ?? "",
+        snapshotPhotoUrl: certificate.snapshotPhotoUrl ?? "",
+        snapshotCourseTitle: certificate.snapshotCourseTitle ?? "",
+        snapshotCertificateTemplateHtml: certificate.snapshotCertificateTemplateHtml ?? "",
+        certificateHtml: certificate.certificateHtml ?? "",
+        createdById: certificate.createdById ?? "",
+        createdByEmail: certificate.createdByEmail ?? "",
+        createdAt: dateOrNow(certificate.createdAt)
+      }))
+    });
+  }
+
   if (flat.notifications.length) {
     await client.notification.createMany({
       data: flat.notifications.map((note) => ({
@@ -883,6 +932,29 @@ function certificateData(certificate) {
   };
 }
 
+function standaloneCertificateData(certificate) {
+  return {
+    id: certificate.id,
+    courseId: certificate.courseId,
+    certificateNumber: certificate.certificateNumber,
+    status: enumValue(certificate.status, certificateStatuses, "issued"),
+    issuedAt: dateOrNow(certificate.issuedAt),
+    expiresAt: dateOrNow(certificate.expiresAt),
+    snapshotFirstName: certificate.snapshotFirstName ?? "",
+    snapshotLastName: certificate.snapshotLastName ?? "",
+    snapshotBirthDate: dateOrNow(certificate.snapshotBirthDate),
+    snapshotPosition: certificate.snapshotPosition ?? "",
+    snapshotCompany: certificate.snapshotCompany ?? "",
+    snapshotPhotoUrl: certificate.snapshotPhotoUrl ?? "",
+    snapshotCourseTitle: certificate.snapshotCourseTitle ?? "",
+    snapshotCertificateTemplateHtml: certificate.snapshotCertificateTemplateHtml ?? "",
+    certificateHtml: certificate.certificateHtml ?? "",
+    createdById: certificate.createdById ?? "",
+    createdByEmail: certificate.createdByEmail ?? "",
+    createdAt: dateOrNow(certificate.createdAt)
+  };
+}
+
 function notificationData(note, userIds) {
   return {
     id: note.id, recipientUserId: userIds.has(note.recipientUserId) ? note.recipientUserId : null,
@@ -950,6 +1022,7 @@ export async function syncPrismaDb(previousDb, nextDb, options = {}) {
       await deleteRecords(tx, "certificateEvent", removedIds(previous.certificateEvents, next.certificateEvents));
       await deleteRecords(tx, "auditEvent", removedIds(previous.auditEvents, next.auditEvents));
       await deleteRecords(tx, "notification", removedIds(previous.notifications, next.notifications));
+      await deleteRecords(tx, "standaloneCertificate", removedIds(previous.standaloneCertificates, next.standaloneCertificates));
       await deleteRecords(tx, "certificate", removedIds(previous.certificates, next.certificates));
       await deleteRecords(tx, "testAttempt", removedIds(previous.testAttempts, next.testAttempts));
       await deleteRecords(tx, "testOption", removedIds(previous.options, next.options));
@@ -971,6 +1044,7 @@ export async function syncPrismaDb(previousDb, nextDb, options = {}) {
       await upsertRecords(tx, "courseAssignment", changedRecords(previous.assignments, next.assignments).filter((item) => userIds.has(item.userId) && courseIds.has(item.courseId)), (item) => assignmentData(item, userIds));
       await upsertRecords(tx, "testAttempt", changedRecords(previous.testAttempts, next.testAttempts).filter((item) => assignmentIds.has(item.assignmentId) && testIds.has(item.testId) && userIds.has(item.userId)), testAttemptData);
       await upsertRecords(tx, "certificate", changedRecords(previous.certificates, next.certificates).filter((item) => userIds.has(item.userId) && courseIds.has(item.courseId) && assignmentIds.has(item.assignmentId)), certificateData);
+      await upsertRecords(tx, "standaloneCertificate", changedRecords(previous.standaloneCertificates, next.standaloneCertificates), standaloneCertificateData);
       await upsertRecords(tx, "notification", changedRecords(previous.notifications, next.notifications), (item) => notificationData(item, userIds));
       await upsertRecords(tx, "session", changedRecords(previous.sessions, next.sessions).filter((item) => userIds.has(item.userId)), sessionData);
       await upsertRecords(tx, "passwordResetToken", changedRecords(previous.passwordResetTokens, next.passwordResetTokens).filter((item) => userIds.has(item.userId)), passwordResetTokenData);
@@ -1074,7 +1148,7 @@ export async function loadPrismaDb(options = {}) {
   const shouldDisconnect = !options.prisma;
 
   try {
-    const [users, applications, courses, assignments, testAttempts, certificates, notifications, sessions, passwordResetTokens, auditEvents, certificateEvents, settingsRecord] =
+    const [users, applications, courses, assignments, testAttempts, certificates, standaloneCertificates, notifications, sessions, passwordResetTokens, auditEvents, certificateEvents, settingsRecord] =
       await Promise.all([
         prisma.user.findMany({ orderBy: [{ createdAt: "asc" }, { email: "asc" }] }),
         prisma.courseApplication.findMany({ orderBy: { createdAt: "desc" } }),
@@ -1102,6 +1176,7 @@ export async function loadPrismaDb(options = {}) {
         prisma.courseAssignment.findMany({ orderBy: { assignedAt: "desc" } }),
         prisma.testAttempt.findMany({ orderBy: { startedAt: "desc" } }),
         prisma.certificate.findMany({ orderBy: { issuedAt: "desc" } }),
+        prisma.standaloneCertificate.findMany({ orderBy: { issuedAt: "desc" } }),
         prisma.notification.findMany({ orderBy: { createdAt: "desc" } }),
         prisma.session.findMany({ orderBy: { createdAt: "desc" } }),
         prisma.passwordResetToken.findMany({ orderBy: { createdAt: "desc" } }),
@@ -1200,6 +1275,26 @@ export async function loadPrismaDb(options = {}) {
         snapshotCourseTitle: certificate.snapshotCourseTitle,
         snapshotCertificateTemplateHtml: certificate.snapshotCertificateTemplateHtml,
         certificateHtml: certificate.certificateHtml
+      })),
+      standaloneCertificates: standaloneCertificates.map((certificate) => ({
+        id: certificate.id,
+        courseId: certificate.courseId,
+        certificateNumber: certificate.certificateNumber,
+        status: certificate.status,
+        issuedAt: dateTimeString(certificate.issuedAt),
+        expiresAt: dateTimeString(certificate.expiresAt),
+        snapshotFirstName: certificate.snapshotFirstName,
+        snapshotLastName: certificate.snapshotLastName,
+        snapshotBirthDate: dateOnlyString(certificate.snapshotBirthDate),
+        snapshotPosition: certificate.snapshotPosition,
+        snapshotCompany: certificate.snapshotCompany,
+        snapshotPhotoUrl: certificate.snapshotPhotoUrl,
+        snapshotCourseTitle: certificate.snapshotCourseTitle,
+        snapshotCertificateTemplateHtml: certificate.snapshotCertificateTemplateHtml,
+        certificateHtml: certificate.certificateHtml,
+        createdById: certificate.createdById,
+        createdByEmail: certificate.createdByEmail,
+        createdAt: dateTimeString(certificate.createdAt)
       })),
       notifications: notifications.map((note) => ({
         id: note.id,

@@ -185,6 +185,7 @@ const productCss = `
 .template-token-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .template-token-list code { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); color: var(--primary-strong); padding: 5px 7px; }
 .profile-photo { width: 132px; height: 132px; object-fit: cover; border: 4px solid var(--primary-soft); border-radius: var(--radius); background: var(--surface-muted); }
+.certificate-candidate-photo { width: 64px; height: 80px; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); }
 .photo-warning { border: 1px solid #f1c27d; border-left: 4px solid var(--warning); border-radius: var(--radius); background: #fff7e8; color: #70480f; padding: 14px; }
 .lesson-list { display: grid; gap: 12px; }
 .material-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); background: white; padding: 14px; }
@@ -473,6 +474,7 @@ function createSeedData() {
     ],
     testAttempts: [],
     certificates: [],
+    standaloneCertificates: [],
     notifications: [],
     auditEvents: [],
     certificateEvents: [],
@@ -553,7 +555,11 @@ function normalizeDb(data) {
       changed = true;
     }
   }
-  for (const certificate of data.certificates ?? []) {
+  if (!Array.isArray(data.standaloneCertificates)) {
+    data.standaloneCertificates = [];
+    changed = true;
+  }
+  for (const certificate of [...(data.certificates ?? []), ...data.standaloneCertificates]) {
     if (!certificate.expiresAt) {
       certificate.expiresAt = addYearsIso(certificate.issuedAt, 5);
       changed = true;
@@ -847,6 +853,15 @@ function parseIssueDateInput(value) {
   return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw
     ? null
     : date.toISOString();
+}
+
+function parseDateOnlyInput(value) {
+  const raw = String(value ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const date = new Date(`${raw}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw
+    ? null
+    : raw;
 }
 
 function certificateVerificationUrl(certificate) {
@@ -4263,7 +4278,7 @@ function certificateNumberDate(value) {
 
 function certificateNumber(issuedAt = now()) {
   const firstCertificateNumber = 725645565;
-  const numericParts = db.certificates
+  const numericParts = [...(db.certificates ?? []), ...(db.standaloneCertificates ?? [])]
     .map((certificate) => String(certificate.certificateNumber ?? "").match(/^(\d{9,})\//)?.[1])
     .filter(Boolean)
     .map(Number);
@@ -4283,6 +4298,31 @@ function photoRequiredNotice() {
 
 function activeCertificateForAssignment(assignmentId) {
   return db.certificates.find((certificate) => certificate.assignmentId === assignmentId && certificate.status === "issued");
+}
+
+function standaloneCertificateById(certificateId) {
+  return (db.standaloneCertificates ?? []).find((certificate) => certificate.id === certificateId);
+}
+
+function certificateById(certificateId) {
+  return db.certificates.find((certificate) => certificate.id === certificateId)
+    ?? standaloneCertificateById(certificateId);
+}
+
+function certificateByNumber(number) {
+  const normalizedNumber = String(number ?? "").toUpperCase();
+  return [...(db.certificates ?? []), ...(db.standaloneCertificates ?? [])]
+    .find((certificate) => certificate.certificateNumber.toUpperCase() === normalizedNumber);
+}
+
+function isStandaloneCertificate(certificate) {
+  return Boolean(certificate && standaloneCertificateById(certificate.id));
+}
+
+function canOpenCertificate(user, certificate) {
+  if (!user || !certificate) return false;
+  if (isFullAdmin(user)) return true;
+  return !isStandaloneCertificate(certificate) && certificate.userId === user.id;
 }
 
 function certificateActorSnapshot(actor) {
@@ -4358,6 +4398,33 @@ function createCertificateForAssignment(assignment, options = {}) {
     assignmentId: assignment.id,
     replacesCertificateId: options.replacesCertificateId ?? ""
   });
+  return certificate;
+}
+
+function createStandaloneCertificate(candidate, course, admin, issuedAt) {
+  const certificate = {
+    id: id("standalone_cert"),
+    courseId: course.id,
+    certificateNumber: certificateNumber(issuedAt),
+    status: "issued",
+    issuedAt,
+    expiresAt: addYearsIso(issuedAt, 5),
+    snapshotFirstName: candidate.firstName,
+    snapshotLastName: candidate.lastName,
+    snapshotBirthDate: candidate.birthDate,
+    snapshotPosition: "",
+    snapshotCompany: "",
+    snapshotPhotoUrl: candidate.photoUrl,
+    snapshotCourseTitle: course.title,
+    snapshotCertificateTemplateHtml: course.certificateTemplateHtml || defaultCertificateTemplate(),
+    certificateHtml: "",
+    createdById: admin.id,
+    createdByEmail: admin.email,
+    createdAt: now()
+  };
+  certificate.certificateHtml = renderCertificateTemplate(certificate, certificate.snapshotCertificateTemplateHtml);
+  db.standaloneCertificates ??= [];
+  db.standaloneCertificates.push(certificate);
   return certificate;
 }
 
@@ -4622,6 +4689,7 @@ function adminShell(user, title, body) {
           <a href="/admin/tests">Tests &amp; results</a>
           <a href="/admin/checks">Invoices &amp; reports</a>
           <a href="/admin/certificates">Certificates</a>
+          <a href="/admin/standalone-certificates">Direct certificates</a>
           <a href="/admin/notifications">Notifications</a>
           <a href="/admin/audit">Audit log</a>
           <a href="/admin/course-prices">Prices</a>
@@ -7099,7 +7167,8 @@ function auditActionLabel(action = "") {
     "/admin/homepage/footer": "Home page footer updated",
     "/admin/notifications/send-pending": "Email queue sent",
     "/admin/notifications/templates": "Email templates updated",
-    "/admin/notifications/test-smtp": "SMTP connection checked"
+    "/admin/notifications/test-smtp": "SMTP connection checked",
+    "/admin/standalone-certificates/create": "Direct certificate issued"
   };
   if (exact[action]) return exact[action];
   if (/^\/admin\/users\/[^/]+\/update$/.test(action)) return "User details updated";
@@ -7121,6 +7190,75 @@ function auditActionLabel(action = "") {
   return "Administrative action";
 }
 
+function standaloneCertificateActions(certificate) {
+  return `<div class="table-actions">
+    <a class="small-button primary" href="/certificates/${certificate.id}">Open</a>
+    <a class="small-button" href="/certificates/${certificate.id}.pdf">Download PDF</a>
+    <a class="small-button" href="${escapeHtml(certificateVerificationUrl(certificate))}" target="_blank" rel="noopener">Verify</a>
+  </div>`;
+}
+
+function adminStandaloneCertificates(user, searchParams = new URLSearchParams(), state = {}) {
+  const courses = [...db.courses].sort((a, b) => a.title.localeCompare(b.title, "en"));
+  const certificates = [...(db.standaloneCertificates ?? [])]
+    .sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime());
+  const values = state.values ?? {};
+  const createdId = searchParams.get("created") ?? "";
+  const createdCertificate = createdId ? standaloneCertificateById(createdId) : null;
+  const selectedCourseId = values.courseId ?? "";
+  return adminShell(
+    user,
+    "Direct certificates",
+    `<section class="section stack">
+      <div class="toolbar">
+        <div>
+          <span class="eyebrow">Direct certificates</span>
+          <h1>Issue a certificate without creating a user</h1>
+          <p class="lead">The candidate is kept only in this certificate register. No LMS account, course assignment, progress, test attempt, or e-mail notification is created.</p>
+        </div>
+        <a class="small-button" href="/admin/certificates">Student certificates</a>
+      </div>
+      ${state.error ? `<div class="notice danger">${escapeHtml(state.error)}</div>` : ""}
+      ${createdCertificate
+        ? `<div class="notice success"><strong>Certificate issued:</strong> ${escapeHtml(createdCertificate.certificateNumber)}
+            <div class="table-actions" style="margin-top:10px">${standaloneCertificateActions(createdCertificate)}</div>
+          </div>`
+        : ""}
+      <form class="form-panel stack" method="post" action="/admin/standalone-certificates/create" enctype="multipart/form-data">
+        <h2>Candidate and certificate details</h2>
+        <div class="admin-edit-grid">
+          <div class="field"><label for="standaloneLastName">Last name</label><input id="standaloneLastName" name="lastName" maxlength="120" value="${escapeHtml(values.lastName ?? "")}" required /></div>
+          <div class="field"><label for="standaloneFirstName">First name</label><input id="standaloneFirstName" name="firstName" maxlength="120" value="${escapeHtml(values.firstName ?? "")}" required /></div>
+          <div class="field"><label for="standaloneBirthDate">Date of birth</label><input id="standaloneBirthDate" name="birthDate" type="date" value="${escapeHtml(values.birthDate ?? "")}" required /></div>
+          <div class="field"><label for="standaloneIssuedAt">Issue date</label><input id="standaloneIssuedAt" name="issuedAt" type="date" value="${escapeHtml(values.issuedAt ?? dateInputValue())}" required /></div>
+          <div class="field field-wide"><label for="standaloneCourse">Course / certificate template</label><select id="standaloneCourse" name="courseId" required><option value="">Select a course</option>${courses
+            .map((course) => `<option value="${course.id}" ${selectedCourseId === course.id ? "selected" : ""}>${escapeHtml(course.title)}${course.status === "active" ? "" : " (inactive)"}</option>`)
+            .join("")}</select></div>
+          <div class="field field-wide"><label for="standalonePhoto">Candidate photo</label><input id="standalonePhoto" name="photo" type="file" accept="image/png,image/jpeg,image/webp" required /><span class="muted">JPG, PNG, or WebP; maximum ${Math.round(maxPhotoUploadBytes / 1024 / 1024)} MB.</span></div>
+        </div>
+        <div class="table-actions"><button class="button" type="submit">Issue certificate</button></div>
+      </form>
+      <article class="panel stack">
+        <h2>Issued direct certificates</h2>
+        <table class="table">
+          <thead><tr><th>Photo</th><th>Number</th><th>Candidate</th><th>Course</th><th>Issue date</th><th>Created by</th><th>Actions</th></tr></thead>
+          <tbody>${certificates
+            .map((certificate) => `<tr id="certificate-${certificate.id}">
+              <td>${certificate.snapshotPhotoUrl ? `<img class="certificate-candidate-photo" src="${escapeHtml(certificate.snapshotPhotoUrl)}" alt="" />` : ""}</td>
+              <td>${escapeHtml(certificate.certificateNumber)}<br>${badge(certificate.status)}</td>
+              <td><strong>${escapeHtml(`${certificate.snapshotLastName} ${certificate.snapshotFirstName}`.trim())}</strong><br><span class="muted">Born ${formatDate(certificate.snapshotBirthDate)}</span></td>
+              <td>${escapeHtml(certificate.snapshotCourseTitle)}</td>
+              <td>${formatDate(certificate.issuedAt)}<br><span class="muted">Expires ${formatDate(certificate.expiresAt)}</span></td>
+              <td>${escapeHtml(certificate.createdByEmail || "Administrator")}</td>
+              <td>${standaloneCertificateActions(certificate)}</td>
+            </tr>`)
+            .join("") || `<tr><td colspan="7"><span class="muted">No direct certificates have been issued yet.</span></td></tr>`}</tbody>
+        </table>
+      </article>
+    </section>`
+  );
+}
+
 function adminCertificates(user, searchParams = new URLSearchParams()) {
   const filters = certificateFilterParams(searchParams);
   const selectedUserId = filters.userId;
@@ -7138,7 +7276,7 @@ function adminCertificates(user, searchParams = new URLSearchParams()) {
     user,
     "Certificates",
     `<section class="section">
-      <div><span class="eyebrow">Certificates</span><h1>Issued certificates</h1><p class="lead">Each certificate is linked to a specific student, course, and assignment.</p></div>
+      <div class="toolbar"><div><span class="eyebrow">Certificates</span><h1>Issued certificates</h1><p class="lead">Each certificate is linked to a specific student, course, and assignment.</p></div><a class="button" href="/admin/standalone-certificates">Issue without a user</a></div>
       ${selectedStudentNotice}
       ${certificateFilterForm(filters)}
       <table class="table">
@@ -7565,8 +7703,8 @@ function studentProfile(user) {
 
 function certificatePage(requestUser, certificate) {
   if (!requestUser) return page("Access denied", null, `<main class="page"><div class="notice">Sign in to open this certificate.</div></main>`);
-  if (requestUser.role !== "admin" && certificate.userId !== requestUser.id) {
-    return page("Access denied", requestUser, `<main class="page"><div class="notice">You cannot open another student's certificate.</div></main>`);
+  if (!canOpenCertificate(requestUser, certificate)) {
+    return page("Access denied", requestUser, `<main class="page"><div class="notice">You cannot open this certificate.</div></main>`);
   }
   const certificateHtml =
     certificate.certificateHtml ||
@@ -7594,7 +7732,7 @@ function verifyCertificatePage(certificate) {
           <article class="panel stack">
             ${badge(certificate.status)}
             <p><strong>Number:</strong> ${escapeHtml(certificate.certificateNumber)}</p>
-            <p><strong>Student:</strong> ${escapeHtml(certificate.snapshotFirstName)} ${escapeHtml(certificate.snapshotLastName)}</p>
+            <p><strong>Certificate holder:</strong> ${escapeHtml(certificate.snapshotFirstName)} ${escapeHtml(certificate.snapshotLastName)}</p>
             <p><strong>Course:</strong> ${escapeHtml(certificate.snapshotCourseTitle)}</p>
             <p><strong>Issue date:</strong> ${new Date(certificate.issuedAt).toLocaleDateString("en-GB")}</p>
             <p><strong>Valid until:</strong> ${formatDate(certificate.expiresAt)}</p>
@@ -8257,6 +8395,59 @@ async function handlePost(request, response, pathname, user) {
       }
       saveDb(db);
       redirect(response, "/admin/users");
+      return;
+    }
+
+    if (pathname === "/admin/standalone-certificates/create") {
+      const values = {
+        lastName: form.get("lastName")?.toString().trim() ?? "",
+        firstName: form.get("firstName")?.toString().trim() ?? "",
+        birthDate: form.get("birthDate")?.toString().trim() ?? "",
+        issuedAt: form.get("issuedAt")?.toString().trim() ?? "",
+        courseId: form.get("courseId")?.toString().trim() ?? ""
+      };
+      const course = courseById(values.courseId);
+      const birthDate = parseDateOnlyInput(values.birthDate);
+      const issuedAt = values.issuedAt ? parseIssueDateInput(values.issuedAt) : null;
+      const photo = form.get("photo");
+      let error = "";
+      if (!values.lastName || !values.firstName) {
+        error = "Enter the candidate's first and last name.";
+      } else if (values.lastName.length > 120 || values.firstName.length > 120) {
+        error = "First and last names must not exceed 120 characters.";
+      } else if (!birthDate) {
+        error = "Enter a valid date of birth.";
+      } else if (!issuedAt) {
+        error = "Enter a valid certificate issue date.";
+      } else if (!course) {
+        error = "Select an existing course.";
+      } else if (!photo?.buffer?.length) {
+        error = "Upload the candidate photo.";
+      }
+      if (error) {
+        send(response, adminStandaloneCertificates(admin, new URLSearchParams(), { error, values }), 400);
+        return;
+      }
+
+      const photoHolder = { id: id("standalone_photo"), photoUrl: "" };
+      const savedPhoto = saveCertificatePhoto(photoHolder, photo);
+      if (!savedPhoto.ok) {
+        send(response, adminStandaloneCertificates(admin, new URLSearchParams(), { error: savedPhoto.message, values }), 400);
+        return;
+      }
+      const certificate = createStandaloneCertificate(
+        {
+          firstName: values.firstName,
+          lastName: values.lastName,
+          birthDate,
+          photoUrl: savedPhoto.photoUrl
+        },
+        course,
+        admin,
+        issuedAt
+      );
+      saveDb(db);
+      redirect(response, `/admin/standalone-certificates?created=${encodeURIComponent(certificate.id)}#certificate-${encodeURIComponent(certificate.id)}`);
       return;
     }
 
@@ -9096,6 +9287,7 @@ async function handleRequest(request, response) {
     if (pathname === "/admin/homepage") return send(response, adminHomepage(admin));
     if (pathname === "/admin/files/import-report.csv") return sendImportQualityCsv(response);
     if (pathname === "/admin/files") return send(response, adminFiles(admin, url.searchParams));
+    if (pathname === "/admin/standalone-certificates") return send(response, adminStandaloneCertificates(admin, url.searchParams));
     if (pathname === "/admin/certificates/export.csv") return sendCertificatesCsv(response, url.searchParams);
     if (pathname === "/admin/certificates/export.xls") return sendCertificatesExcel(response, url.searchParams);
     if (pathname === "/admin/certificates") return send(response, adminCertificates(admin, url.searchParams));
@@ -9158,14 +9350,14 @@ async function handleRequest(request, response) {
   const verifyMatch = pathname.match(/^\/verify\/(.+)$/);
   if (verifyMatch) {
     const certificateNumberToVerify = decodeURIComponent(verifyMatch[1]).toUpperCase();
-    const cert = db.certificates.find((certificate) => certificate.certificateNumber.toUpperCase() === certificateNumberToVerify);
+    const cert = certificateByNumber(certificateNumberToVerify);
     return send(response, verifyCertificatePage(cert), cert ? 200 : 404);
   }
 
   const certPdfMatch = pathname.match(/^\/certificates\/([^/]+)\.pdf$/);
   if (certPdfMatch) {
-    const cert = db.certificates.find((certificate) => certificate.id === certPdfMatch[1]);
-    if (!cert || !user || (user.role !== "admin" && cert.userId !== user.id)) {
+    const cert = certificateById(certPdfMatch[1]);
+    if (!canOpenCertificate(user, cert)) {
       response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Forbidden");
       return;
@@ -9184,7 +9376,7 @@ async function handleRequest(request, response) {
 
   const certMatch = pathname.match(/^\/certificates\/([^/]+)$/);
   if (certMatch) {
-    const cert = db.certificates.find((certificate) => certificate.id === certMatch[1]);
+    const cert = certificateById(certMatch[1]);
     return send(response, cert ? certificatePage(user, cert) : page("Not found", user, `<main class="page"><div class="notice">Certificate not found.</div></main>`), cert ? 200 : 404);
   }
 

@@ -314,6 +314,31 @@ model Certificate {
   @@index([issuedAt])
 }
 
+model StandaloneCertificate {
+  id                              String            @id
+  courseId                        String
+  certificateNumber               String            @unique
+  status                          CertificateStatus @default(issued)
+  issuedAt                        DateTime          @default(now())
+  expiresAt                       DateTime
+  snapshotFirstName               String
+  snapshotLastName                String
+  snapshotBirthDate               DateTime
+  snapshotPosition                String            @default("")
+  snapshotCompany                 String            @default("")
+  snapshotPhotoUrl                String            @default("")
+  snapshotCourseTitle             String
+  snapshotCertificateTemplateHtml String            @db.Text
+  certificateHtml                 String            @db.Text
+  createdById                     String            @default("")
+  createdByEmail                  String            @default("")
+  createdAt                       DateTime          @default(now())
+
+  @@index([courseId])
+  @@index([status])
+  @@index([issuedAt])
+}
+
 model Notification {
   id              String             @id
   recipientUserId String?

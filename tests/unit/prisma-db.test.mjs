@@ -88,6 +88,22 @@ function fixtureDb() {
         status: "issued"
       }
     ],
+    standaloneCertificates: [
+      {
+        id: "standalone_certificate_one",
+        courseId: "course_one",
+        certificateNumber: "725645566/01/01/2026",
+        status: "issued",
+        issuedAt: "2026-01-01T12:00:00.000Z",
+        expiresAt: "2031-01-01T12:00:00.000Z",
+        snapshotFirstName: "Direct",
+        snapshotLastName: "Candidate",
+        snapshotBirthDate: "1985-05-06",
+        snapshotCourseTitle: "Course one",
+        snapshotCertificateTemplateHtml: "<h1>{{fullName}}</h1>",
+        certificateHtml: "<h1>Direct Candidate</h1>"
+      }
+    ],
     notifications: [],
     sessions: [],
     passwordResetTokens: [],
@@ -126,6 +142,7 @@ test("flattenDb preserves relations and migrationSummary counts every model", ()
     assignments: 1,
     testAttempts: 1,
     certificates: 1,
+    standaloneCertificates: 1,
     notifications: 0,
     sessions: 0,
     passwordResetTokens: 0,
@@ -161,9 +178,11 @@ test("validateFlatDb reports duplicates, broken required relations, and soft-ref
     certificateId: "missing_certificate",
     courseId: "missing_course"
   });
+  db.standaloneCertificates[0].certificateNumber = db.certificates[0].certificateNumber;
   const validation = validateFlatDb(flattenDb(db));
   assert.ok(validation.errors.some((message) => message.includes("users.email: duplicate")));
   assert.ok(validation.errors.some((message) => message.includes("assignment_broken references a missing user or course")));
+  assert.ok(validation.errors.some((message) => message.includes("allCertificates.certificateNumber: duplicate")));
   assert.ok(validation.warnings.some((message) => message.includes("notification_orphan references a missing user")));
   assert.ok(validation.warnings.some((message) => message.includes("audit_orphan references a missing admin")));
   assert.ok(validation.warnings.some((message) => message.includes("event_orphan references a missing certificate")));

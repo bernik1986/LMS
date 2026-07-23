@@ -345,3 +345,112 @@ test("manual certificate issue creates a unique five-year certificate, A4 PDF, v
   assert.ok(smtpAttachmentNames(certificateEmail).some((name) => name.toLowerCase().endsWith(".pdf")));
   assert.ok(readFileSync(`${app.uploadsDir}/${app.readDb().users.find((user) => user.id === "user_student").photoUrl.replace("/uploads/", "")}`).length > 100);
 });
+
+test("direct certificate issue persists a candidate without creating a user or assignment", async () => {
+  const before = app.readDb();
+  const countsBefore = {
+    users: before.users.length,
+    assignments: before.assignments.length,
+    certificates: before.certificates.length,
+    notifications: before.notifications.length,
+    standaloneCertificates: before.standaloneCertificates?.length ?? 0
+  };
+  const page = await app.request("/admin/standalone-certificates", {
+    headers: { cookie: adminCookie }
+  });
+  assert.equal(page.response.status, 200);
+  assert.match(page.text, /Issue a certificate without creating a user/);
+
+  const photo = await sharp({
+    create: { width: 480, height: 640, channels: 3, background: { r: 24, g: 82, b: 116 } }
+  }).jpeg().toBuffer();
+  const issue = await app.postMultipart(
+    "/admin/standalone-certificates/create",
+    {
+      lastName: "Navigator",
+      firstName: "Morgan",
+      birthDate: "1987-04-19",
+      issuedAt: "2026-07-15",
+      courseId: "course_first_aid"
+    },
+    {
+      photo: { name: "morgan-navigator.jpg", type: "image/jpeg", buffer: photo }
+    },
+    adminCookie
+  );
+  assert.equal(issue.response.status, 303);
+  assert.match(
+    issue.response.headers.get("location"),
+    /^\/admin\/standalone-certificates\?created=standalone_cert_[^#]+#certificate-standalone_cert_/
+  );
+
+  await app.waitFor(
+    () => (app.readDb().standaloneCertificates?.length ?? 0) === countsBefore.standaloneCertificates + 1,
+    "Direct certificate was not persisted."
+  );
+  const database = app.readDb();
+  const certificate = database.standaloneCertificates.at(-1);
+  assert.equal(certificate.snapshotFirstName, "Morgan");
+  assert.equal(certificate.snapshotLastName, "Navigator");
+  assert.equal(certificate.snapshotBirthDate, "1987-04-19");
+  assert.equal(certificate.snapshotCourseTitle, "First Aid at Sea");
+  assert.equal(certificate.issuedAt.slice(0, 10), "2026-07-15");
+  assert.equal(certificate.expiresAt.slice(0, 10), "2031-07-15");
+  assert.equal(certificate.createdByEmail, "admin@example.com");
+  assert.match(certificate.certificateNumber, /^\d{9}\/15\/07\/2026$/);
+  assert.ok(existsSync(`${app.uploadsDir}/${certificate.snapshotPhotoUrl.replace("/uploads/", "")}`));
+  assert.equal(database.users.length, countsBefore.users);
+  assert.equal(database.assignments.length, countsBefore.assignments);
+  assert.equal(database.certificates.length, countsBefore.certificates);
+  assert.equal(database.notifications.length, countsBefore.notifications);
+
+  const register = await app.request("/admin/standalone-certificates", {
+    headers: { cookie: adminCookie }
+  });
+  assert.equal(register.response.status, 200);
+  assert.match(register.text, /Morgan/);
+  assert.match(register.text, /Navigator/);
+  assert.match(register.text, new RegExp(certificate.certificateNumber.replaceAll("/", "\\/")));
+
+  const open = await app.request(`/certificates/${certificate.id}`, {
+    headers: { cookie: adminCookie }
+  });
+  assert.equal(open.response.status, 200);
+  assert.match(open.text, /Morgan/);
+  const pdf = await app.request(`/certificates/${certificate.id}.pdf`, {
+    headers: { cookie: adminCookie }
+  });
+  assert.equal(pdf.response.status, 200);
+  assert.equal(pdf.response.headers.get("content-type"), "application/pdf");
+  assert.ok(pdf.body.length > 2000);
+  const document = await PDFDocument.load(pdf.body);
+  assert.equal(document.getPageCount(), 1);
+
+  const verification = await app.request(`/verify/${encodeURIComponent(certificate.certificateNumber)}`);
+  assert.equal(verification.response.status, 200);
+  assert.match(verification.text, /Certificate holder/);
+  assert.match(verification.text, /Morgan Navigator/);
+  const anonymousPdf = await app.request(`/certificates/${certificate.id}.pdf`);
+  assert.equal(anonymousPdf.response.status, 403);
+  const studentCookie = await app.login("student@example.com", "Student123!");
+  const studentPdf = await app.request(`/certificates/${certificate.id}.pdf`, {
+    headers: { cookie: studentCookie }
+  });
+  assert.equal(studentPdf.response.status, 403);
+
+  const invalid = await app.postMultipart(
+    "/admin/standalone-certificates/create",
+    {
+      lastName: "Missing",
+      firstName: "Photo",
+      birthDate: "1987-04-19",
+      issuedAt: "2026-07-15",
+      courseId: "course_first_aid"
+    },
+    {},
+    adminCookie
+  );
+  assert.equal(invalid.response.status, 400);
+  assert.match(invalid.text, /Upload the candidate photo/);
+  assert.equal(app.readDb().standaloneCertificates.length, countsBefore.standaloneCertificates + 1);
+});
