@@ -1,22 +1,13 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
 import sharp from "sharp";
 import { loadLocalEnv } from "./env.mjs";
 import { loadPrismaDb, resolveConnectionString, syncPrismaDb } from "./prisma-db.mjs";
 
 loadLocalEnv();
-
-const args = process.argv.slice(2);
-const apply = args.includes("--apply");
-const fileIndex = args.indexOf("--file");
-const sourceFile = fileIndex >= 0 ? args[fileIndex + 1] : "";
-
-if (!sourceFile) {
-  console.error("Usage: node scripts/import-course-price-revision.mjs --file <course-price.xlsx> [--apply]");
-  process.exit(1);
-}
 
 function readZipEntry(zipPath, entryName) {
   const archive = readFileSync(zipPath);
@@ -136,79 +127,116 @@ async function createCover(title, outputPath, variant) {
   await sharp(Buffer.from(svg)).png().toFile(outputPath);
 }
 
-const rows = (await readWorkbookRows(resolve(sourceFile)))
-  .filter((row) => row.row >= 13 && row.B && row.D)
-  .map((row) => ({ title: String(row.B).trim(), usualCost: String(row.D).trim(), offer: String(row.E ?? "").trim() }));
+export async function importCoursePriceRevision(options = {}) {
+  const sourceFile = options.sourceFile ? resolve(options.sourceFile) : "";
+  const apply = Boolean(options.apply);
+  const connectionString = resolveConnectionString(options.connectionString);
+  const log = options.log ?? console;
+  if (!sourceFile) throw new Error("A course price workbook path is required.");
 
-const previousDb = await loadPrismaDb({ connectionString: resolveConnectionString() });
-const nextDb = structuredClone(previousDb);
-const importedTitleKeys = new Set(rows.map((row) => titleKey(row.title)));
-nextDb.courses = nextDb.courses.filter(
-  (course) => course.source?.kind !== "course_price_revision" || importedTitleKeys.has(titleKey(course.source?.sourceTitle || course.title))
-);
-const coursesByTitle = new Map(nextDb.courses.map((course) => [titleKey(course.title), course]));
-const templateCourse = nextDb.courses.find((course) => course.certificateTemplateHtml)?.certificateTemplateHtml ?? "";
-const updated = [];
-const created = [];
+  const rows = (await readWorkbookRows(sourceFile))
+    .filter((row) => row.row >= 13 && row.B && row.D)
+    .map((row) => ({ title: String(row.B).trim(), usualCost: String(row.D).trim(), offer: String(row.E ?? "").trim() }));
 
-for (const [index, row] of rows.entries()) {
-  let course = coursesByTitle.get(titleKey(row.title));
-  if (course) {
-    course.oldPrice = price(row.usualCost);
-    course.newPrice = price(row.offer);
-    updated.push(course.title);
-    continue;
+  const previousDb = await loadPrismaDb({ connectionString });
+  const nextDb = structuredClone(previousDb);
+  const importedTitleKeys = new Set(rows.map((row) => titleKey(row.title)));
+  nextDb.courses = nextDb.courses.filter(
+    (course) => course.source?.kind !== "course_price_revision" || importedTitleKeys.has(titleKey(course.source?.sourceTitle || course.title))
+  );
+  const coursesByTitle = new Map(nextDb.courses.map((course) => [titleKey(course.title), course]));
+  const templateCourse = nextDb.courses.find((course) => course.certificateTemplateHtml)?.certificateTemplateHtml ?? "";
+  const updated = [];
+  const created = [];
+
+  for (const [index, row] of rows.entries()) {
+    let course = coursesByTitle.get(titleKey(row.title));
+    if (course) {
+      course.oldPrice = price(row.usualCost);
+      course.newPrice = price(row.offer);
+      updated.push(course.title);
+      continue;
+    }
+
+    const id = courseIdFor(row.title);
+    const coverPath = `/uploads/generated-covers/${id}.png`;
+    course = {
+      id,
+      title: row.title,
+      shortDescription: "",
+      fullDescription: "",
+      goals: "",
+      requirements: "",
+      oldPrice: price(row.usualCost),
+      newPrice: price(row.offer),
+      status: "active",
+      isSequential: true,
+      imageUrl: coverPath,
+      showOnHome: false,
+      homeSortOrder: 999,
+      certificateTemplateHtml: templateCourse,
+      lessons: [],
+      test: null,
+      source: { kind: "course_price_revision", sourceTitle: row.title, importedAt: new Date().toISOString() },
+      createdAt: new Date().toISOString()
+    };
+    nextDb.courses.push(course);
+    coursesByTitle.set(titleKey(course.title), course);
+    created.push({ ...course, coverPath, variant: index });
   }
 
-  const id = courseIdFor(row.title);
-  const coverPath = `/uploads/generated-covers/${id}.png`;
-  course = {
-    id,
-    title: row.title,
-    shortDescription: "",
-    fullDescription: "",
-    goals: "",
-    requirements: "",
-    oldPrice: price(row.usualCost),
-    newPrice: price(row.offer),
-    status: "active",
-    isSequential: true,
-    imageUrl: coverPath,
-    showOnHome: false,
-    homeSortOrder: 999,
-    certificateTemplateHtml: templateCourse,
-    lessons: [],
-    test: null,
-    source: { kind: "course_price_revision", sourceTitle: row.title, importedAt: new Date().toISOString() },
-    createdAt: new Date().toISOString()
+  log.log(`Workbook: ${basename(sourceFile)}`);
+  log.log(`Rows with Usual Cost: ${rows.length}`);
+  log.log(`Updated courses: ${updated.length}`);
+  log.log(`Created courses: ${created.length}`);
+  log.log(`New: ${created.map((course) => course.title).join(" | ") || "none"}`);
+
+  const result = {
+    workbook: basename(sourceFile),
+    rows,
+    updated,
+    created: created.map((course) => ({ id: course.id, title: course.title, coverPath: course.coverPath })),
+    applied: false,
+    backupDir: "",
+    coversDir: ""
   };
-  nextDb.courses.push(course);
-  coursesByTitle.set(titleKey(course.title), course);
-  created.push({ ...course, coverPath, variant: index });
+  if (!apply) {
+    log.log("Dry run complete. Re-run with --apply to save prices, courses, and covers.");
+    return result;
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupDir = resolve(options.backupRoot ?? "backups", `course-price-revision-${stamp}`);
+  mkdirSync(backupDir, { recursive: true });
+  writeFileSync(resolve(backupDir, "database-before.json"), `${JSON.stringify(previousDb, null, 2)}\n`);
+
+  const coversDir = resolve(options.coversDir ?? "data/uploads/generated-covers");
+  mkdirSync(coversDir, { recursive: true });
+  for (const course of created) {
+    await createCover(course.title, resolve(coversDir, `${course.id}.png`), course.variant);
+  }
+
+  await syncPrismaDb(previousDb, nextDb, { connectionString });
+  log.log(`Saved. Database snapshot: ${backupDir}`);
+  log.log(`Generated covers: ${coversDir}`);
+  return { ...result, applied: true, backupDir, coversDir };
 }
 
-console.log(`Workbook: ${basename(sourceFile)}`);
-console.log(`Rows with Usual Cost: ${rows.length}`);
-console.log(`Updated courses: ${updated.length}`);
-console.log(`Created courses: ${created.length}`);
-console.log(`New: ${created.map((course) => course.title).join(" | ") || "none"}`);
-
-if (!apply) {
-  console.log("Dry run complete. Re-run with --apply to save prices, courses, and covers.");
-  process.exit(0);
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+if (isDirectRun) {
+  const args = process.argv.slice(2);
+  const apply = args.includes("--apply");
+  const fileIndex = args.indexOf("--file");
+  const sourceFile = fileIndex >= 0 ? args[fileIndex + 1] : "";
+  if (!sourceFile) {
+    console.error("Usage: node scripts/import-course-price-revision.mjs --file <course-price.xlsx> [--apply]");
+    process.exitCode = 1;
+  } else {
+    try {
+      await importCoursePriceRevision({ sourceFile, apply });
+    } catch (error) {
+      console.error(`Course price import failed: ${error.message}`);
+      process.exitCode = 1;
+    }
+  }
 }
-
-const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const backupDir = resolve("backups", `course-price-revision-${stamp}`);
-mkdirSync(backupDir, { recursive: true });
-writeFileSync(resolve(backupDir, "database-before.json"), `${JSON.stringify(previousDb, null, 2)}\n`);
-
-const coversDir = resolve("data/uploads/generated-covers");
-mkdirSync(coversDir, { recursive: true });
-for (const course of created) {
-  await createCover(course.title, resolve(coversDir, `${course.id}.png`), course.variant);
-}
-
-await syncPrismaDb(previousDb, nextDb, { connectionString: resolveConnectionString() });
-console.log(`Saved. Database snapshot: ${backupDir}`);
-console.log(`Generated covers: ${coversDir}`);

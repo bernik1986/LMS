@@ -17,6 +17,7 @@ The `src/app/` tree is a Next.js UI scaffold used for future migration and desig
 Read the complete project record here:
 
 - [Project documentation](docs/PROJECT_DOCUMENTATION.md)
+- [Testing guide](docs/TESTING.md)
 
 It covers the product scope, architecture, confirmed implementation timeline, workflows, roles, data model, certificates, imports, deployment, operations, security, tests, and known limitations.
 
@@ -43,7 +44,7 @@ npm.cmd run audit:prod
 npm.cmd run prod:check:no-uploads
 ```
 
-`npm.cmd run test` launches the full regression runner. It must be run in a normal local terminal or CI environment that allows child-process creation.
+`npm.cmd test` launches the existing regression runner. `npm.cmd run test:manual` runs the complete non-browser suite, while `npm.cmd run test:full` also launches desktop and mobile browser checks. `npm.cmd run test:coverage:combined` collects one merged V8 coverage report in `.coverage/combined-summary.json`. These commands remain manual and are not part of production auto-deploy.
 
 ## Data safety
 
