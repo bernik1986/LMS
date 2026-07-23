@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { loadLocalEnv } from "./env.mjs";
 import { maskedConnectionString, resolveConnectionString } from "./prisma-db.mjs";
@@ -31,58 +32,76 @@ async function appliedMigrations(client) {
   return new Map(result.rows.map((row) => [row.migration_name, row.checksum]));
 }
 
-function migrationDirs() {
-  if (!existsSync(migrationsDir)) return [];
-  return readdirSync(migrationsDir, { withFileTypes: true })
+function migrationDirs(directory) {
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
 }
 
-function readMigration(name) {
-  const sql = readFileSync(resolve(migrationsDir, name, "migration.sql"), "utf8");
+function readMigration(directory, name) {
+  const sql = readFileSync(resolve(directory, name, "migration.sql"), "utf8");
   const checksum = createHash("sha256").update(sql).digest("hex");
   return { sql, checksum };
 }
 
-const client = new Client({ connectionString });
+export async function applyPrismaMigrations(options = {}) {
+  const targetConnectionString = resolveConnectionString(options.connectionString);
+  const targetMigrationsDir = resolve(options.migrationsDir ?? migrationsDir);
+  const client = options.client ?? new Client({ connectionString: targetConnectionString });
+  const shouldDisconnect = !options.client;
+  const log = options.log ?? console;
+  const appliedNames = [];
+  const skippedNames = [];
 
-try {
-  console.log(`Applying Prisma SQL migrations to ${maskedConnectionString(connectionString)}`);
-  await client.connect();
-  await ensureMigrationTable(client);
-  const applied = await appliedMigrations(client);
+  try {
+    log.log(`Applying Prisma SQL migrations to ${maskedConnectionString(targetConnectionString)}`);
+    if (shouldDisconnect) await client.connect();
+    await ensureMigrationTable(client);
+    const applied = await appliedMigrations(client);
 
-  for (const name of migrationDirs()) {
-    const { sql, checksum } = readMigration(name);
-    if (applied.has(name)) {
-      if (applied.get(name) !== checksum) {
-        throw new Error(`Migration ${name} was already applied with a different checksum.`);
+    for (const name of migrationDirs(targetMigrationsDir)) {
+      const { sql, checksum } = readMigration(targetMigrationsDir, name);
+      if (applied.has(name)) {
+        if (applied.get(name) !== checksum) {
+          throw new Error(`Migration ${name} was already applied with a different checksum.`);
+        }
+        skippedNames.push(name);
+        log.log(`Already applied: ${name}`);
+        continue;
       }
-      console.log(`Already applied: ${name}`);
-      continue;
-    }
 
-    console.log(`Applying: ${name}`);
-    const startedAt = new Date();
-    await client.query("BEGIN");
-    try {
-      await client.query(sql);
-      await client.query(
-        `INSERT INTO "_prisma_migrations" ("id", "checksum", "finished_at", "migration_name", "logs", "rolled_back_at", "started_at", "applied_steps_count")
-         VALUES ($1, $2, now(), $3, NULL, NULL, $4, 1)`,
-        [randomUUID(), checksum, name, startedAt]
-      );
-      await client.query("COMMIT");
-      console.log(`Applied: ${name}`);
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
+      log.log(`Applying: ${name}`);
+      const startedAt = new Date();
+      await client.query("BEGIN");
+      try {
+        await client.query(sql);
+        await client.query(
+          `INSERT INTO "_prisma_migrations" ("id", "checksum", "finished_at", "migration_name", "logs", "rolled_back_at", "started_at", "applied_steps_count")
+           VALUES ($1, $2, now(), $3, NULL, NULL, $4, 1)`,
+          [randomUUID(), checksum, name, startedAt]
+        );
+        await client.query("COMMIT");
+        appliedNames.push(name);
+        log.log(`Applied: ${name}`);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
     }
+    return { applied: appliedNames, skipped: skippedNames };
+  } finally {
+    if (shouldDisconnect) await client.end().catch(() => {});
   }
-} catch (error) {
-  console.error(`Failed to apply Prisma SQL migrations: ${error.message}`);
-  process.exit(1);
-} finally {
-  await client.end().catch(() => {});
+}
+
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+if (isDirectRun) {
+  try {
+    await applyPrismaMigrations({ connectionString });
+  } catch (error) {
+    console.error(`Failed to apply Prisma SQL migrations: ${error.message}`);
+    process.exitCode = 1;
+  }
 }

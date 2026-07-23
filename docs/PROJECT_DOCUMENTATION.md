@@ -215,7 +215,7 @@ SMTP_RATE_LIMIT_RETRY_MINUTES
 PUBLIC_BASE_URL
 ```
 
-When SMTP is configured, email events enter the delivery queue and can be sent from the administration area. Course-assignment messages for a newly created account remain in the `deferred` state until the student completes the initial password setup and successfully signs in for the first time; all accumulated assignment messages are then released to the SMTP queue. Temporary SMTP failures preserve the message and create a persisted delivery cooldown; rate-limit responses pause all delivery for 65 minutes by default and the queue resumes automatically. When SMTP is unavailable, events remain logged for operational visibility.
+When SMTP is configured, email events enter the delivery queue and can be sent from the administration area. When an administrator creates an account, the chosen login and password are sent once to the registered e-mail address together with the sign-in link; the plaintext password is never retained in the database or notification history. No mandatory first-login password change is required. Course-assignment messages for a newly created account remain in the `deferred` state until the student's first successful sign-in, after which all accumulated assignment messages are released to the SMTP queue. Temporary SMTP failures preserve ordinary messages and create a persisted delivery cooldown; credentials are never queued after a failed attempt because the plaintext password is discarded immediately. Rate-limit responses pause ordinary delivery for 65 minutes by default and the queue resumes automatically. When SMTP is unavailable, non-sensitive events remain logged for operational visibility.
 
 ## 11. Local development and validation
 
@@ -239,9 +239,11 @@ npm.cmd run build
 npm.cmd run audit:prod
 npm.cmd run prod:check:no-uploads
 npm.cmd run test
+npm.cmd run test:manual
+npm.cmd run test:coverage:combined
 ```
 
-`build` runs TypeScript validation and ESLint. The regression runner creates child processes, so it requires a regular local terminal or CI runner. Some restricted desktop sandboxes can block it before assertions with `spawn EPERM`.
+`build` runs TypeScript validation and ESLint. `test:manual` runs all non-browser checks against temporary data. `test:coverage:combined` writes the merged V8 report to `.coverage/combined-summary.json`. These test commands are intentionally manual and are not invoked by production auto-deploy. The browser runner requires a regular local terminal or CI runner because some restricted desktop sandboxes block Chrome with `spawn EPERM`.
 
 ## 12. Production deployment
 

@@ -18,8 +18,9 @@ const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 3000);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? `http://${host}:${port}`;
 const dbPath = resolve(process.env.LMS_DB_PATH ?? "data/db.json");
-const uploadsDir = resolve("data/uploads");
+const uploadsDir = resolve(process.env.LMS_UPLOADS_DIR ?? "data/uploads");
 const publicAssetsDir = resolve("assets");
+const certificateFontsDir = resolve(publicAssetsDir, "fonts");
 const cssPath = resolve("src/app/globals.css");
 const databaseUrl = resolveConnectionString();
 const storageDriver = (process.env.LMS_STORAGE ?? (process.env.DATABASE_URL ? "prisma" : "json")).toLowerCase();
@@ -32,11 +33,10 @@ const maxCertificateBackgroundUploadBytes = Number(process.env.MAX_CERTIFICATE_T
 const maxRequestBodyBytes = Number(process.env.MAX_REQUEST_BODY_MB ?? Math.ceil(maxVideoUploadBytes / 1024 / 1024 + 8)) * 1024 * 1024;
 const sessionTtlMs = Number(process.env.SESSION_TTL_HOURS ?? 12) * 60 * 60 * 1000;
 const passwordResetTtlMs = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 30) * 60 * 1000;
-const accountActivationTtlMs = Math.max(1, Number(process.env.ACCOUNT_ACTIVATION_TTL_HOURS ?? 168)) * 60 * 60 * 1000;
 const smtpConnectionTimeoutMs = Math.max(5, Number(process.env.SMTP_CONNECTION_TIMEOUT_SECONDS ?? 30)) * 1000;
 const smtpTransientRetryMs = Math.max(1, Number(process.env.SMTP_RETRY_MINUTES ?? 15)) * 60 * 1000;
 const smtpRateLimitRetryMs = Math.max(1, Number(process.env.SMTP_RATE_LIMIT_RETRY_MINUTES ?? 65)) * 60 * 1000;
-const emailTemplateDesignVersion = 2;
+const emailTemplateDesignVersion = 3;
 const trustProxy = process.env.TRUST_PROXY === "true";
 const isProduction = process.env.NODE_ENV === "production";
 const allowDemoData = process.env.LMS_ALLOW_DEMO_DATA === "true" || !isProduction;
@@ -502,7 +502,7 @@ function normalizeDb(data) {
       user.authVersion = 1;
       changed = true;
     }
-    if (typeof user.mustChangePassword !== "boolean") {
+    if (user.mustChangePassword !== false) {
       user.mustChangePassword = false;
       changed = true;
     }
@@ -664,6 +664,15 @@ function normalizeDb(data) {
     if (
       registrationTemplate?.subject === legacyUserRegisteredTemplate.subject &&
       registrationTemplate?.body === legacyUserRegisteredTemplate.body
+    ) {
+      data.settings.emailTemplates.user_registered = defaults.user_registered;
+      changed = true;
+    }
+    if (
+      Number(data.settings.emailTemplateDesignVersion ?? 0) < 3 &&
+      /activate your account|one-time link|choose your personal password|temporary password provided separately/i.test(
+        `${registrationTemplate?.subject ?? ""}\n${registrationTemplate?.body ?? ""}`
+      )
     ) {
       data.settings.emailTemplates.user_registered = defaults.user_registered;
       changed = true;
@@ -1652,6 +1661,14 @@ function pdfText(value = "") {
   return String(value).replace(/\s+/g, " ").trim();
 }
 
+function decodeHtmlCharacterReference(value, radix) {
+  const codePoint = Number.parseInt(value, radix);
+  if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+    return "";
+  }
+  return String.fromCodePoint(codePoint);
+}
+
 function decodeHtmlText(value = "") {
   return String(value)
     .replace(/<[^>]+>/g, " ")
@@ -1660,6 +1677,15 @@ function decodeHtmlText(value = "") {
     .replaceAll("&gt;", ">")
     .replaceAll("&quot;", '"')
     .replaceAll("&#39;", "'")
+    .replaceAll("&apos;", "'")
+    .replaceAll("&nbsp;", " ")
+    .replaceAll("&ndash;", "-")
+    .replaceAll("&mdash;", "-")
+    .replaceAll("&laquo;", "\u00ab")
+    .replaceAll("&raquo;", "\u00bb")
+    .replaceAll("&sect;", "\u00a7")
+    .replace(/&#x([0-9a-f]+);/gi, (_, value) => decodeHtmlCharacterReference(value, 16))
+    .replace(/&#([0-9]+);/g, (_, value) => decodeHtmlCharacterReference(value, 10))
     .replace(/\r\n?/g, "\n")
     .replace(/[^\S\n]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
@@ -1746,14 +1772,35 @@ function pdfLibColor(value = "#0d1b2a") {
   );
 }
 
+function firstExistingPath(paths = []) {
+  return paths.find((path) => path && existsSync(path)) || "";
+}
+
+function certificateFontPaths() {
+  const regular = firstExistingPath([
+    resolve(certificateFontsDir, "LiberationSans-Regular.ttf"),
+    "C:/Windows/Fonts/arial.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+  ]);
+  const bold = firstExistingPath([
+    resolve(certificateFontsDir, "LiberationSans-Bold.ttf"),
+    "C:/Windows/Fonts/arialbd.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+  ]);
+  return { regular, bold: bold || regular };
+}
+
 async function pdfLibCertificateFonts(pdfDoc) {
-  const regularFontPath = "C:/Windows/Fonts/arial.ttf";
-  const boldFontPath = "C:/Windows/Fonts/arialbd.ttf";
+  const { regular: regularFontPath, bold: boldFontPath } = certificateFontPaths();
   try {
-    if (existsSync(regularFontPath)) {
+    if (regularFontPath) {
       pdfDoc.registerFontkit(fontkit);
       const regularFont = await pdfDoc.embedFont(readFileSync(regularFontPath), { subset: true });
-      const boldFont = existsSync(boldFontPath)
+      const boldFont = boldFontPath
         ? await pdfDoc.embedFont(readFileSync(boldFontPath), { subset: true })
         : regularFont;
       return { regularFont, boldFont };
@@ -1770,17 +1817,19 @@ async function pdfLibCertificateFonts(pdfDoc) {
 async function embedPdfLibRasterImage(pdfDoc, imagePath) {
   if (!imagePath || !existsSync(imagePath)) return null;
   const bytes = readFileSync(imagePath);
-  const ext = extname(imagePath).toLowerCase();
   try {
-    if (ext === ".png" || (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47)) {
-      return await pdfDoc.embedPng(bytes);
-    }
-    if ([".jpg", ".jpeg"].includes(ext) || (bytes[0] === 0xff && bytes[1] === 0xd8)) {
-      return await pdfDoc.embedJpg(bytes);
-    }
-    const convertedPng = await sharp(bytes, { animated: false }).png().toBuffer();
-    return await pdfDoc.embedPng(convertedPng);
+    // Browsers apply EXIF orientation automatically; normalizing through sharp
+    // keeps downloaded and emailed PDFs visually identical to the HTML preview.
+    const normalizedPng = await sharp(bytes, { animated: false }).rotate().png().toBuffer();
+    return await pdfDoc.embedPng(normalizedPng);
   } catch {
+    try {
+      const ext = extname(imagePath).toLowerCase();
+      if (ext === ".png") return await pdfDoc.embedPng(bytes);
+      if ([".jpg", ".jpeg"].includes(ext)) return await pdfDoc.embedJpg(bytes);
+    } catch {
+      // Return null below when neither normalization nor direct embedding works.
+    }
     return null;
   }
 }
@@ -1800,34 +1849,115 @@ function drawPdfLibImageFit(page, image, x, y, width, height) {
   });
 }
 
+function drawPdfLibImageCover(page, image, x, y, width, height) {
+  if (!image || width <= 0 || height <= 0) return;
+  const sourceWidth = image.width || width;
+  const sourceHeight = image.height || height;
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  page.drawImage(image, {
+    x: x - Math.max(0, (drawWidth - width) / 2),
+    y: y - Math.max(0, (drawHeight - height) / 2),
+    width: drawWidth,
+    height: drawHeight
+  });
+}
+
+function normalizePdfFieldText(value = "") {
+  return String(value ?? "")
+    .normalize("NFC")
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[^\S\n]+/g, " ")
+    .trim();
+}
+
+function splitPdfWord(font, word, size, maxWidth) {
+  const parts = [];
+  let current = "";
+  for (const character of Array.from(word)) {
+    const next = `${current}${character}`;
+    if (current && font.widthOfTextAtSize(next, size) > maxWidth) {
+      parts.push(current);
+      current = character;
+    } else {
+      current = next;
+    }
+  }
+  if (current) parts.push(current);
+  return parts.length ? parts : [word];
+}
+
+function wrapPdfText(font, value, size, maxWidth) {
+  const wrapped = [];
+  for (const paragraph of String(value).split("\n")) {
+    if (!paragraph.trim()) {
+      wrapped.push("");
+      continue;
+    }
+    let line = "";
+    for (const word of paragraph.trim().split(/\s+/)) {
+      const wordParts = font.widthOfTextAtSize(word, size) > maxWidth
+        ? splitPdfWord(font, word, size, maxWidth)
+        : [word];
+      for (const part of wordParts) {
+        const candidate = line ? `${line} ${part}` : part;
+        if (line && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+          wrapped.push(line);
+          line = part;
+        } else {
+          line = candidate;
+        }
+      }
+    }
+    wrapped.push(line);
+  }
+  return wrapped;
+}
+
+function fitPdfText(font, value, requestedSize, width, height) {
+  let size = Math.max(4, Number(requestedSize) || 12);
+  let lines = [];
+  let leading = size * 1.12;
+  while (true) {
+    lines = wrapPdfText(font, value, size, width);
+    leading = size * 1.12;
+    if (lines.length * leading <= height + 0.25 || size <= 4) break;
+    size = Math.max(4, size - 0.25);
+  }
+  if (lines.length * leading > height + 0.25) {
+    const maxLines = Math.max(1, Math.floor(height / leading));
+    lines = lines.slice(0, maxLines);
+  }
+  return { size, lines, leading };
+}
+
 function drawPdfLibText(page, text, options) {
-  let value = String(text ?? "").replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").trim();
+  let value = normalizePdfFieldText(text);
   if (!value) return;
   const { x, y, width, height, font, fontSize, color, align } = options;
-  let size = Math.max(6, Number(fontSize) || 12);
-  let lines = value.split("\n");
-  let lineWidths = [];
+  let layout;
   try {
-    lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
+    layout = fitPdfText(font, value, fontSize, width, height);
   } catch {
     value = value.replace(/[^\x20-\x7E\n]/g, "?");
-    lines = value.split("\n");
-    lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
+    layout = fitPdfText(font, value, fontSize, width, height);
   }
-  while (Math.max(...lineWidths, 0) > width && size > 6) {
-    size -= 0.5;
-    lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
-  }
-  const leading = size * 1.12;
+  const { size, lines, leading } = layout;
+  const lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
   const blockHeight = lines.length * leading;
-  const baseY = y + Math.max(0, (height - blockHeight) / 2) + (lines.length - 1) * leading;
+  const blockBottom = y + Math.max(0, (height - blockHeight) / 2);
+  const baselineOffset = size * 0.22;
   for (const [index, line] of lines.entries()) {
     const textWidth = lineWidths[index];
     const drawX = align === "right" ? x + Math.max(0, width - textWidth) : align === "left" ? x : x + Math.max(0, (width - textWidth) / 2);
+    const drawY = blockBottom + (lines.length - index - 1) * leading + baselineOffset;
     try {
-      page.drawText(line || " ", { x: drawX, y: baseY - index * leading, size, font, color });
+      page.drawText(line || " ", { x: drawX, y: drawY, size, font, color });
     } catch {
-      page.drawText((line || " ").replace(/[^\x20-\x7E]/g, "?"), { x: drawX, y: baseY - index * leading, size, font, color });
+      page.drawText((line || " ").replace(/[^\x20-\x7E]/g, "?"), { x: drawX, y: drawY, size, font, color });
     }
   }
 }
@@ -1844,9 +1974,7 @@ async function drawQrOnPdfLib(pdfDoc, page, value, x, y, size) {
   page.drawImage(qrImage, { x, y, width: size, height: size });
 }
 
-async function visualCertificatePdfBufferFromPdfTemplate(certificate, html, backgroundPath) {
-  const pdfDoc = await PdfLibDocument.load(readFileSync(backgroundPath));
-  const page = pdfDoc.getPageCount() > 0 ? pdfDoc.getPage(0) : pdfDoc.addPage([841.89, 595.28]);
+async function drawVisualCertificateFieldsOnPdfLib(pdfDoc, page, certificate, html) {
   const { regularFont, boldFont } = await pdfLibCertificateFonts(pdfDoc);
   const { x: pageX, y: pageY, width: pageWidth, height: pageHeight } = page.getCropBox();
   const canvas = renderedCertificateCanvasSize(html);
@@ -1865,7 +1993,7 @@ async function visualCertificatePdfBufferFromPdfTemplate(certificate, html, back
     const color = pdfLibColor(styleText(style, "color", "#0d1b2a"));
     const align = styleText(style, "text-align", "center");
     const fontWeight = Number(styleText(style, "font-weight", "500"));
-    const font = fontWeight >= 700 ? boldFont : regularFont;
+    const font = fontWeight >= 600 ? boldFont : regularFont;
 
     const imageMatch = content.match(/<img[^>]+src="([^"]+)"/i);
     if (imageMatch) {
@@ -1882,7 +2010,32 @@ async function visualCertificatePdfBufferFromPdfTemplate(certificate, html, back
 
     drawPdfLibText(page, decodeHtmlText(content), { x, y, width, height, font, fontSize, color, align });
   }
+}
 
+async function visualCertificatePdfBufferFromPdfTemplate(certificate, html, backgroundPath) {
+  const pdfDoc = await PdfLibDocument.load(readFileSync(backgroundPath));
+  while (pdfDoc.getPageCount() > 1) pdfDoc.removePage(pdfDoc.getPageCount() - 1);
+  const page = pdfDoc.getPageCount() > 0 ? pdfDoc.getPage(0) : pdfDoc.addPage([841.89, 595.28]);
+  await drawVisualCertificateFieldsOnPdfLib(pdfDoc, page, certificate, html);
+  return Buffer.from(await pdfDoc.save());
+}
+
+async function visualCertificatePdfBufferFromImageTemplate(certificate, html) {
+  const pdfDoc = await PdfLibDocument.create();
+  const pageSize = renderedCertificatePdfPageSize(html);
+  const page = pdfDoc.addPage(pageSize);
+  const pageWidth = page.getWidth();
+  const pageHeight = page.getHeight();
+  page.drawRectangle({ x: 0, y: 0, width: pageWidth, height: pageHeight, color: rgb(1, 1, 1) });
+
+  const backgroundUrl = renderedCertificateBackgroundUrl(html);
+  const backgroundPath = renderedCertificateBackgroundType(html, backgroundUrl) === "image"
+    ? uploadPathForRenderedUrl(backgroundUrl)
+    : "";
+  const background = await embedPdfLibRasterImage(pdfDoc, backgroundPath);
+  drawPdfLibImageCover(page, background, 0, 0, pageWidth, pageHeight);
+
+  await drawVisualCertificateFieldsOnPdfLib(pdfDoc, page, certificate, html);
   return Buffer.from(await pdfDoc.save());
 }
 
@@ -1894,9 +2047,8 @@ function visualCertificatePdfKitBuffer(certificate, html) {
     doc.on("end", () => resolvePdf(Buffer.concat(chunks)));
     doc.on("error", rejectPdf);
 
-    const regularFont = "C:/Windows/Fonts/arial.ttf";
-    const boldFont = "C:/Windows/Fonts/arialbd.ttf";
-    if (existsSync(regularFont)) doc.font(regularFont);
+    const { regular: regularFont, bold: boldFont } = certificateFontPaths();
+    if (regularFont) doc.font(regularFont);
 
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
@@ -1947,9 +2099,9 @@ function visualCertificatePdfKitBuffer(certificate, html) {
 
       const text = decodeHtmlText(content);
       if (!text) continue;
-      if (fontWeight >= 700 && existsSync(boldFont)) {
+      if (fontWeight >= 600 && boldFont) {
         doc.font(boldFont);
-      } else if (existsSync(regularFont)) {
+      } else if (regularFont) {
         doc.font(regularFont);
       }
       doc.fillColor(color).fontSize(fontSize).text(text, x, y + Math.max(0, (height - fontSize) / 2), {
@@ -1974,7 +2126,10 @@ function visualCertificatePdfBuffer(certificate) {
       return visualCertificatePdfKitBuffer(certificate, html);
     });
   }
-  return visualCertificatePdfKitBuffer(certificate, html);
+  return visualCertificatePdfBufferFromImageTemplate(certificate, html).catch((error) => {
+    console.error("Image certificate template generation failed:", error);
+    return visualCertificatePdfKitBuffer(certificate, html);
+  });
 }
 
 function certificatePdfBuffer(certificate) {
@@ -1988,10 +2143,8 @@ function certificatePdfBuffer(certificate) {
     doc.on("end", () => resolvePdf(Buffer.concat(chunks)));
     doc.on("error", rejectPdf);
 
-    const fontPath = "C:/Windows/Fonts/arial.ttf";
-    if (existsSync(fontPath)) {
-      doc.font(fontPath);
-    }
+    const { regular: fontPath } = certificateFontPaths();
+    if (fontPath) doc.font(fontPath);
 
     doc.rect(24, 24, doc.page.width - 48, doc.page.height - 48).lineWidth(4).stroke("#0b4f7a");
     doc.fillColor("#06395d").fontSize(16).text("Marine LMS Certificate", { align: "center" });
@@ -2122,8 +2275,8 @@ function defaultEmailTemplates() {
       body: "A new course application has arrived.\n\n**Application details**\n{{payload}}\n\nReceived: {{date}}"
     },
     user_registered: {
-      subject: "Welcome to Maritime Portal - activate your account",
-      body: "**Welcome to Maritime Portal, {{firstName}}.**\n\nYour learning account is ready. Use this secure, one-time link to choose your personal password:\n{{payload}}\n\nThe link is valid for seven days. After activation, sign in at {{platformUrl}}/login."
+      subject: "Welcome to Maritime Portal - your account details",
+      body: "**Welcome to Maritime Portal, {{firstName}}.**\n\nYour learning account is ready.\n\n{{payload}}\n\nKeep these details private and do not forward this email."
     },
     feedback_message: {
       subject: "New website message",
@@ -2155,7 +2308,7 @@ function defaultEmailTemplates() {
     },
     password_reset: {
       subject: "Your Maritime Portal password was reset",
-      body: "Your password was reset by an administrator.\n\n{{payload}}\n\nSign in: {{platformUrl}}/login"
+      body: "**Your password was reset by an administrator.**\n\n{{payload}}\n\nKeep these details private and do not forward this email."
     },
     password_recovery: {
       subject: "Reset your Maritime Portal password",
@@ -2501,9 +2654,9 @@ function notificationPreviewPayloads() {
   const platformUrl = publicBaseUrl.replace(/\/$/, "");
   return {
     smtp_test: "Full notification preview suite started successfully.",
-    user_registered: `${platformUrl}/reset-password?token=TEST-PREVIEW-NOT-ACTIVE`,
+    user_registered: `**Login:** test.student@example.com\n**Password:** TEST-PREVIEW-NOT-ACTIVE\n**Sign in:** ${platformUrl}/login`,
     password_recovery: `${platformUrl}/reset-password?token=TEST-PREVIEW-NOT-ACTIVE`,
-    password_reset: `Temporary password was reset by an administrator.\n\nThis is a test preview; no password was changed.`,
+    password_reset: `**Login:** test.student@example.com\n**Password:** TEST-PREVIEW-NOT-ACTIVE\n**Sign in:** ${platformUrl}/login\n\nThis is a test preview; no password was changed.`,
     password_changed: `Your password was changed successfully.\n\nThis is a test preview; no password was changed.`,
     course_assigned: "Course assigned: Basic Maritime Safety (test preview).",
     photo_required_for_certificate: "Photo is required before the test certificate can be issued for Basic Maritime Safety.",
@@ -2728,25 +2881,6 @@ function invalidateUserSessions(user) {
   csrfTokens.delete(user.id);
 }
 
-function invalidateOtherUserSessions(user, request) {
-  const currentSessionHash = hashSecret(getCookie(request, "sid"));
-  const currentSession = (db.sessions ?? []).find(
-    (session) => session.userId === user.id && session.tokenHash === currentSessionHash
-  );
-  if (!currentSession) {
-    invalidateUserSessions(user);
-    return false;
-  }
-
-  user.authVersion = (Number(user.authVersion) || 1) + 1;
-  db.sessions = db.sessions.filter((session) => session.userId !== user.id || session.tokenHash === currentSessionHash);
-  currentSession.authVersion = user.authVersion;
-  currentSession.lastSeenAt = now();
-  currentSession.csrfToken = randomBytes(32).toString("hex");
-  csrfTokens.set(user.id, currentSession.csrfToken);
-  return true;
-}
-
 function permanentlyDeleteStudent(student) {
   const assignmentIds = new Set(db.assignments.filter((assignment) => assignment.userId === student.id).map((assignment) => assignment.id));
   const certificateIds = new Set(db.certificates.filter((certificate) => certificate.userId === student.id).map((certificate) => certificate.id));
@@ -2808,34 +2942,34 @@ async function sendPasswordRecovery(user, token) {
   db.notifications.push(note);
 }
 
-async function sendAccountActivation(user) {
-  const token = createPasswordResetToken(user, accountActivationTtlMs);
-  const note = {
-    id: id("note"), recipientUserId: user.id, recipientEmail: user.email, type: "user_registered",
-    status: notificationInitialStatus(), payload: passwordResetLink(token), createdAt: now(), sentAt: ""
-  };
-  await deliverNotification(note);
-  note.payload = "A one-time account setup link was sent.";
-  db.notifications.push(note);
+function accountCredentialsPayload(user, password) {
+  return `**Login:** ${user.email}\n**Password:** ${password}\n**Sign in:** ${publicBaseUrl.replace(/\/$/, "")}/login`;
 }
 
-async function sendFirstLoginCredentials(user, password) {
+async function sendCredentialsOnce(user, password, type, historyPayload) {
   const note = {
-    id: id("note"), recipientUserId: user.id, recipientEmail: user.email, type: "password_changed",
-    status: notificationInitialStatus(),
-    payload: `Your password was changed during your first sign-in.\n\nLogin: ${user.email}\nPassword: ${password}\n\nYou are already signed in to Marine LMS.`,
-    createdAt: now(), sentAt: ""
+    id: id("note"), recipientUserId: user.id, recipientEmail: user.email, type,
+    status: notificationInitialStatus(), payload: accountCredentialsPayload(user, password), createdAt: now(), sentAt: ""
   };
-  await deliverNotification(note);
+  const result = await deliverNotification(note);
 
   // The password is sent once but is never retained in the notification history.
-  note.payload = "Password changed during first sign-in. Login details were sent by email.";
-  if (note.status !== "sent") {
-    note.errorMessage = [note.errorMessage, "The password is not retained; a retry will contain only the password-change confirmation."]
-      .filter(Boolean)
-      .join(" ");
+  note.payload = historyPayload;
+  if (result.status !== "sent") {
+    note.status = "failed";
+    note.sentAt = "";
+    note.errorMessage = "Login details were not delivered. The password was not retained; set a new password in the admin panel to send fresh details.";
   }
   db.notifications.push(note);
+  return result.status === "sent";
+}
+
+async function sendAccountCredentials(user, password) {
+  return sendCredentialsOnce(user, password, "user_registered", "Account created. Login details were sent once by email and were not retained.");
+}
+
+async function sendResetPasswordCredentials(user, password) {
+  return sendCredentialsOnce(user, password, "password_reset", "Password reset by an administrator. Login details were sent once by email and were not retained.");
 }
 
 function currentUser(request) {
@@ -4461,7 +4595,6 @@ function page(title, user, body) {
     <script nonce="{{CSP_NONCE}}">
       (() => {
         const scrollKey = "marine-lms:scroll:" + window.location.pathname;
-        document.addEventListener("click", (event) => { if (event.target.closest("[data-print-certificate]")) window.print(); });
         document.addEventListener("submit", (event) => {
           const form = event.target;
           if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "post" || form.matches("[data-test-wizard], [data-no-scroll-restore]")) return;
@@ -4926,7 +5059,7 @@ function adminStudentCard(student, viewer = null) {
         </form>
         <form method="post" action="/admin/users/reset-password" class="inline-form">
           <input type="hidden" name="id" value="${student.id}" />
-          <input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="Temporary password" required />
+          <input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="New password sent by e-mail" required />
           <button class="small-button warning" type="submit">Reset password</button>
         </form>
         <details class="danger-zone">
@@ -5037,7 +5170,7 @@ function adminUsers(user, searchParams = new URLSearchParams(), createForm = {})
         <div class="field"><label>Company - optional</label><input name="company" value="${escapeHtml(createValues.company ?? "")}" /></div>
         <div class="field"><label>Phone</label><input name="phone" value="${escapeHtml(createValues.phone ?? "")}" /></div>
         <div class="field"><label>Student photo for certificate - optional</label><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" /></div>
-        <div class="field"><label>Temporary password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
+        <div class="field"><label>Initial password sent by e-mail</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
         <button class="button" type="submit">Create user</button>
       </form>
       ${isFullAdmin(user) ? `<article class="panel stack">
@@ -6004,23 +6137,6 @@ function adminNewCourse(user) {
         <div class="table-actions"><button class="button" type="submit">Create course</button><a class="small-button" href="/admin/courses">Cancel</a></div>
       </form>
     </section>`
-  );
-}
-
-function firstLoginPasswordPage(user, error = "") {
-  const message = error === "invalid" ? `<div class="notice danger">Use a password of at least 12 characters and enter it twice.</div>` : "";
-  return page(
-    "Set your password",
-    null,
-    `<main class="page"><section class="section"><div><span class="eyebrow">First sign-in</span><h1>Set a new password</h1><p class="lead">For your account security, choose a personal password before continuing.</p></div>
-      ${message}
-      <form class="form-panel" method="post" action="/first-login">
-        ${csrfInput(user)}
-        <div class="field"><label>New password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
-        <div class="field"><label>Repeat new password</label><input name="confirmPassword" type="password" minlength="12" autocomplete="new-password" required /></div>
-        <button class="button" type="submit">Save password and continue</button>
-      </form>
-    </section></main>`
   );
 }
 
@@ -7462,7 +7578,7 @@ function certificatePage(requestUser, certificate) {
       ${certificate.status === "issued" ? "" : `<div class="notice danger">This certificate is not active: current status ${escapeHtml(statusLabel(certificate.status))}.</div>`}
       <section class="${certificateShellClass(certificateHtml)}">
         ${certificateHtml}
-        <div class="actions" style="justify-content:center;margin-top:24px"><a class="button" href="/certificates/${certificate.id}.pdf">Download PDF</a><button class="button secondary" type="button" data-print-certificate>Print</button></div>
+        <div class="actions" style="justify-content:center;margin-top:24px"><a class="button" href="/certificates/${certificate.id}.pdf">Download PDF</a><a class="button secondary" href="/certificates/${certificate.id}.pdf?print=1" target="_blank" rel="noopener">Print</a></div>
       </section>
     </main>`
   );
@@ -7509,7 +7625,7 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
     clearLoginRateLimit(request);
-    if (!found.mustChangePassword) activateCourseNotifications(found);
+    activateCourseNotifications(found);
     const sessionId = opaqueToken();
     const csrfToken = randomBytes(32).toString("hex");
     db.sessions = (db.sessions ?? []).filter((session) => session.userId !== found.id || new Date(session.expiresAt).getTime() > Date.now());
@@ -7526,7 +7642,7 @@ async function handlePost(request, response, pathname, user) {
     csrfTokens.set(found.id, csrfToken);
     saveDb(db);
     response.writeHead(303, {
-      Location: found.mustChangePassword ? "/first-login" : (canAccessAdminPanel(found) ? "/admin" : "/dashboard"),
+      Location: canAccessAdminPanel(found) ? "/admin" : "/dashboard",
       "Set-Cookie": sessionCookie(sessionId),
       ...responseSecurityHeaders()
     });
@@ -7578,24 +7694,6 @@ async function handlePost(request, response, pathname, user) {
     });
     saveDb(db);
     return redirect(response, "/login?notice=password_reset");
-  }
-
-  if (pathname === "/first-login") {
-    const account = requireUser(request, response);
-    if (!account) return;
-    const password = form.get("password")?.toString() ?? "";
-    const confirmPassword = form.get("confirmPassword")?.toString() ?? "";
-    if (!account.mustChangePassword || password.length < 12 || password !== confirmPassword) {
-      return redirect(response, "/first-login?error=invalid");
-    }
-    account.passwordHash = hashPassword(password);
-    account.mustChangePassword = false;
-    activateCourseNotifications(account);
-    invalidateOtherUserSessions(account, request);
-    db.passwordResetTokens = (db.passwordResetTokens ?? []).filter((token) => token.userId !== account.id);
-    await sendFirstLoginCredentials(account, password);
-    saveDb(db);
-    return redirect(response, canAccessAdminPanel(account) ? "/admin?notice=password_changed" : "/dashboard?notice=password_changed");
   }
 
   if (pathname === "/feedback") {
@@ -7945,11 +8043,12 @@ async function handlePost(request, response, pathname, user) {
       if (application) {
         let student = db.users.find((item) => item.email.toLowerCase() === application.email.toLowerCase());
         if (!student) {
+          const initialPassword = opaqueToken();
           student = {
             id: id("user"),
             role: "student",
             email: application.email,
-            passwordHash: hashPassword(opaqueToken()),
+            passwordHash: hashPassword(initialPassword),
             firstNameEn: application.firstName,
             lastNameEn: application.lastName,
             birthDate: "",
@@ -7960,12 +8059,12 @@ async function handlePost(request, response, pathname, user) {
             status: "active",
             createdById: admin.id,
             authVersion: 1,
-            mustChangePassword: true,
+            mustChangePassword: false,
             courseNotificationsEnabled: false,
             createdAt: now()
           };
           db.users.push(student);
-          await sendPasswordRecovery(student, createPasswordResetToken(student));
+          await sendAccountCredentials(student, initialPassword);
         } else if (!student.createdById) {
           student.createdById = admin.id;
         }
@@ -8039,7 +8138,7 @@ async function handlePost(request, response, pathname, user) {
           status: "active",
           createdById: admin.id,
           authVersion: 1,
-          mustChangePassword: true,
+          mustChangePassword: false,
           courseNotificationsEnabled: false,
           createdAt: now()
         };
@@ -8052,7 +8151,7 @@ async function handlePost(request, response, pathname, user) {
           }
         }
         db.users.push(student);
-        await sendAccountActivation(student);
+        await sendAccountCredentials(student, password);
         createdUser = student;
       }
       saveDb(db);
@@ -8152,17 +8251,9 @@ async function handlePost(request, response, pathname, user) {
       const temporaryPassword = form.get("password")?.toString() ?? "";
       if (student && temporaryPassword.length >= 12) {
         student.passwordHash = hashPassword(temporaryPassword);
+        student.mustChangePassword = false;
         invalidateUserSessions(student);
-        db.notifications.push({
-          id: id("note"),
-          recipientUserId: student.id,
-          recipientEmail: student.email,
-          type: "password_reset",
-          status: notificationInitialStatus(),
-          payload: "Temporary password was reset by administrator.",
-          createdAt: now(),
-          sentAt: ""
-        });
+        await sendResetPasswordCredentials(student, temporaryPassword);
       }
       saveDb(db);
       redirect(response, "/admin/users");
@@ -8912,10 +9003,6 @@ async function handleRequest(request, response) {
     });
   }
 
-  if (user?.mustChangePassword && !["/first-login", "/logout"].includes(pathname)) {
-    return redirect(response, "/first-login");
-  }
-
   if (request.method === "POST") {
     if (!sameOriginPost(request)) {
       send(response, page("Request rejected", user, `<main class="page"><div class="notice danger">The POST request was rejected by same-origin protection.</div></main>`), 403);
@@ -8932,9 +9019,7 @@ async function handleRequest(request, response) {
   if (pathname === "/first-login") {
     const account = requireUser(request, response);
     if (!account) return;
-    return account.mustChangePassword
-      ? send(response, firstLoginPasswordPage(account, url.searchParams.get("error") ?? ""))
-      : redirect(response, canAccessAdminPanel(account) ? "/admin" : "/dashboard");
+    return redirect(response, canAccessAdminPanel(account) ? "/admin" : "/dashboard");
   }
   if (pathname === "/blog") return send(response, await blogPage(user));
   if (pathname === "/about") return send(response, aboutPage(user));
@@ -9086,9 +9171,10 @@ async function handleRequest(request, response) {
       return;
     }
     const pdf = await certificatePdfBuffer(cert);
+    const inline = url.searchParams.get("print") === "1";
     response.writeHead(200, {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${certificatePdfFileName(cert)}"`,
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${certificatePdfFileName(cert)}"`,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store"
     });

@@ -31,6 +31,15 @@ const eslintConfig = [
     languageOptions: {
       globals: globals.node
     }
+  },
+  {
+    files: ["tests/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser
+      }
+    }
   }
 ];
 

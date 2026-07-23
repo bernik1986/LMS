@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { once } from "node:events";
 import { resolve } from "node:path";
 import { createServer as createNetServer } from "node:net";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const runId = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -94,6 +95,15 @@ function readDb() {
   return JSON.parse(readFileSync(dbPath, "utf8"));
 }
 
+function decodedSmtpText(message) {
+  const parts = [];
+  const pattern = /Content-Type: text\/(?:plain|html); charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]*?)(?=\r\n--)/g;
+  for (const match of String(message ?? "").matchAll(pattern)) {
+    parts.push(Buffer.from(match[1].replace(/\s/g, ""), "base64").toString("utf8"));
+  }
+  return parts.join("\n");
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, { redirect: "manual", ...options });
   return { response, body: await response.text() };
@@ -179,7 +189,7 @@ async function stopServer(server) {
   await closed;
 }
 
-async function run() {
+export async function runRegressionTest() {
   createImoNewsFixture();
   const suppliedSmtpPort = Number(process.env.TEST_SMTP_PORT ?? 0);
   const smtpFixture = !suppliedBaseUrl || suppliedSmtpPort ? await startSmtpFixture(suppliedSmtpPort) : null;
@@ -263,10 +273,12 @@ async function run() {
     let database = readDb();
     assert(database.users.some((item) => item.email === newAdminEmail && item.role === "admin"), "Full administrator cannot create an administrator account");
     const newAdmin = database.users.find((item) => item.email === newAdminEmail);
-    assert(newAdmin.mustChangePassword === true, "A new account is not marked for a mandatory first password change");
+    assert(newAdmin.mustChangePassword === false, "A new account still requires a mandatory first password change");
     assert(newAdmin.courseNotificationsEnabled === false, "A new account allows course emails before its first sign-in");
-    assert(database.notifications.some((note) => note.recipientEmail === newAdminEmail && note.type === "user_registered"), "New users do not receive an account-created notification");
-    assert(database.passwordResetTokens.some((token) => token.userId === newAdmin.id), "New users do not receive a one-time account setup token");
+    const newAdminRegistration = database.notifications.find((note) => note.recipientEmail === newAdminEmail && note.type === "user_registered");
+    assert(newAdminRegistration?.status === "sent", "New users do not receive their account details by e-mail");
+    assert(!newAdminRegistration.payload.includes(newAdminPassword), "The initial password is retained in notification history");
+    assert(!database.passwordResetTokens.some((token) => token.userId === newAdmin.id), "New users still receive an unnecessary account activation token");
     const duplicateUser = await postForm("/admin/users/create", {
       role: "student", email: newAdminEmail.toUpperCase(), firstNameEn: "Existing", lastNameEn: "Email",
       birthDate: "1990-01-01", position: "Trainee", company: "Regression company", password: "RegressionStudent123!"
@@ -276,28 +288,17 @@ async function run() {
     assert(duplicateUser.body.includes("Regression company"), "User creation form values are not preserved after a duplicate e-mail error");
     const firstAdminSignIn = await postForm("/login", { email: newAdminEmail, password: newAdminPassword });
     const newAdminCookie = cookieFrom(firstAdminSignIn.response);
-    assert(firstAdminSignIn.response.status === 303 && firstAdminSignIn.response.headers.get("location") === "/first-login", "A new account is not redirected to set its password");
-    await cacheCsrfToken("/first-login", newAdminCookie);
+    assert(firstAdminSignIn.response.status === 303 && firstAdminSignIn.response.headers.get("location") === "/admin", "A new administrator is not sent directly to the admin panel");
     database = readDb();
-    const csrfBeforeFirstPasswordChange = database.sessions.find((session) => session.userId === newAdmin.id)?.csrfToken;
-    const firstAdminPassword = "FirstAdminPassword123!";
-    await expectRedirect(postForm("/first-login", { password: firstAdminPassword, confirmPassword: firstAdminPassword }, newAdminCookie), "/admin?notice=password_changed");
-    database = readDb();
-    assert(database.users.find((item) => item.id === newAdmin.id).mustChangePassword === false, "Mandatory password change remains after completing first sign-in");
+    assert(database.users.find((item) => item.id === newAdmin.id).mustChangePassword === false, "Mandatory password change remains after first sign-in");
     assert(database.users.find((item) => item.id === newAdmin.id).courseNotificationsEnabled === true, "Course notifications are not enabled after first sign-in");
-    const passwordChangeNotice = database.notifications.find((note) => note.recipientUserId === newAdmin.id && note.type === "password_changed");
-    assert(passwordChangeNotice && !passwordChangeNotice.payload.includes(firstAdminPassword), "The first sign-in password is retained in notification history");
-    const csrfAfterFirstPasswordChange = database.sessions.find((session) => session.userId === newAdmin.id)?.csrfToken;
-    assert(
-      csrfAfterFirstPasswordChange && csrfAfterFirstPasswordChange !== csrfBeforeFirstPasswordChange,
-      "The CSRF token rotated during the first password change was not persisted in the active session"
-    );
-    const newAdminPanel = await request("/admin?notice=password_changed", { headers: { cookie: newAdminCookie } });
-    assert(newAdminPanel.response.status === 200, "Created administrator must remain signed in after choosing a password");
-    assert(newAdminPanel.body.includes("Password changed. You are signed in."), "The first sign-in confirmation is not shown in the account");
+    const newAdminPanel = await request("/admin", { headers: { cookie: newAdminCookie } });
+    assert(newAdminPanel.response.status === 200, "Created administrator cannot open the admin panel with the assigned password");
+    const legacyFirstLoginPage = await request("/first-login", { headers: { cookie: newAdminCookie } });
+    assert(legacyFirstLoginPage.response.status === 303 && legacyFirstLoginPage.response.headers.get("location") === "/admin", "Legacy first-login URL still requires a password change");
     await cacheCsrfToken("/admin", newAdminCookie);
-    const postPasswordChangeProbe = await postForm("/csrf-session-probe", {}, newAdminCookie);
-    assert(postPasswordChangeProbe.response.status === 404, "Authenticated forms fail after the first password change");
+    const postSignInProbe = await postForm("/csrf-session-probe", {}, newAdminCookie);
+    assert(postSignInProbe.response.status === 404, "Authenticated forms fail after direct first sign-in");
 
     const instructorEmail = `regression-instructor-${runId}@example.com`;
     const instructorPassword = "RegressionInstructor123!";
@@ -309,14 +310,8 @@ async function run() {
     const instructorFirstSignIn = await postForm("/login", { email: instructorEmail, password: instructorPassword });
     const instructorCookie = cookieFrom(instructorFirstSignIn.response);
     assert(
-      instructorFirstSignIn.response.status === 303 && instructorFirstSignIn.response.headers.get("location") === "/first-login" && instructorCookie,
-      "A newly created instructor is not redirected to set a first password"
-    );
-    await cacheCsrfToken("/first-login", instructorCookie);
-    const instructorFirstPassword = "FirstInstructorPassword123!";
-    await expectRedirect(
-      postForm("/first-login", { password: instructorFirstPassword, confirmPassword: instructorFirstPassword }, instructorCookie),
-      "/admin?notice=password_changed"
+      instructorFirstSignIn.response.status === 303 && instructorFirstSignIn.response.headers.get("location") === "/admin" && instructorCookie,
+      "A newly created instructor cannot sign in directly with the assigned password"
     );
     await cacheCsrfToken("/admin/users", instructorCookie);
     const instructorAdminAttemptEmail = `regression-instructor-request-${runId}@example.com`;
@@ -373,21 +368,25 @@ async function run() {
     const pendingFirstSignIn = await postForm("/login", { email: pendingStudentEmail, password: pendingStudentPassword });
     const pendingStudentCookie = cookieFrom(pendingFirstSignIn.response);
     assert(
-      pendingFirstSignIn.response.status === 303 && pendingFirstSignIn.response.headers.get("location") === "/first-login" && pendingStudentCookie,
-      "Pending student is not redirected to the mandatory password change"
-    );
-    assert(readDb().notifications.find((note) => note.id === deferredAssignmentNotice.id)?.status === "deferred", "Course email was released before the password change");
-    await cacheCsrfToken("/first-login", pendingStudentCookie);
-    const pendingStudentNewPassword = "FirstPendingPassword123!";
-    await expectRedirect(
-      postForm("/first-login", { password: pendingStudentNewPassword, confirmPassword: pendingStudentNewPassword }, pendingStudentCookie),
-      "/dashboard?notice=password_changed"
+      pendingFirstSignIn.response.status === 303 && pendingFirstSignIn.response.headers.get("location") === "/dashboard" && pendingStudentCookie,
+      "A new student cannot sign in directly with the administrator-assigned password"
     );
     await waitForCondition(
       () => readDb().notifications.find((note) => note.id === deferredAssignmentNotice.id)?.status === "sent",
       "Deferred course assignment email was not delivered after first sign-in"
     );
     assert(readDb().users.find((item) => item.id === pendingStudent.id)?.courseNotificationsEnabled === true, "Pending student notifications remain disabled after first sign-in");
+    const resetStudentPassword = "RegressionResetPassword123!";
+    await expectRedirect(
+      postForm("/admin/users/reset-password", { id: pendingStudent.id, password: resetStudentPassword }, adminCookie),
+      "/admin/users"
+    );
+    database = readDb();
+    const resetNotice = database.notifications.find((note) => note.recipientUserId === pendingStudent.id && note.type === "password_reset");
+    assert(resetNotice?.status === "sent", "Administrator password reset details were not sent by e-mail");
+    assert(!resetNotice.payload.includes(resetStudentPassword), "The reset password is retained in notification history");
+    const resetStudentSignIn = await postForm("/login", { email: pendingStudentEmail, password: resetStudentPassword });
+    assert(resetStudentSignIn.response.status === 303 && resetStudentSignIn.response.headers.get("location") === "/dashboard", "Student cannot sign in directly with an administrator-reset password");
 
     const courseList = await request("/admin/courses", { headers: { cookie: adminCookie } });
     assert(courseList.body.includes("admin-course-avatar") && !courseList.body.includes(alphaDescription), "Course list should show compact avatars and titles without descriptions");
@@ -551,7 +550,7 @@ async function run() {
         const current = readDb();
         const required = [
           ["user_registered", newAdminEmail],
-          ["password_changed", newAdminEmail],
+          ["password_reset", pendingStudentEmail],
           ["course_assigned", pendingStudentEmail],
           ["certificate_available", "student@example.com"],
           ["certificate_manual_issue", "student@example.com"],
@@ -562,10 +561,18 @@ async function run() {
           (note) => note.type === type && note.recipientEmail === recipientEmail && note.status === "sent"
         ));
       }, "Registration, password, or certificate email was not delivered through SMTP");
+      const registrationMessage = smtpFixture.messages.find((message) => message.includes("Subject: Welcome to Maritime Portal - your account details"));
       assert(
-        smtpFixture.messages.some((message) => message.includes("Subject: Welcome to Maritime Portal - activate your account") && message.includes("Content-Type: multipart/alternative")),
-        "Account activation email is not a valid multipart message"
+        registrationMessage?.includes("Content-Type: multipart/alternative"),
+        "Account details email is not a valid multipart message"
       );
+      const registrationText = decodedSmtpText(registrationMessage).replaceAll("**", "");
+      assert(registrationText.includes(`Login: ${newAdminEmail}`), "Account details email does not contain the assigned login");
+      assert(registrationText.includes(`Password: ${newAdminPassword}`), "Account details email does not contain the assigned password");
+      assert(registrationText.includes(`Sign in: ${baseUrl}/login`), "Account details email does not contain the sign-in link");
+      const resetMessage = [...smtpFixture.messages].reverse().find((message) => message.includes("Subject: Your Maritime Portal password was reset"));
+      const resetText = decodedSmtpText(resetMessage).replaceAll("**", "");
+      assert(resetText.includes(`Login: ${pendingStudentEmail}`) && resetText.includes(`Password: ${resetStudentPassword}`), "Password-reset email does not contain fresh login details");
       assert(
         smtpFixture.messages.some((message) => message.includes("Subject: Your certificate has been issued") && message.includes("Content-Type: application/pdf")),
         "Issued certificate email does not contain the PDF attachment"
@@ -612,7 +619,10 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error(`Regression test failed after ${assertions} assertions: ${error.message}`);
-  process.exit(1);
-});
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+if (isDirectRun) {
+  runRegressionTest().catch((error) => {
+    console.error(`Regression test failed after ${assertions} assertions: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
