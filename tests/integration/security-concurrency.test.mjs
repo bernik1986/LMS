@@ -66,6 +66,42 @@ test("security headers, private routes, same-origin protection, and CSRF validat
   assert.ok(!protectedFile.text.includes("passwordHash"));
 });
 
+test("production aliases use the incoming proxy host without weakening same-origin checks", async () => {
+  const productionApp = await startTestServer({
+    inProcess: true,
+    smtp: false,
+    env: {
+      NODE_ENV: "production",
+      PUBLIC_BASE_URL: "https://lms.maritimelearning.store",
+      TRUST_PROXY: "true"
+    }
+  });
+  const postLogin = (origin) => productionApp.request("/login", {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      host: "maritimelearning.store",
+      "x-forwarded-host": "maritimelearning.store",
+      "x-forwarded-proto": "https",
+      origin,
+      referer: `${origin}/login`
+    },
+    body: new URLSearchParams({ email: "origin-check@invalid.example", password: "invalid" })
+  });
+
+  try {
+    const primaryDomain = await postLogin("https://maritimelearning.store");
+    assert.equal(primaryDomain.response.status, 401);
+    assert.match(primaryDomain.text, /invalid email or password/i);
+
+    const evilOrigin = await postLogin("https://evil.example");
+    assert.equal(evilOrigin.response.status, 403);
+    assert.match(evilOrigin.text, /same-origin protection/i);
+  } finally {
+    await productionApp.stop();
+  }
+});
+
 test("session cookies are hardened and logout invalidates the server-side session", async () => {
   const login = await app.postForm("/login", {
     email: "student@example.com",

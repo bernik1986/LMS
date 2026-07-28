@@ -2831,16 +2831,37 @@ function clientIp(request) {
   return request.socket.remoteAddress || "unknown";
 }
 
+function firstHeaderValue(value) {
+  const header = Array.isArray(value) ? value[0] : value;
+  return String(header ?? "").split(",")[0].trim();
+}
+
 function publicOrigin(request) {
-  if (isProduction) {
+  let configuredUrl = null;
+  try {
+    configuredUrl = new URL(publicBaseUrl);
+  } catch {
+    // Fall back to request headers when the configured public URL is malformed.
+  }
+
+  const forwardedProto = trustProxy ? firstHeaderValue(request.headers["x-forwarded-proto"]) : "";
+  const forwardedHost = trustProxy ? firstHeaderValue(request.headers["x-forwarded-host"]) : "";
+  const requestHost = forwardedHost || firstHeaderValue(request.headers.host);
+  const configuredProto = configuredUrl?.protocol.replace(":", "") ?? "";
+  const proto = ["http", "https"].includes(forwardedProto)
+    ? forwardedProto
+    : isProduction && ["http", "https"].includes(configuredProto)
+      ? configuredProto
+      : "http";
+
+  if (requestHost) {
     try {
-      if (process.env.PUBLIC_BASE_URL) return new URL(publicBaseUrl).origin;
+      return new URL(`${proto}://${requestHost}`).origin;
     } catch {
-      // Fall back to the incoming host when a production URL is malformed.
+      // Fall back to the configured public origin below.
     }
   }
-  const proto = trustProxy ? request.headers["x-forwarded-proto"] || "http" : "http";
-  return `${proto}://${request.headers.host}`;
+  return configuredUrl?.origin ?? `http://${host}:${port}`;
 }
 
 function sameOriginPost(request) {
