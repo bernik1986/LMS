@@ -27,6 +27,14 @@ test("editable email templates and the SMTP test use personalized branded conten
   assert.equal(update.response.status, 303);
   assert.equal(update.response.headers.get("location"), "/admin/notifications");
 
+  const adminAlerts = await app.postForm(
+    "/admin/notifications/admin-alerts",
+    { adminActivityNotificationEmail: "bernik1986@gmail.com" },
+    adminCookie
+  );
+  assert.equal(adminAlerts.response.status, 303);
+  assert.equal(app.readDb().settings.adminActivityNotificationEmail, "bernik1986@gmail.com");
+
   const recipient = "smtp.preview@example.com";
   const sentBefore = app.smtp.messages.length;
   const smtpTest = await app.postForm("/admin/notifications/test-smtp", { email: recipient }, adminCookie);
@@ -118,6 +126,84 @@ test("registration, deferred assignment, first sign-in, and administrator passwo
     .map(decodedSmtpText)
     .find((message) => message.includes("Course assigned: First Aid"));
   assert.match(assignmentEmail, /Good day,\s*<strong>Laura/i);
+
+  await app.waitFor(
+    () => app.readDb().notifications.find(
+      (note) => note.type === "student_first_login" && note.payload.includes(email)
+    )?.status === "sent",
+    "First student sign-in notification was not sent to the administrator."
+  );
+  db = app.readDb();
+  const firstLoginNote = db.notifications.find(
+    (note) => note.type === "student_first_login" && note.payload.includes(email)
+  );
+  assert.equal(firstLoginNote.recipientEmail, "bernik1986@gmail.com");
+  const firstLoginEmail = app.smtp.messages
+    .map(decodedSmtpText)
+    .find((message) => message.includes("Student signed in to Maritime Portal for the first time"));
+  assert.match(firstLoginEmail, /Laura Lifecycle/);
+  assert.match(firstLoginEmail, /Good day,\s*<strong>Administrator/i);
+
+  const firstLoginNotesBeforeSecondSignIn = db.notifications.filter(
+    (note) => note.type === "student_first_login" && note.payload.includes(email)
+  ).length;
+  await app.login(email, initialPassword);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    app.readDb().notifications.filter(
+      (note) => note.type === "student_first_login" && note.payload.includes(email)
+    ).length,
+    firstLoginNotesBeforeSecondSignIn
+  );
+
+  await app.cacheCsrf(`/dashboard/courses/${assignment.id}`, studentCookie);
+  const completeMaterial = await app.postForm(
+    "/dashboard/materials/complete",
+    { assignmentId: assignment.id, materialId: "material_aid_text" },
+    studentCookie
+  );
+  assert.equal(completeMaterial.response.status, 303);
+
+  const failedTest = await app.postForm(
+    `/dashboard/tests/${assignment.id}`,
+    { q_aid_1: "q_aid_1_o2" },
+    studentCookie
+  );
+  assert.equal(failedTest.response.status, 303);
+  await app.waitFor(
+    () => app.readDb().notifications.find(
+      (note) => note.type === "course_test_failed" && note.assignmentId === assignment.id
+    )?.status === "sent",
+    "Failed final test notification was not sent to the administrator."
+  );
+  let testResultNote = app.readDb().notifications.find(
+    (note) => note.type === "course_test_failed" && note.assignmentId === assignment.id
+  );
+  assert.equal(testResultNote.recipientEmail, "bernik1986@gmail.com");
+  assert.match(testResultNote.payload, /Not passed - course not completed/);
+  assert.match(testResultNote.payload, /Score:\*\* 0%/);
+
+  const passedTest = await app.postForm(
+    `/dashboard/tests/${assignment.id}`,
+    { q_aid_1: "q_aid_1_o1" },
+    studentCookie
+  );
+  assert.equal(passedTest.response.status, 303);
+  await app.waitFor(
+    () => app.readDb().notifications.find(
+      (note) => note.type === "course_test_passed" && note.assignmentId === assignment.id
+    )?.status === "sent",
+    "Successful course completion notification was not sent to the administrator."
+  );
+  testResultNote = app.readDb().notifications.find(
+    (note) => note.type === "course_test_passed" && note.assignmentId === assignment.id
+  );
+  assert.equal(testResultNote.recipientEmail, "bernik1986@gmail.com");
+  assert.match(testResultNote.payload, /Passed - course completed/);
+  assert.match(testResultNote.payload, /Score:\*\* 100%/);
+  const testResultEmails = app.smtp.messages.map(decodedSmtpText);
+  assert.ok(testResultEmails.some((message) => /Student did not pass the final test/i.test(message) && message.includes("Laura Lifecycle")));
+  assert.ok(testResultEmails.some((message) => /Student successfully completed a course/i.test(message) && message.includes("Laura Lifecycle")));
 
   const resetPassword = "LifecycleReset123!";
   const resetMessagesBefore = app.smtp.messages.length;

@@ -365,7 +365,9 @@ test("student administration, assignment controls, certificate lifecycle, export
     adminCookie
   );
   assert.equal(resend.response.status, 303);
-  await app.waitFor(() => app.smtp.messages.length === resendMessagesBefore + 1);
+  await app.waitFor(() => app.smtp.messages
+    .slice(resendMessagesBefore)
+    .some((message) => decodedSmtpText(message).includes(firstCertificate.certificateNumber)));
   assert.ok(app.readDb().certificateEvents.some(
     (event) => event.certificateId === firstCertificate.id && event.action === "resent"
   ));

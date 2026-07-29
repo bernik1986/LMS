@@ -36,6 +36,9 @@ const passwordResetTtlMs = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 30) 
 const smtpConnectionTimeoutMs = Math.max(5, Number(process.env.SMTP_CONNECTION_TIMEOUT_SECONDS ?? 30)) * 1000;
 const smtpTransientRetryMs = Math.max(1, Number(process.env.SMTP_RETRY_MINUTES ?? 15)) * 60 * 1000;
 const smtpRateLimitRetryMs = Math.max(1, Number(process.env.SMTP_RATE_LIMIT_RETRY_MINUTES ?? 65)) * 60 * 1000;
+const defaultAdminActivityNotificationEmail = String(
+  process.env.ADMIN_ACTIVITY_NOTIFICATION_EMAIL ?? "bernik1986@gmail.com"
+).trim().toLowerCase();
 const emailTemplateDesignVersion = 3;
 const trustProxy = process.env.TRUST_PROXY === "true";
 const isProduction = process.env.NODE_ENV === "production";
@@ -480,7 +483,8 @@ function createSeedData() {
     certificateEvents: [],
     settings: {
       emailTemplates: defaultEmailTemplates(),
-      emailTemplateDesignVersion
+      emailTemplateDesignVersion,
+      adminActivityNotificationEmail: defaultAdminActivityNotificationEmail
     }
   };
 }
@@ -586,6 +590,10 @@ function normalizeDb(data) {
   }
   if (!Array.isArray(data.settings.invoices)) {
     data.settings.invoices = [];
+    changed = true;
+  }
+  if (!isValidEmailAddress(data.settings.adminActivityNotificationEmail)) {
+    data.settings.adminActivityNotificationEmail = defaultAdminActivityNotificationEmail;
     changed = true;
   }
   if (data.settings.homepageCourseSelectionEnabled === undefined) {
@@ -2283,6 +2291,37 @@ function activateCourseNotifications(user) {
   return activated;
 }
 
+function isValidEmailAddress(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
+}
+
+function adminActivityNotificationEmail() {
+  const configured = String(
+    db.settings?.adminActivityNotificationEmail ?? defaultAdminActivityNotificationEmail
+  ).trim().toLowerCase();
+  return isValidEmailAddress(configured) ? configured : defaultAdminActivityNotificationEmail;
+}
+
+function queueAdminActivityNotification(type, payload, { assignment = null } = {}) {
+  const recipientEmail = adminActivityNotificationEmail();
+  const recipient = db.users.find(
+    (user) => user.email.toLowerCase() === recipientEmail && user.role === "admin"
+  );
+  const note = {
+    id: id("note"),
+    recipientUserId: recipient?.id ?? "",
+    recipientEmail,
+    assignmentId: assignment?.id ?? "",
+    type,
+    status: notificationInitialStatus(),
+    payload,
+    createdAt: now(),
+    sentAt: ""
+  };
+  db.notifications.push(note);
+  return note;
+}
+
 function defaultEmailTemplates() {
   return {
     new_application: {
@@ -2300,6 +2339,18 @@ function defaultEmailTemplates() {
     course_assigned: {
       subject: "A new course has been assigned to you",
       body: "**Your training is ready to begin.**\n\n{{payload}}\n\nOpen your learning account: {{platformUrl}}/login"
+    },
+    student_first_login: {
+      subject: "Student signed in to Maritime Portal for the first time",
+      body: "**A student has completed their first sign-in.**\n\n{{payload}}"
+    },
+    course_test_passed: {
+      subject: "Student successfully completed a course",
+      body: "**A student passed the final test and completed the course.**\n\n{{payload}}"
+    },
+    course_test_failed: {
+      subject: "Student did not pass the final test",
+      body: "**A student submitted an unsuccessful final test attempt.**\n\n{{payload}}"
     },
     certificate_available: {
       subject: "Your Maritime Portal certificate is available",
@@ -2394,8 +2445,10 @@ function brandedEmailHtml({ subject, body, recipientFirstName }) {
 function emailTemplate(note) {
   const template = db.settings?.emailTemplates?.[note.type] ?? defaultEmailTemplates()[note.type];
   const recipient = db.users.find((user) => user.id === note.recipientUserId) ?? db.users.find((user) => user.email.toLowerCase() === String(note.recipientEmail ?? "").toLowerCase());
-  const fullName = displayUserName(recipient) || note.recipientEmail || "Maritime Portal learner";
-  const firstName = recipient?.firstNameEn?.trim() || fullName;
+  const adminActivityTypes = new Set(["student_first_login", "course_test_passed", "course_test_failed"]);
+  const adminRecipient = adminActivityTypes.has(note.type);
+  const fullName = displayUserName(recipient) || (adminRecipient ? "Maritime Portal Administrator" : note.recipientEmail) || "Maritime Portal learner";
+  const firstName = recipient?.firstNameEn?.trim() || (adminRecipient ? "Administrator" : fullName);
   const values = {
     payload: note.payload || "",
     recipientEmail: note.recipientEmail || "",
@@ -2652,6 +2705,9 @@ const notificationPreviewOrder = [
   "password_reset",
   "password_changed",
   "course_assigned",
+  "student_first_login",
+  "course_test_passed",
+  "course_test_failed",
   "photo_required_for_certificate",
   "certificate_available",
   "certificate_manual_issue",
@@ -2674,6 +2730,9 @@ function notificationPreviewPayloads() {
     password_reset: `**Login:** test.student@example.com\n**Password:** TEST-PREVIEW-NOT-ACTIVE\n**Sign in:** ${platformUrl}/login\n\nThis is a test preview; no password was changed.`,
     password_changed: `Your password was changed successfully.\n\nThis is a test preview; no password was changed.`,
     course_assigned: "Course assigned: Basic Maritime Safety (test preview).",
+    student_first_login: `**Student:** Test Student\n**Email:** test.student@example.com\n**First sign-in:** 29/07/2026\n\nOpen student record: ${platformUrl}/admin/users/user_test`,
+    course_test_passed: "**Student:** Test Student\n**Email:** test.student@example.com\n**Course:** Basic Maritime Safety\n**Result:** Passed\n**Score:** 90%\n**Passing score:** 80%\n**Attempt:** 1",
+    course_test_failed: "**Student:** Test Student\n**Email:** test.student@example.com\n**Course:** Basic Maritime Safety\n**Result:** Not passed\n**Score:** 60%\n**Passing score:** 80%\n**Attempt:** 1",
     photo_required_for_certificate: "Photo is required before the test certificate can be issued for Basic Maritime Safety.",
     certificate_available: "Certificate 725645565/22/07/2026 for Basic Maritime Safety is ready (test preview).",
     certificate_manual_issue: "Certificate 725645565/22/07/2026 for Basic Maritime Safety was issued manually (test preview).",
@@ -7188,6 +7247,7 @@ function auditActionLabel(action = "") {
     "/admin/homepage/footer": "Home page footer updated",
     "/admin/notifications/send-pending": "Email queue sent",
     "/admin/notifications/templates": "Email templates updated",
+    "/admin/notifications/admin-alerts": "Administrator email alerts updated",
     "/admin/notifications/test-smtp": "SMTP connection checked",
     "/admin/standalone-certificates/create": "Direct certificate issued"
   };
@@ -7364,6 +7424,12 @@ function adminNotifications(user, searchParams = new URLSearchParams()) {
           </form>
         </div>
       </article>
+      <form class="form-panel" method="post" action="/admin/notifications/admin-alerts">
+        <h2>Administrator activity alerts</h2>
+        <p class="muted">First student sign-in and final test results are sent to this address.</p>
+        <div class="field"><label>Recipient email</label><input name="adminActivityNotificationEmail" type="email" value="${escapeHtml(adminActivityNotificationEmail())}" required /></div>
+        <button class="button" type="submit">Save alert recipient</button>
+      </form>
       <form class="inline-form" method="get" action="/admin/notifications">
         <input name="q" value="${escapeHtml(params.q)}" placeholder="Search log" />
         <button class="small-button primary" type="submit">Search</button>
@@ -7784,7 +7850,14 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
     clearLoginRateLimit(request);
+    const isFirstStudentLogin = found.role === "student" && found.courseNotificationsEnabled === false;
     activateCourseNotifications(found);
+    if (isFirstStudentLogin) {
+      queueAdminActivityNotification(
+        "student_first_login",
+        `**Student:** ${displayUserName(found)}\n**Email:** ${found.email}\n**First sign-in:** ${formatDate(now())}\n\nOpen student record: ${publicBaseUrl.replace(/\/$/, "")}/admin/users/${found.id}`
+      );
+    }
     const sessionId = opaqueToken();
     const csrfToken = randomBytes(32).toString("hex");
     db.sessions = (db.sessions ?? []).filter((session) => session.userId !== found.id || new Date(session.expiresAt).getTime() > Date.now());
@@ -8104,6 +8177,19 @@ async function handlePost(request, response, pathname, user) {
         };
       }
       db.settings.emailTemplateDesignVersion = emailTemplateDesignVersion;
+      saveDb(db);
+      redirect(response, "/admin/notifications");
+      return;
+    }
+
+    if (pathname === "/admin/notifications/admin-alerts") {
+      const recipientEmail = form.get("adminActivityNotificationEmail")?.toString().trim().toLowerCase() ?? "";
+      if (!isValidEmailAddress(recipientEmail)) {
+        send(response, adminShell(admin, "Notifications", `<section class="section"><div class="notice danger">Enter a valid administrator notification email.</div><a class="button" href="/admin/notifications">Back to notifications</a></section>`), 400);
+        return;
+      }
+      db.settings ??= {};
+      db.settings.adminActivityNotificationEmail = recipientEmail;
       saveDb(db);
       redirect(response, "/admin/notifications");
       return;
@@ -9180,6 +9266,11 @@ async function handlePost(request, response, pathname, user) {
     } else {
       assignment.status = "test_failed";
     }
+    queueAdminActivityNotification(
+      passed ? "course_test_passed" : "course_test_failed",
+      `**Student:** ${displayUserName(student)}\n**Email:** ${student.email}\n**Course:** ${course.title}\n**Result:** ${passed ? "Passed - course completed" : "Not passed - course not completed"}\n**Score:** ${scorePercent}%\n**Passing score:** ${course.test.passingPercent}%\n**Attempt:** ${attempt.attemptNumber}${expired ? "\n**Reason:** Time limit expired" : ""}\n\nOpen student record: ${publicBaseUrl.replace(/\/$/, "")}/admin/users/${student.id}`,
+      { assignment }
+    );
     saveDb(db);
     redirect(response, `/dashboard/courses/${assignment.id}#test-result`);
     return;
