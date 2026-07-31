@@ -6008,7 +6008,10 @@ function invoicePdfBuffer(invoice) {
     doc.fontSize(12).fillColor("#0d1b2a").text(`INVOICE TO: ${invoice.recipientName || invoice.recipientCompany || "Not specified"}`);
     if (invoice.recipientEmail) doc.text(`E-mail: ${invoice.recipientEmail}`);
     if (invoice.recipientCompany) doc.text(`Company: ${invoice.recipientCompany}`);
-    doc.fontSize(8).fillColor("#587087").text(`Status: ${invoiceStatusLabel(invoice.status)}    Period: ${invoice.period?.from || "-"} - ${invoice.period?.to || "-"}`);
+    const periodLabel = invoice.period?.from || invoice.period?.to
+      ? `    Period: ${invoice.period?.from || "-"} - ${invoice.period?.to || "-"}`
+      : "";
+    doc.fontSize(8).fillColor("#587087").text(`Status: ${invoiceStatusLabel(invoice.status)}${periodLabel}`);
     doc.moveDown(0.55);
     const paymentRows = [
       ["Details of payment", template.paymentDetails],
@@ -6070,6 +6073,94 @@ function invoiceHistoryRows() {
   return invoiceItems().slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+function manualInvoiceCourseOptions(selectedCourseId = "") {
+  return [...db.courses]
+    .sort((a, b) => a.title.localeCompare(b.title, "en"))
+    .map((course) => {
+      const price = courseRevenuePrice(course);
+      const defaultAmount = price.selectedPrice ? String(price.amount) : "";
+      return `<option value="${escapeHtml(course.id)}" data-price="${escapeHtml(defaultAmount)}" data-currency="${escapeHtml(price.currency || "")}" ${selectedCourseId === course.id ? "selected" : ""}>${escapeHtml(course.title)}${course.status === "active" ? "" : " (inactive)"}</option>`;
+    })
+    .join("");
+}
+
+function manualInvoiceCourseRow(courseId = "", amount = "") {
+  return `<tr data-manual-invoice-line>
+    <td><select name="courseId" required><option value="">Select a course</option>${manualInvoiceCourseOptions(courseId)}</select></td>
+    <td><input name="amount" type="number" min="0" step="0.01" value="${escapeHtml(amount)}" placeholder="0.00" required /></td>
+    <td><button class="small-button danger" type="button" data-remove-invoice-line aria-label="Remove course">Remove</button></td>
+  </tr>`;
+}
+
+function adminManualInvoice(user, state = {}) {
+  const values = state.values ?? {};
+  const courseIds = Array.isArray(values.courseIds) && values.courseIds.length ? values.courseIds : [""];
+  const amounts = Array.isArray(values.amounts) ? values.amounts : [];
+  const rows = courseIds.slice(0, 50).map((courseId, index) => manualInvoiceCourseRow(courseId, amounts[index] ?? "")).join("");
+  const issueDate = values.issueDate ?? dateInputValue();
+  const dueDate = values.dueDate ?? dateInputValue(new Date(Date.now() + 30 * 86400000));
+  return adminShell(user, "New manual invoice", `<section class="section stack">
+    <div class="toolbar">
+      <div><span class="eyebrow">Manual invoice</span><h1>Create an invoice for a candidate</h1><p class="lead">The candidate is stored only in the invoice. No LMS account, assignment, or training progress is created.</p></div>
+      <div class="table-actions"><a class="small-button" href="/admin/checks">Invoice history</a><a class="small-button" href="/admin/checks/template">Edit template</a></div>
+    </div>
+    ${state.error ? `<div class="notice danger">${escapeHtml(state.error)}</div>` : ""}
+    <form id="manual-invoice-form" class="stack" method="post" action="/admin/checks/invoices/create-manual">
+      <article class="panel stack">
+        <h2>Candidate and invoice details</h2>
+        <div class="admin-edit-grid">
+          <div class="field field-wide"><label for="manualInvoiceCandidate">Candidate full name</label><input id="manualInvoiceCandidate" name="recipientName" maxlength="240" value="${escapeHtml(values.recipientName ?? "")}" required /></div>
+          <div class="field"><label for="manualInvoiceEmail">Email</label><input id="manualInvoiceEmail" name="recipientEmail" type="email" maxlength="254" value="${escapeHtml(values.recipientEmail ?? "")}" /></div>
+          <div class="field"><label for="manualInvoiceCompany">Company</label><input id="manualInvoiceCompany" name="recipientCompany" maxlength="200" value="${escapeHtml(values.recipientCompany ?? "")}" /></div>
+          <div class="field"><label for="manualInvoiceIssueDate">Issue date</label><input id="manualInvoiceIssueDate" name="issueDate" type="date" value="${escapeHtml(issueDate)}" required /></div>
+          <div class="field"><label for="manualInvoiceDueDate">Due date</label><input id="manualInvoiceDueDate" name="dueDate" type="date" value="${escapeHtml(dueDate)}" required /></div>
+          <div class="field"><label for="manualInvoiceCurrency">Currency</label><input id="manualInvoiceCurrency" name="currency" maxlength="12" value="${escapeHtml(values.currency ?? "USD")}" required /></div>
+        </div>
+      </article>
+      <article class="panel stack">
+        <div class="section-heading"><div><h2>Courses and prices</h2><p class="muted">Choose each course and set the amount that must appear in the invoice.</p></div><button class="small-button primary" type="button" data-add-invoice-line>+ Add course</button></div>
+        <div class="table-scroll"><table class="table"><thead><tr><th>Course</th><th>Price</th><th></th></tr></thead><tbody data-manual-invoice-lines>${rows || manualInvoiceCourseRow()}</tbody></table></div>
+        <template data-manual-invoice-template>${manualInvoiceCourseRow()}</template>
+      </article>
+      <div class="table-actions"><button class="button" type="submit">Create invoice and PDF</button></div>
+    </form>
+    <script nonce="{{CSP_NONCE}}">
+      (() => {
+        const form = document.querySelector("#manual-invoice-form");
+        if (!form) return;
+        const lines = form.querySelector("[data-manual-invoice-lines]");
+        const template = form.querySelector("[data-manual-invoice-template]");
+        const addButton = form.querySelector("[data-add-invoice-line]");
+        const currency = form.querySelector('[name="currency"]');
+        const applyCourseDefaults = (row) => {
+          const select = row.querySelector('[name="courseId"]');
+          const amount = row.querySelector('[name="amount"]');
+          const option = select.selectedOptions[0];
+          amount.value = option?.dataset.price || "";
+          if (option?.dataset.currency && (!currency.value || currency.value === "USD")) currency.value = option.dataset.currency;
+        };
+        addButton.addEventListener("click", () => {
+          lines.insertAdjacentHTML("beforeend", template.innerHTML.trim());
+          lines.lastElementChild?.querySelector("select")?.focus();
+        });
+        lines.addEventListener("change", (event) => {
+          if (event.target.matches('[name="courseId"]')) applyCourseDefaults(event.target.closest("tr"));
+        });
+        lines.addEventListener("click", (event) => {
+          const removeButton = event.target.closest("[data-remove-invoice-line]");
+          if (!removeButton) return;
+          const row = removeButton.closest("tr");
+          if (lines.children.length > 1) row.remove();
+          else {
+            row.querySelector('[name="courseId"]').value = "";
+            row.querySelector('[name="amount"]').value = "";
+          }
+        });
+      })();
+    </script>
+  </section>`);
+}
+
 function adminChecks(user, searchParams = new URLSearchParams()) {
   if (searchParams.get("legacy") === "1") return adminChecksLegacy(user, searchParams);
   const params = invoiceFilterParams(searchParams);
@@ -6087,7 +6178,7 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
     })
     .join("");
   return adminShell(user, "Invoices", `<section class="section stack">
-    <div class="toolbar"><div><span class="eyebrow">Invoices and reports</span><h1>Invoices</h1><p class="lead">Select assignments, prepare a draft invoice, and save it to the history.</p></div><a class="small-button" href="/admin/checks/template">Edit invoice template</a></div>
+    <div class="toolbar"><div><span class="eyebrow">Invoices and reports</span><h1>Invoices</h1><p class="lead">Select assignments, prepare a draft invoice, and save it to the history.</p></div><div class="table-actions"><a class="small-button primary" href="/admin/checks/invoices/new">New manual invoice</a><a class="small-button" href="/admin/checks/template">Edit invoice template</a></div></div>
     <form class="form-panel" method="get" action="/admin/checks"><h2>Filters</h2><div class="admin-edit-grid">
       <div class="field"><label>User / manager</label><select name="staffId"><option value="">All users</option>${staffSelectOptions(params.staffId)}</select></div>
       <div class="field"><label>Company</label><select name="company"><option value="">All companies</option>${companies.map((company) => `<option value="${escapeHtml(company)}" ${params.company === company ? "selected" : ""}>${escapeHtml(company)}</option>`).join("")}</select></div>
@@ -6109,9 +6200,18 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
 
 function adminInvoiceDetail(user, invoice) {
   const totals = invoiceTotals(invoice);
+  const manualCandidate = invoice.sourceType === "manual_candidate";
+  const lineRows = (invoice.lines ?? []).map((line) => `<tr>
+    <td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td>
+    <td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td>
+    <td>${escapeHtml(line.courseTitle)}${manualCandidate ? "" : `<br><span class="muted">${formatDate(line.assignedAt)}</span>`}</td>
+    <td>${manualCandidate ? `<span class="muted">Manual invoice item</span>` : `${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "No certificate")}</span>`}</td>
+    <td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td>
+    <td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td>
+  </tr>`).join("");
   return adminShell(user, `Invoice ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Invoice</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Edit items before sending. Changes are saved in the history.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">Back to list</a><a class="small-button" href="/admin/checks/template">Template</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF and print</a></div></div>
     <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Recipient</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Company</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>Email</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Issue date</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Currency</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Invoice discount</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Extra charge</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Status</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Payment date</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div>${invoiceReportColumnSelector(invoiceSelectedColumns(invoice.columns ?? []))}<div class="field"><label>Comment</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
-      <article class="panel stack"><h2>Items</h2><table class="table"><thead><tr><th>Include</th><th>Student</th><th>Course</th><th>Status / certificate</th><th>Price</th><th>Discount</th></tr></thead><tbody>${(invoice.lines ?? []).map((line) => `<tr><td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td><td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td><td>${escapeHtml(line.courseTitle)}<br><span class="muted">${formatDate(line.assignedAt)}</span></td><td>${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "No certificate")}</span></td><td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td><td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td></tr>`).join("")}</tbody></table></article>
+      <article class="panel stack"><h2>Items</h2><table class="table"><thead><tr><th>Include</th><th>${manualCandidate ? "Candidate" : "Student"}</th><th>Course</th><th>${manualCandidate ? "Type" : "Status / certificate"}</th><th>Price</th><th>Discount</th></tr></thead><tbody>${lineRows}</tbody></table></article>
       <article class="panel"><div class="grid four"><article class="metric"><span class="muted">Subtotal</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.subtotal, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Discounts</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.lineDiscount + totals.invoiceDiscount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">VAT</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.vatAmount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Total</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article></div></article><div class="table-actions"><button class="button" type="submit">Save and update PDF</button><button class="small-button warning" type="submit" name="sendEmail" value="1">Send by email</button></div></form>
     <article class="panel stack"><h2>Change history</h2><table class="table"><thead><tr><th>Date</th><th>User</th><th>Event</th></tr></thead><tbody>${(invoice.changes ?? []).slice().reverse().map((change) => `<tr><td>${new Date(change.at).toLocaleString("en-GB")}</td><td>${escapeHtml(change.byName || "")}</td><td>${escapeHtml(change.action)}</td></tr>`).join("") || `<tr><td colspan="3"><span class="muted">No changes yet.</span></td></tr>`}</tbody></table></article></section>`);
 }
@@ -7245,6 +7345,7 @@ function auditActionLabel(action = "") {
     "/admin/courses/create": "New course created",
     "/admin/homepage/courses": "Home page course showcase updated",
     "/admin/homepage/footer": "Home page footer updated",
+    "/admin/checks/invoices/create-manual": "Manual candidate invoice created",
     "/admin/notifications/send-pending": "Email queue sent",
     "/admin/notifications/templates": "Email templates updated",
     "/admin/notifications/admin-alerts": "Administrator email alerts updated",
@@ -8113,6 +8214,90 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
 
+    if (pathname === "/admin/checks/invoices/create-manual") {
+      const values = {
+        recipientName: form.get("recipientName")?.toString().trim() ?? "",
+        recipientEmail: form.get("recipientEmail")?.toString().trim().toLowerCase() ?? "",
+        recipientCompany: form.get("recipientCompany")?.toString().trim() ?? "",
+        issueDate: form.get("issueDate")?.toString().trim() ?? "",
+        dueDate: form.get("dueDate")?.toString().trim() ?? "",
+        currency: form.get("currency")?.toString().trim() ?? "USD",
+        courseIds: form.getAll("courseId").map((value) => value.toString().trim()),
+        amounts: form.getAll("amount").map((value) => value.toString().trim())
+      };
+      const issueDate = parseDateOnlyInput(values.issueDate);
+      const dueDate = parseDateOnlyInput(values.dueDate);
+      const selectedCourses = [];
+      const seenCourseIds = new Set();
+      let error = "";
+      if (!values.recipientName) {
+        error = "Enter the candidate's full name.";
+      } else if (values.recipientName.length > 240) {
+        error = "The candidate's full name must not exceed 240 characters.";
+      } else if (values.recipientEmail && !isValidEmailAddress(values.recipientEmail)) {
+        error = "Enter a valid candidate email address.";
+      } else if (values.recipientCompany.length > 200) {
+        error = "The company name must not exceed 200 characters.";
+      } else if (!issueDate || !dueDate) {
+        error = "Enter valid issue and due dates.";
+      } else if (dueDate < issueDate) {
+        error = "The due date cannot be earlier than the issue date.";
+      } else if (!values.currency || values.currency.length > 12) {
+        error = "Enter a currency code of up to 12 characters.";
+      } else if (!values.courseIds.length || values.courseIds.length > 50 || values.courseIds.length !== values.amounts.length) {
+        error = "Add between 1 and 50 course items.";
+      }
+      if (!error) {
+        for (let index = 0; index < values.courseIds.length; index += 1) {
+          const courseId = values.courseIds[index];
+          const course = courseById(courseId);
+          const amountText = values.amounts[index];
+          const amount = Number(amountText);
+          if (!course) {
+            error = "Select an existing course in every row.";
+            break;
+          }
+          if (seenCourseIds.has(course.id)) {
+            error = `Course "${course.title}" was selected more than once.`;
+            break;
+          }
+          if (!amountText || !Number.isFinite(amount) || amount < 0) {
+            error = `Enter a valid price for "${course.title}".`;
+            break;
+          }
+          seenCourseIds.add(course.id);
+          selectedCourses.push({ course, amount });
+        }
+      }
+      if (error || !selectedCourses.length) {
+        send(response, adminManualInvoice(admin, { error: error || "Add at least one course.", values }), 400);
+        return;
+      }
+
+      const currency = invoiceTemplateValue(values.currency, "USD", 12).toUpperCase() || "USD";
+      const lines = selectedCourses.map(({ course, amount }) => ({
+        id: id("invoice_line"), assignmentId: "", studentId: "",
+        studentName: values.recipientName, studentEmail: values.recipientEmail, company: values.recipientCompany,
+        creatorName: displayUserName(admin) || admin.email, registeredAt: "",
+        courseId: course.id, courseTitle: course.title,
+        oldPrice: course.oldPrice || "", newPrice: course.newPrice || "",
+        assignedAt: "", startedAt: "", completedAt: "", status: "manual", certificateNumber: "",
+        baseAmount: amount, discount: 0, amount, currency, included: true
+      }));
+      const invoice = {
+        id: id("invoice"), number: invoiceNumber(), createdAt: now(), createdById: admin.id, sourceType: "manual_candidate",
+        recipientName: values.recipientName, recipientEmail: values.recipientEmail, recipientCompany: values.recipientCompany,
+        period: { from: "", to: "", event: "manual" }, columns: ["course", "amount"], lines, currency,
+        discount: 0, extraCharge: 0, vatRate: 0, comment: "", issueDate, dueDate, status: "draft", paidAt: "", pdfUrl: "", shareToken: opaqueToken(),
+        changes: [{ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: `Manual candidate invoice created with ${lines.length} course item(s)` }]
+      };
+      invoiceItems().push(invoice);
+      await persistInvoicePdf(invoice);
+      saveDb(db);
+      redirect(response, `/admin/checks/invoices/${invoice.id}`);
+      return;
+    }
+
     if (pathname === "/admin/checks/invoices/create") {
       const filterParams = invoiceFilterParams(new URLSearchParams(form.get("filterQuery")?.toString() ?? ""));
       const selectedAssignmentIds = new Set(form.getAll("assignmentId").map((value) => value.toString()));
@@ -8145,6 +8330,12 @@ async function handlePost(request, response, pathname, user) {
         line.included = form.get(`included_${line.id}`) === "on";
         line.amount = Math.max(0, Number(form.get(`amount_${line.id}`)) || 0);
         line.discount = Math.max(0, Number(form.get(`lineDiscount_${line.id}`)) || 0);
+        if (invoice.sourceType === "manual_candidate") {
+          line.studentName = invoice.recipientName;
+          line.studentEmail = invoice.recipientEmail;
+          line.company = invoice.recipientCompany;
+          line.currency = invoice.currency;
+        }
       }
       const sendEmail = form.get("sendEmail") === "1" && invoice.recipientEmail;
       if (sendEmail) {
@@ -9382,6 +9573,7 @@ async function handleRequest(request, response) {
       response.end(readFileSync(path));
       return;
     }
+    if (pathname === "/admin/checks/invoices/new") return send(response, isFullAdmin(admin) ? adminManualInvoice(admin) : adminShell(admin, "Access denied", `<section class="section"><div class="notice danger">Insufficient permissions.</div></section>`), isFullAdmin(admin) ? 200 : 403);
     const invoiceMatch = pathname.match(/^\/admin\/checks\/invoices\/([^/]+)$/);
     if (invoiceMatch) {
       const invoice = invoiceById(invoiceMatch[1]);

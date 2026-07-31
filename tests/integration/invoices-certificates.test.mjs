@@ -159,6 +159,86 @@ test("invoice template, draft, selected columns, calculations, PDF, email, and p
   assert.match(exportResponse.text, /Student|Course/);
 });
 
+test("manual candidate invoice uses selected courses, custom prices, and the existing PDF template", async () => {
+  const createPage = await app.request("/admin/checks/invoices/new", {
+    headers: { cookie: adminCookie }
+  });
+  assert.equal(createPage.response.status, 200);
+  assert.match(createPage.text, /Candidate full name/);
+  assert.match(createPage.text, /First Aid/);
+  assert.match(createPage.text, /Basic Maritime Safety/);
+
+  const invoicesBefore = app.readDb().settings.invoices.length;
+  const duplicate = await app.postForm(
+    "/admin/checks/invoices/create-manual",
+    {
+      recipientName: "Duplicate Course Candidate",
+      recipientEmail: "candidate@example.com",
+      recipientCompany: "Ocean Test Ltd",
+      issueDate: "2026-07-31",
+      dueDate: "2026-08-30",
+      currency: "USD",
+      courseId: ["course_first_aid", "course_first_aid"],
+      amount: ["125.50", "210"]
+    },
+    adminCookie
+  );
+  assert.equal(duplicate.response.status, 400);
+  assert.match(duplicate.text, /selected more than once/i);
+  assert.equal(app.readDb().settings.invoices.length, invoicesBefore);
+
+  const usersBefore = app.readDb().users.length;
+  const assignmentsBefore = app.readDb().assignments.length;
+  const create = await app.postForm(
+    "/admin/checks/invoices/create-manual",
+    {
+      recipientName: "Morgan Sea Candidate",
+      recipientEmail: "morgan@example.com",
+      recipientCompany: "Ocean Test Ltd",
+      issueDate: "2026-07-31",
+      dueDate: "2026-08-30",
+      currency: "USD",
+      courseId: ["course_first_aid", "course_maritime_safety"],
+      amount: ["125.50", "210"]
+    },
+    adminCookie
+  );
+  assert.equal(create.response.status, 303);
+  const invoiceLocation = create.response.headers.get("location");
+  assert.match(invoiceLocation, /^\/admin\/checks\/invoices\/invoice_/);
+  const invoiceId = invoiceLocation.split("/").at(-1);
+  const invoice = app.readDb().settings.invoices.find((item) => item.id === invoiceId);
+  assert.ok(invoice);
+  assert.equal(invoice.sourceType, "manual_candidate");
+  assert.equal(invoice.recipientName, "Morgan Sea Candidate");
+  assert.equal(invoice.recipientEmail, "morgan@example.com");
+  assert.equal(invoice.recipientCompany, "Ocean Test Ltd");
+  assert.deepEqual(invoice.columns, ["course", "amount"]);
+  assert.deepEqual(invoice.lines.map((line) => line.courseId), ["course_first_aid", "course_maritime_safety"]);
+  assert.deepEqual(invoice.lines.map((line) => line.amount), [125.5, 210]);
+  assert.ok(invoice.lines.every((line) => line.studentId === "" && line.assignmentId === ""));
+  assert.equal(app.readDb().users.length, usersBefore);
+  assert.equal(app.readDb().assignments.length, assignmentsBefore);
+  assert.ok(existsSync(`${app.uploadsDir}/invoices/${invoiceId}.pdf`));
+
+  const detail = await app.request(invoiceLocation, { headers: { cookie: adminCookie } });
+  assert.equal(detail.response.status, 200);
+  assert.match(detail.text, /Morgan Sea Candidate/);
+  assert.match(detail.text, /First Aid/);
+  assert.match(detail.text, /Basic Maritime Safety/);
+  assert.match(detail.text, /335\.5|335\.50/);
+
+  const pdfResponse = await app.request(`/admin/checks/invoices/${invoiceId}.pdf`, {
+    headers: { cookie: adminCookie }
+  });
+  assert.equal(pdfResponse.response.status, 200);
+  assert.equal(pdfResponse.response.headers.get("content-type"), "application/pdf");
+  const invoicePdf = await PDFDocument.load(pdfResponse.body);
+  assert.equal(invoicePdf.getPageCount(), 1);
+  assert.ok(Math.abs(invoicePdf.getPage(0).getWidth() - 595.28) < 2);
+  assert.ok(Math.abs(invoicePdf.getPage(0).getHeight() - 841.89) < 2);
+});
+
 test("certificate designer supports A4 background, custom fields, apply-all, backup, restore, and validation", async () => {
   const exportBefore = await app.request(
     "/admin/courses/course_maritime_safety/certificate-designer/export",

@@ -166,6 +166,18 @@ test("admin browser screens expose New Course on demand and allow selecting an a
   const roleSelect = page.locator('form[action="/admin/users/create"] select[name="role"]');
   assert.ok(await roleSelect.isVisible());
   assert.deepEqual(await roleSelect.locator("option").allTextContents(), ["Student", "Instructor", "Administrator"]);
+
+  await page.goto(`${app.baseUrl}/admin/checks/invoices/new`);
+  const invoiceLines = page.locator("[data-manual-invoice-line]");
+  assert.equal(await invoiceLines.count(), 1);
+  await invoiceLines.first().locator('select[name="courseId"]').selectOption("course_first_aid");
+  await invoiceLines.first().locator('input[name="amount"]').fill("125.50");
+  await page.getByRole("button", { name: /Add course/ }).click();
+  assert.equal(await invoiceLines.count(), 2);
+  await invoiceLines.nth(1).locator('select[name="courseId"]').selectOption("course_maritime_safety");
+  await invoiceLines.nth(1).locator('input[name="amount"]').fill("210");
+  assert.equal(await invoiceLines.first().locator('input[name="amount"]').inputValue(), "125.50");
+  assert.equal(await invoiceLines.nth(1).locator('input[name="amount"]').inputValue(), "210");
   assert.deepEqual(browserErrors, []);
   await context.close();
 });
