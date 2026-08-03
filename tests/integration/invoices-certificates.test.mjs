@@ -159,12 +159,14 @@ test("invoice template, draft, selected columns, calculations, PDF, email, and p
   assert.match(exportResponse.text, /Student|Course/);
 });
 
-test("manual candidate invoice uses selected courses, custom prices, and the existing PDF template", async () => {
+test("manual group invoice combines courses, student lists, and per-student prices in one PDF", async () => {
   const createPage = await app.request("/admin/checks/invoices/new", {
     headers: { cookie: adminCookie }
   });
   assert.equal(createPage.response.status, 200);
-  assert.match(createPage.text, /Candidate full name/);
+  assert.match(createPage.text, /Create a group invoice/);
+  assert.match(createPage.text, /One student full name per line/);
+  assert.match(createPage.text, /Price per student/);
   assert.match(createPage.text, /First Aid/);
   assert.match(createPage.text, /Basic Maritime Safety/);
 
@@ -179,7 +181,8 @@ test("manual candidate invoice uses selected courses, custom prices, and the exi
       dueDate: "2026-08-30",
       currency: "USD",
       courseId: ["course_first_aid", "course_first_aid"],
-      amount: ["125.50", "210"]
+      studentNames: ["Alex One\nAlex Two", "Jordan Bridge"],
+      unitPrice: ["125.50", "210"]
     },
     adminCookie
   );
@@ -192,14 +195,15 @@ test("manual candidate invoice uses selected courses, custom prices, and the exi
   const create = await app.postForm(
     "/admin/checks/invoices/create-manual",
     {
-      recipientName: "Morgan Sea Candidate",
-      recipientEmail: "morgan@example.com",
+      recipientName: "Bluewater Accounts",
+      recipientEmail: "accounts@example.com",
       recipientCompany: "Ocean Test Ltd",
       issueDate: "2026-07-31",
       dueDate: "2026-08-30",
       currency: "USD",
       courseId: ["course_first_aid", "course_maritime_safety"],
-      amount: ["125.50", "210"]
+      studentNames: ["Morgan Sea\nTaylor Deck", "Jordan Bridge"],
+      unitPrice: ["125.50", "210"]
     },
     adminCookie
   );
@@ -209,13 +213,16 @@ test("manual candidate invoice uses selected courses, custom prices, and the exi
   const invoiceId = invoiceLocation.split("/").at(-1);
   const invoice = app.readDb().settings.invoices.find((item) => item.id === invoiceId);
   assert.ok(invoice);
-  assert.equal(invoice.sourceType, "manual_candidate");
-  assert.equal(invoice.recipientName, "Morgan Sea Candidate");
-  assert.equal(invoice.recipientEmail, "morgan@example.com");
+  assert.equal(invoice.sourceType, "manual_group");
+  assert.equal(invoice.recipientName, "Bluewater Accounts");
+  assert.equal(invoice.recipientEmail, "accounts@example.com");
   assert.equal(invoice.recipientCompany, "Ocean Test Ltd");
-  assert.deepEqual(invoice.columns, ["course", "amount"]);
+  assert.deepEqual(invoice.columns, ["course", "student", "quantity", "unitPrice", "amount"]);
   assert.deepEqual(invoice.lines.map((line) => line.courseId), ["course_first_aid", "course_maritime_safety"]);
-  assert.deepEqual(invoice.lines.map((line) => line.amount), [125.5, 210]);
+  assert.deepEqual(invoice.lines.map((line) => line.studentNames), [["Morgan Sea", "Taylor Deck"], ["Jordan Bridge"]]);
+  assert.deepEqual(invoice.lines.map((line) => line.quantity), [2, 1]);
+  assert.deepEqual(invoice.lines.map((line) => line.unitPrice), [125.5, 210]);
+  assert.deepEqual(invoice.lines.map((line) => line.amount), [251, 210]);
   assert.ok(invoice.lines.every((line) => line.studentId === "" && line.assignmentId === ""));
   assert.equal(app.readDb().users.length, usersBefore);
   assert.equal(app.readDb().assignments.length, assignmentsBefore);
@@ -223,10 +230,43 @@ test("manual candidate invoice uses selected courses, custom prices, and the exi
 
   const detail = await app.request(invoiceLocation, { headers: { cookie: adminCookie } });
   assert.equal(detail.response.status, 200);
-  assert.match(detail.text, /Morgan Sea Candidate/);
+  assert.match(detail.text, /Bluewater Accounts/);
+  assert.match(detail.text, /Morgan Sea/);
+  assert.match(detail.text, /Taylor Deck/);
+  assert.match(detail.text, /Jordan Bridge/);
   assert.match(detail.text, /First Aid/);
   assert.match(detail.text, /Basic Maritime Safety/);
-  assert.match(detail.text, /335\.5|335\.50/);
+  assert.match(detail.text, /461\.00|461/);
+
+  const update = await app.postForm(
+    `/admin/checks/invoices/${invoiceId}/update`,
+    {
+      recipientName: "Bluewater Accounts",
+      recipientEmail: "accounts@example.com",
+      recipientCompany: "Ocean Test Ltd",
+      issueDate: "2026-07-31",
+      dueDate: "2026-08-30",
+      currency: "USD",
+      discount: "0",
+      extraCharge: "0",
+      vatRate: "0",
+      status: "draft",
+      [`included_${invoice.lines[0].id}`]: "on",
+      [`studentNames_${invoice.lines[0].id}`]: "Morgan Sea\nTaylor Deck\nCasey Port",
+      [`unitPrice_${invoice.lines[0].id}`]: "130",
+      [`lineDiscount_${invoice.lines[0].id}`]: "0",
+      [`included_${invoice.lines[1].id}`]: "on",
+      [`studentNames_${invoice.lines[1].id}`]: "Jordan Bridge",
+      [`unitPrice_${invoice.lines[1].id}`]: "210",
+      [`lineDiscount_${invoice.lines[1].id}`]: "0"
+    },
+    adminCookie
+  );
+  assert.equal(update.response.status, 303);
+  const updatedInvoice = app.readDb().settings.invoices.find((item) => item.id === invoiceId);
+  assert.deepEqual(updatedInvoice.lines.map((line) => line.quantity), [3, 1]);
+  assert.deepEqual(updatedInvoice.lines.map((line) => line.amount), [390, 210]);
+  assert.deepEqual(updatedInvoice.lines[0].studentNames, ["Morgan Sea", "Taylor Deck", "Casey Port"]);
 
   const pdfResponse = await app.request(`/admin/checks/invoices/${invoiceId}.pdf`, {
     headers: { cookie: adminCookie }

@@ -377,9 +377,14 @@ export async function runRegressionTest() {
     );
     assert(readDb().users.find((item) => item.id === pendingStudent.id)?.courseNotificationsEnabled === true, "Pending student notifications remain disabled after first sign-in");
     const resetStudentPassword = "RegressionResetPassword123!";
-    await expectRedirect(
-      postForm("/admin/users/reset-password", { id: pendingStudent.id, password: resetStudentPassword }, adminCookie),
-      "/admin/users"
+    const resetStudentResponse = await postForm(
+      "/admin/users/reset-password",
+      { id: pendingStudent.id, password: resetStudentPassword },
+      adminCookie
+    );
+    assert(
+      resetStudentResponse.response.status === 303 && resetStudentResponse.response.headers.get("location")?.includes("passwordReset=sent"),
+      "Administrator password reset did not return a clear success state"
     );
     database = readDb();
     const resetNotice = database.notifications.find((note) => note.recipientUserId === pendingStudent.id && note.type === "password_reset");

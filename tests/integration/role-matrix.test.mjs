@@ -254,6 +254,7 @@ test("instructors can manage student records and assignments, but every destruct
   const forbiddenPosts = [
     ["/admin/users/toggle", { id: managedStudent.id }],
     ["/admin/users/delete", { id: managedStudent.id }],
+    ["/admin/users/verify-password", { id: managedStudent.id, password: "DeniedCheck123!" }],
     ["/admin/users/reset-password", { id: managedStudent.id, password: "DeniedReset123!" }],
     ["/admin/users/purge", { id: managedStudent.id, confirmPermanentDelete: "delete" }],
     ["/admin/certificates/issue-manual", { userId: managedStudent.id, courseId: "course_first_aid", issuedAt: "2026-07-20" }],

@@ -270,6 +270,40 @@ test("student administration, assignment controls, certificate lifecycle, export
   const photoPath = `${app.uploadsDir}/${student.photoUrl.slice("/uploads/".length)}`;
   assert.ok(existsSync(photoPath));
 
+  const usersPage = await app.request("/admin/users", { headers: { cookie: adminCookie } });
+  assert.equal(usersPage.response.status, 200);
+  assert.match(usersPage.text, /Access credentials/);
+  assert.match(usersPage.text, /Check password/);
+  assert.match(usersPage.text, /Set and email password/);
+  assert.ok(!usersPage.text.includes(password));
+
+  const wrongPasswordCheck = await app.postForm(
+    "/admin/users/verify-password",
+    { id: student.id, password: "WrongKnownPassword123!" },
+    adminCookie
+  );
+  assert.equal(wrongPasswordCheck.response.status, 303);
+  const wrongPasswordLocation = wrongPasswordCheck.response.headers.get("location");
+  assert.match(wrongPasswordLocation, /credentialCheck=mismatch/);
+  const wrongPasswordResult = await app.request(wrongPasswordLocation, { headers: { cookie: adminCookie } });
+  assert.match(wrongPasswordResult.text, /does not match the account/i);
+
+  const correctPasswordCheck = await app.postForm(
+    "/admin/users/verify-password",
+    { id: student.id, password },
+    adminCookie
+  );
+  assert.equal(correctPasswordCheck.response.status, 303);
+  const correctPasswordLocation = correctPasswordCheck.response.headers.get("location");
+  assert.match(correctPasswordLocation, /credentialCheck=match/);
+  const correctPasswordResult = await app.request(correctPasswordLocation, { headers: { cookie: adminCookie } });
+  assert.match(correctPasswordResult.text, /password matches the account/i);
+  const passwordCheckAudit = [...app.readDb().auditEvents]
+    .reverse()
+    .find((event) => event.action === "/admin/users/verify-password");
+  assert.ok(passwordCheckAudit);
+  assert.ok(!JSON.stringify(passwordCheckAudit.details).includes(password));
+
   const studentCookie = await app.login(email, password);
   await app.cacheCsrf("/dashboard", studentCookie);
   const toggleOff = await app.postForm("/admin/users/toggle", { id: student.id }, adminCookie);

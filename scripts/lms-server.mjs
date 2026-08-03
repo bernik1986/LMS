@@ -85,6 +85,10 @@ const productCss = `
 .admin-user-list { display: grid; gap: 16px; }
 .admin-user-card { display: grid; grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.45fr); gap: 18px; align-items: start; }
 .admin-user-summary { display: grid; gap: 10px; }
+.credential-zone { width: 100%; flex-basis: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); padding: 10px; }
+.credential-zone summary { color: var(--primary-strong); cursor: pointer; font-weight: 850; }
+.credential-zone[open] summary { margin-bottom: 10px; }
+.credential-zone .credential-password { min-width: min(100%, 260px); }
 .admin-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 .admin-edit-grid .field-wide { grid-column: 1 / -1; }
 .course-editor-heading { margin-bottom: 16px; }
@@ -5169,6 +5173,63 @@ function adminApplications(user, searchParams = new URLSearchParams()) {
   );
 }
 
+function adminPasswordControlsScript() {
+  return `<script nonce="{{CSP_NONCE}}">
+    (() => {
+      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%+-_";
+      const generatePassword = () => {
+        const requiredSets = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!@#$%+-_"];
+        const random = new Uint32Array(18);
+        crypto.getRandomValues(random);
+        const characters = requiredSets.map((set, index) => set[random[index] % set.length]);
+        for (let index = requiredSets.length; index < random.length; index += 1) {
+          characters.push(alphabet[random[index] % alphabet.length]);
+        }
+        for (let index = characters.length - 1; index > 0; index -= 1) {
+          const swapIndex = random[index] % (index + 1);
+          [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+        }
+        return characters.join("");
+      };
+      document.querySelectorAll("[data-password-control]").forEach((control) => {
+        const input = control.querySelector("[data-password-input]");
+        const toggle = control.querySelector("[data-password-toggle]");
+        const generate = control.querySelector("[data-password-generate]");
+        const copy = control.querySelector("[data-password-copy]");
+        if (!input) return;
+        toggle?.addEventListener("click", () => {
+          const visible = input.type === "text";
+          input.type = visible ? "password" : "text";
+          toggle.textContent = visible ? "Show" : "Hide";
+          toggle.setAttribute("aria-pressed", String(!visible));
+        });
+        generate?.addEventListener("click", () => {
+          input.value = generatePassword();
+          input.type = "text";
+          if (toggle) {
+            toggle.textContent = "Hide";
+            toggle.setAttribute("aria-pressed", "true");
+          }
+          input.focus();
+          input.select();
+        });
+        copy?.addEventListener("click", async () => {
+          if (!input.value) return;
+          try {
+            await navigator.clipboard.writeText(input.value);
+          } catch {
+            input.select();
+            document.execCommand("copy");
+          }
+          const original = copy.textContent;
+          copy.textContent = "Copied";
+          setTimeout(() => { copy.textContent = original; }, 1200);
+        });
+      });
+    })();
+  </script>`;
+}
+
 function adminStudentCard(student, viewer = null) {
   const assignments = db.assignments.filter((assignment) => assignment.userId === student.id);
   const activeCourses = db.courses.filter((course) => course.status === "active");
@@ -5205,11 +5266,22 @@ function adminStudentCard(student, viewer = null) {
           <input type="hidden" name="id" value="${student.id}" />
           <button class="small-button danger" type="submit">Archive</button>
         </form>
-        <form method="post" action="/admin/users/reset-password" class="inline-form">
-          <input type="hidden" name="id" value="${student.id}" />
-          <input name="password" type="password" minlength="12" autocomplete="new-password" placeholder="New password sent by e-mail" required />
-          <button class="small-button warning" type="submit">Reset password</button>
-        </form>
+        <details class="credential-zone">
+          <summary>Access credentials</summary>
+          <div class="stack">
+            <p><strong>Login:</strong> ${escapeHtml(student.email)}</p>
+            <form method="post" action="/admin/users/verify-password" class="inline-form" data-password-control>
+              <input type="hidden" name="id" value="${student.id}" />
+              <input class="credential-password" name="password" type="password" autocomplete="new-password" placeholder="Known or new password" data-password-input required />
+              <button class="small-button" type="button" data-password-toggle aria-pressed="false">Show</button>
+              <button class="small-button" type="button" data-password-generate>Generate</button>
+              <button class="small-button" type="button" data-password-copy>Copy</button>
+              <button class="small-button primary" type="submit">Check password</button>
+              <button class="small-button warning" type="submit" formaction="/admin/users/reset-password">Set and email password</button>
+            </form>
+            <p class="muted">Current passwords cannot be retrieved. Enter a known password to check it, or set a new one.</p>
+          </div>
+        </details>
         <details class="danger-zone">
           <summary>Delete permanently</summary>
           <form class="stack" method="post" action="/admin/users/purge" onsubmit="return confirm('Permanently delete this student and all related courses, tests, and certificates? This cannot be undone.');">
@@ -5291,6 +5363,20 @@ function adminUsers(user, searchParams = new URLSearchParams(), createForm = {})
     : searchParams.get("purgeError") === "1"
       ? `<div class="notice danger">Permanent deletion was cancelled. Confirm the warning before continuing.</div>`
       : "";
+  const credentialStudent = userById(searchParams.get("studentId"));
+  const credentialCheck = searchParams.get("credentialCheck");
+  const passwordReset = searchParams.get("passwordReset");
+  const credentialNotice = credentialStudent?.role === "student" && credentialCheck === "match"
+    ? `<div class="notice success">The password matches the account for <strong>${escapeHtml(displayUserName(credentialStudent) || credentialStudent.email)}</strong>. These credentials can be used to sign in.</div>`
+    : credentialStudent?.role === "student" && credentialCheck === "mismatch"
+      ? `<div class="notice danger">The entered password does not match the account for <strong>${escapeHtml(displayUserName(credentialStudent) || credentialStudent.email)}</strong>.</div>`
+      : credentialStudent?.role === "student" && passwordReset === "sent"
+        ? `<div class="notice success">A new password was set for <strong>${escapeHtml(displayUserName(credentialStudent) || credentialStudent.email)}</strong> and the login details were sent by e-mail.</div>`
+        : credentialStudent?.role === "student" && passwordReset === "email-failed"
+          ? `<div class="notice danger">A new password was set for <strong>${escapeHtml(displayUserName(credentialStudent) || credentialStudent.email)}</strong>, but the e-mail could not be delivered. Set another password after checking SMTP.</div>`
+          : credentialStudent?.role === "student" && passwordReset === "invalid"
+            ? `<div class="notice danger">The new password must contain at least 12 characters.</div>`
+            : "";
   return adminShell(
     user,
     "Users",
@@ -5300,6 +5386,7 @@ function adminUsers(user, searchParams = new URLSearchParams(), createForm = {})
       </div>
       ${createdNotice}
       ${purgedNotice}
+      ${credentialNotice}
       <form class="inline-form" method="get" action="/admin/users">
         <input name="q" value="${escapeHtml(params.q)}" placeholder="Search students" />
         <button class="small-button primary" type="submit">Search</button>
@@ -5318,7 +5405,7 @@ function adminUsers(user, searchParams = new URLSearchParams(), createForm = {})
         <div class="field"><label>Company - optional</label><input name="company" value="${escapeHtml(createValues.company ?? "")}" /></div>
         <div class="field"><label>Phone</label><input name="phone" value="${escapeHtml(createValues.phone ?? "")}" /></div>
         <div class="field"><label>Student photo for certificate - optional</label><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" /></div>
-        <div class="field"><label>Initial password sent by e-mail</label><input name="password" type="password" minlength="12" autocomplete="new-password" required /></div>
+        <div class="field"><label>Initial password sent by e-mail</label><div class="inline-form" data-password-control><input class="credential-password" name="password" type="password" minlength="12" autocomplete="new-password" data-password-input required /><button class="small-button" type="button" data-password-toggle aria-pressed="false">Show</button><button class="small-button" type="button" data-password-generate>Generate</button><button class="small-button" type="button" data-password-copy>Copy</button></div></div>
         <button class="button" type="submit">Create user</button>
       </form>
       ${isFullAdmin(user) ? `<article class="panel stack">
@@ -5334,6 +5421,7 @@ function adminUsers(user, searchParams = new URLSearchParams(), createForm = {})
         ${pagination.items.map((student) => adminStudentCard(student, user)).join("") || `<article class="panel">No students found.</article>`}
       </div>
       ${paginationControls("/admin/users", params, pagination)}
+      ${adminPasswordControlsScript()}
     </section>`
   );
 }
@@ -5444,6 +5532,7 @@ function adminStudentDetail(admin, student) {
             .join("") || `<tr><td colspan="4"><span class="muted">No notifications.</span></td></tr>`}</tbody>
         </table>
       </article>
+      ${adminPasswordControlsScript()}
     </section>`
   );
 }
@@ -5780,6 +5869,24 @@ function invoiceById(invoiceId) {
   return invoiceItems().find((item) => item.id === invoiceId);
 }
 
+function parseManualInvoiceStudentNames(value) {
+  return String(value ?? "")
+    .split(/\r?\n|;/)
+    .map((name) => name.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function invoiceLineStudentNames(line) {
+  if (Array.isArray(line.studentNames) && line.studentNames.length) {
+    return line.studentNames.map((name) => String(name).trim()).filter(Boolean);
+  }
+  return line.studentName ? [String(line.studentName).trim()] : [];
+}
+
+function invoiceLineStudentNamesText(line) {
+  return invoiceLineStudentNames(line).join("\n");
+}
+
 function checkDateForEvent(assignment, event) {
   if (event === "started") return assignment.startedAt;
   if (event === "completed") return assignment.completedAt;
@@ -5795,6 +5902,8 @@ const invoiceReportColumns = [
   { key: "course", label: "Course" },
   { key: "oldPrice", label: "Old price" },
   { key: "newPrice", label: "New price" },
+  { key: "quantity", label: "Quantity" },
+  { key: "unitPrice", label: "Price per student" },
   { key: "amount", label: "Included price" },
   { key: "assignedAt", label: "Assignment date" },
   { key: "startedAt", label: "Learning started" },
@@ -5818,7 +5927,7 @@ function invoiceColumnLabel(key) {
 function invoiceColumnText(line, key) {
   const currency = new Set(line.currency ? [line.currency] : []);
   const values = {
-    student: line.studentName,
+    student: invoiceLineStudentNamesText(line),
     email: line.studentEmail,
     company: line.company,
     creator: line.creatorName,
@@ -5826,6 +5935,8 @@ function invoiceColumnText(line, key) {
     course: line.courseTitle,
     oldPrice: line.oldPrice || "-",
     newPrice: line.newPrice || "-",
+    quantity: String(Math.max(1, Number(line.quantity) || invoiceLineStudentNames(line).length || 1)),
+    unitPrice: formatReportMoney(Math.max(0, Number(line.unitPrice ?? line.amount) || 0), currency),
     amount: formatReportMoney(Math.max(0, Number(line.amount) || 0), currency),
     assignedAt: formatDate(line.assignedAt),
     startedAt: formatDate(line.startedAt),
@@ -5837,7 +5948,8 @@ function invoiceColumnText(line, key) {
 }
 
 function invoiceColumnCell(line, key) {
-  if (key === "student") return `<a class="link-line" href="/admin/users/${encodeURIComponent(line.studentId)}">${escapeHtml(line.studentName)}</a>`;
+  if (key === "student" && line.studentId) return `<a class="link-line" href="/admin/users/${encodeURIComponent(line.studentId)}">${escapeHtml(line.studentName)}</a>`;
+  if (key === "student") return invoiceLineStudentNames(line).map((name) => escapeHtml(name)).join("<br>");
   return escapeHtml(invoiceColumnText(line, key));
 }
 
@@ -6027,29 +6139,79 @@ function invoicePdfBuffer(invoice) {
     if (paymentRows.length) doc.moveDown(0.45);
     const tableLeft = 34;
     const tableWidth = doc.page.width - tableLeft * 2;
-    const columnWidth = tableWidth / reportColumns.length;
+    const manualGroup = invoice.sourceType === "manual_group";
+    const manualColumnWeights = { course: 1.55, student: 2.15, quantity: 0.65, unitPrice: 1.05, amount: 1.05 };
+    const columnWeights = reportColumns.map((key) => manualGroup ? (manualColumnWeights[key] ?? 1) : 1);
+    const totalColumnWeight = columnWeights.reduce((sum, weight) => sum + weight, 0);
+    let columnOffset = tableLeft;
+    const columnLayout = reportColumns.map((key, index) => {
+      const width = tableWidth * columnWeights[index] / totalColumnWeight;
+      const column = { key, x: columnOffset, width };
+      columnOffset += width;
+      return column;
+    });
     const drawTableHeader = () => {
       const headerY = doc.y;
       doc.fillColor("#06395d").fontSize(7);
-      reportColumns.forEach((key, index) => doc.text(invoiceColumnLabel(key), tableLeft + index * columnWidth, headerY, { width: columnWidth - 4, height: 18 }));
+      columnLayout.forEach((column) => doc.text(invoiceColumnLabel(column.key), column.x, headerY, { width: column.width - 4, height: 18 }));
       doc.moveTo(tableLeft, headerY + 20).lineTo(tableLeft + tableWidth, headerY + 20).stroke("#8aaac1");
       doc.y = headerY + 24;
     };
     drawTableHeader();
-    for (const line of (invoice.lines ?? []).filter((item) => item.included !== false)) {
-      if (doc.y > doc.page.height - 80) {
+    const drawInvoiceRow = (cellTexts) => {
+      doc.fontSize(7);
+      const rowHeight = Math.max(30, ...columnLayout.map((column, index) => doc.heightOfString(cellTexts[index], { width: column.width - 4, lineGap: 1 }) + 10));
+      if (doc.y + rowHeight > doc.page.height - 80) {
         doc.addPage();
         drawTableHeader();
       }
       const y = doc.y + 4;
       doc.fillColor("#0d1b2a").fontSize(7);
-      reportColumns.forEach((key, index) => doc.text(pdfText(invoiceColumnText(line, key)), tableLeft + index * columnWidth, y, { width: columnWidth - 4, height: 26 }));
-      doc.y = y + 30;
+      columnLayout.forEach((column, index) => doc.text(cellTexts[index], column.x, y, { width: column.width - 4, height: rowHeight - 8, lineGap: 1 }));
+      doc.moveTo(tableLeft, y + rowHeight - 4).lineTo(tableLeft + tableWidth, y + rowHeight - 4).stroke("#d5e1e9");
+      doc.y = y + rowHeight;
+    };
+    for (const line of (invoice.lines ?? []).filter((item) => item.included !== false)) {
+      if (!manualGroup) {
+        drawInvoiceRow(columnLayout.map((column) => pdfText(invoiceColumnText(line, column.key))));
+        continue;
+      }
+      const names = invoiceLineStudentNames(line);
+      const studentColumn = columnLayout.find((column) => column.key === "student");
+      let nameIndex = 0;
+      let firstFragment = true;
+      while (nameIndex < names.length) {
+        if (doc.y + 30 > doc.page.height - 80) {
+          doc.addPage();
+          drawTableHeader();
+        }
+        const availableHeight = doc.page.height - 80 - doc.y;
+        const fragmentNames = [];
+        while (nameIndex + fragmentNames.length < names.length) {
+          const candidateNames = [...fragmentNames, names[nameIndex + fragmentNames.length]];
+          const candidateHeight = doc.heightOfString(pdfText(candidateNames.join("\n")), { width: (studentColumn?.width ?? tableWidth) - 4, lineGap: 1 }) + 10;
+          if (fragmentNames.length && candidateHeight > availableHeight) break;
+          fragmentNames.push(names[nameIndex + fragmentNames.length]);
+          if (candidateHeight > availableHeight) break;
+        }
+        const cellTexts = columnLayout.map((column) => {
+          if (column.key === "student") return pdfText(fragmentNames.join("\n"));
+          if (!firstFragment && column.key === "course") return `${pdfText(line.courseTitle)} (continued)`;
+          if (!firstFragment && ["quantity", "unitPrice", "amount"].includes(column.key)) return "";
+          return pdfText(invoiceColumnText(line, column.key));
+        });
+        drawInvoiceRow(cellTexts);
+        nameIndex += fragmentNames.length;
+        firstFragment = false;
+      }
     }
+    if (doc.y > doc.page.height - 175) doc.addPage();
     doc.moveDown();
     doc.fontSize(10).fillColor("#0d1b2a");
+    const totalsLabelX = doc.page.width - 245;
+    const totalsValueX = doc.page.width - 125;
     for (const [label, amount] of [["Subtotal", totals.subtotal], ["Discount", -(totals.lineDiscount + totals.invoiceDiscount)], ["Extra charge", totals.extraCharge], [`VAT ${invoice.vatRate || 0}%`, totals.vatAmount], ["TOTAL", totals.total]]) {
-      doc.text(label, 350, doc.y, { width: 120 }).text(formatReportMoney(amount, new Set(invoice.currency ? [invoice.currency] : [])), 470, doc.y - 12, { width: 82, align: "right" });
+      doc.text(label, totalsLabelX, doc.y, { width: 120 }).text(formatReportMoney(amount, new Set(invoice.currency ? [invoice.currency] : [])), totalsValueX, doc.y - 12, { width: 90, align: "right" });
     }
     doc.moveDown(0.6);
     doc.fillColor("#0d1b2a").fontSize(9).text(`Sum in words: ${invoiceAmountInWords(totals.total, invoice.currency || "USD")}`);
@@ -6084,10 +6246,16 @@ function manualInvoiceCourseOptions(selectedCourseId = "") {
     .join("");
 }
 
-function manualInvoiceCourseRow(courseId = "", amount = "") {
+function manualInvoiceCourseRow(courseId = "", studentNames = "", unitPrice = "") {
+  const students = parseManualInvoiceStudentNames(studentNames);
+  const price = Number(unitPrice);
+  const total = Number.isFinite(price) && price >= 0 ? price * students.length : 0;
   return `<tr data-manual-invoice-line>
     <td><select name="courseId" required><option value="">Select a course</option>${manualInvoiceCourseOptions(courseId)}</select></td>
-    <td><input name="amount" type="number" min="0" step="0.01" value="${escapeHtml(amount)}" placeholder="0.00" required /></td>
+    <td><textarea name="studentNames" rows="4" maxlength="4000" placeholder="One student full name per line" required>${escapeHtml(studentNames)}</textarea></td>
+    <td><strong data-student-count>${students.length}</strong></td>
+    <td><input name="unitPrice" type="number" min="0" step="0.01" value="${escapeHtml(unitPrice)}" placeholder="0.00" required /></td>
+    <td><strong data-line-total>${total.toFixed(2)}</strong></td>
     <td><button class="small-button danger" type="button" data-remove-invoice-line aria-label="Remove course">Remove</button></td>
   </tr>`;
 }
@@ -6095,21 +6263,22 @@ function manualInvoiceCourseRow(courseId = "", amount = "") {
 function adminManualInvoice(user, state = {}) {
   const values = state.values ?? {};
   const courseIds = Array.isArray(values.courseIds) && values.courseIds.length ? values.courseIds : [""];
-  const amounts = Array.isArray(values.amounts) ? values.amounts : [];
-  const rows = courseIds.slice(0, 50).map((courseId, index) => manualInvoiceCourseRow(courseId, amounts[index] ?? "")).join("");
+  const studentNames = Array.isArray(values.studentNames) ? values.studentNames : [];
+  const unitPrices = Array.isArray(values.unitPrices) ? values.unitPrices : (Array.isArray(values.amounts) ? values.amounts : []);
+  const rows = courseIds.slice(0, 50).map((courseId, index) => manualInvoiceCourseRow(courseId, studentNames[index] ?? "", unitPrices[index] ?? "")).join("");
   const issueDate = values.issueDate ?? dateInputValue();
   const dueDate = values.dueDate ?? dateInputValue(new Date(Date.now() + 30 * 86400000));
   return adminShell(user, "New manual invoice", `<section class="section stack">
     <div class="toolbar">
-      <div><span class="eyebrow">Manual invoice</span><h1>Create an invoice for a candidate</h1><p class="lead">The candidate is stored only in the invoice. No LMS account, assignment, or training progress is created.</p></div>
+      <div><span class="eyebrow">Manual invoice</span><h1>Create a group invoice</h1><p class="lead">Add courses, enter the students attending each course, and create one combined invoice. No LMS accounts or assignments are created.</p></div>
       <div class="table-actions"><a class="small-button" href="/admin/checks">Invoice history</a><a class="small-button" href="/admin/checks/template">Edit template</a></div>
     </div>
     ${state.error ? `<div class="notice danger">${escapeHtml(state.error)}</div>` : ""}
     <form id="manual-invoice-form" class="stack" method="post" action="/admin/checks/invoices/create-manual">
       <article class="panel stack">
-        <h2>Candidate and invoice details</h2>
+        <h2>Recipient and invoice details</h2>
         <div class="admin-edit-grid">
-          <div class="field field-wide"><label for="manualInvoiceCandidate">Candidate full name</label><input id="manualInvoiceCandidate" name="recipientName" maxlength="240" value="${escapeHtml(values.recipientName ?? "")}" required /></div>
+          <div class="field field-wide"><label for="manualInvoiceCandidate">Recipient / contact</label><input id="manualInvoiceCandidate" name="recipientName" maxlength="240" value="${escapeHtml(values.recipientName ?? "")}" /></div>
           <div class="field"><label for="manualInvoiceEmail">Email</label><input id="manualInvoiceEmail" name="recipientEmail" type="email" maxlength="254" value="${escapeHtml(values.recipientEmail ?? "")}" /></div>
           <div class="field"><label for="manualInvoiceCompany">Company</label><input id="manualInvoiceCompany" name="recipientCompany" maxlength="200" value="${escapeHtml(values.recipientCompany ?? "")}" /></div>
           <div class="field"><label for="manualInvoiceIssueDate">Issue date</label><input id="manualInvoiceIssueDate" name="issueDate" type="date" value="${escapeHtml(issueDate)}" required /></div>
@@ -6118,8 +6287,8 @@ function adminManualInvoice(user, state = {}) {
         </div>
       </article>
       <article class="panel stack">
-        <div class="section-heading"><div><h2>Courses and prices</h2><p class="muted">Choose each course and set the amount that must appear in the invoice.</p></div><button class="small-button primary" type="button" data-add-invoice-line>+ Add course</button></div>
-        <div class="table-scroll"><table class="table"><thead><tr><th>Course</th><th>Price</th><th></th></tr></thead><tbody data-manual-invoice-lines>${rows || manualInvoiceCourseRow()}</tbody></table></div>
+        <div class="section-heading"><div><h2>Courses, students, and prices</h2><p class="muted">Enter one student full name per line. The course amount is the number of students multiplied by the price per student.</p></div><button class="small-button primary" type="button" data-add-invoice-line>+ Add course</button></div>
+        <div class="table-scroll"><table class="table"><thead><tr><th>Course</th><th>Students</th><th>Qty</th><th>Price per student</th><th>Amount</th><th></th></tr></thead><tbody data-manual-invoice-lines>${rows || manualInvoiceCourseRow()}</tbody></table></div>
         <template data-manual-invoice-template>${manualInvoiceCourseRow()}</template>
       </article>
       <div class="table-actions"><button class="button" type="submit">Create invoice and PDF</button></div>
@@ -6134,10 +6303,20 @@ function adminManualInvoice(user, state = {}) {
         const currency = form.querySelector('[name="currency"]');
         const applyCourseDefaults = (row) => {
           const select = row.querySelector('[name="courseId"]');
-          const amount = row.querySelector('[name="amount"]');
+          const unitPrice = row.querySelector('[name="unitPrice"]');
           const option = select.selectedOptions[0];
-          amount.value = option?.dataset.price || "";
+          unitPrice.value = option?.dataset.price || "";
           if (option?.dataset.currency && (!currency.value || currency.value === "USD")) currency.value = option.dataset.currency;
+          updateRow(row);
+        };
+        const updateRow = (row) => {
+          const names = row.querySelector('[name="studentNames"]').value
+            .split(/\\r?\\n|;/)
+            .map((name) => name.trim())
+            .filter(Boolean);
+          const unitPrice = Number(row.querySelector('[name="unitPrice"]').value) || 0;
+          row.querySelector("[data-student-count]").textContent = String(names.length);
+          row.querySelector("[data-line-total]").textContent = (names.length * Math.max(0, unitPrice)).toFixed(2);
         };
         addButton.addEventListener("click", () => {
           lines.insertAdjacentHTML("beforeend", template.innerHTML.trim());
@@ -6146,6 +6325,9 @@ function adminManualInvoice(user, state = {}) {
         lines.addEventListener("change", (event) => {
           if (event.target.matches('[name="courseId"]')) applyCourseDefaults(event.target.closest("tr"));
         });
+        lines.addEventListener("input", (event) => {
+          if (event.target.matches('[name="studentNames"], [name="unitPrice"]')) updateRow(event.target.closest("tr"));
+        });
         lines.addEventListener("click", (event) => {
           const removeButton = event.target.closest("[data-remove-invoice-line]");
           if (!removeButton) return;
@@ -6153,9 +6335,12 @@ function adminManualInvoice(user, state = {}) {
           if (lines.children.length > 1) row.remove();
           else {
             row.querySelector('[name="courseId"]').value = "";
-            row.querySelector('[name="amount"]').value = "";
+            row.querySelector('[name="studentNames"]').value = "";
+            row.querySelector('[name="unitPrice"]').value = "";
+            updateRow(row);
           }
         });
+        lines.querySelectorAll("[data-manual-invoice-line]").forEach(updateRow);
       })();
     </script>
   </section>`);
@@ -6198,21 +6383,42 @@ function adminChecks(user, searchParams = new URLSearchParams()) {
   </section>`);
 }
 
-function adminInvoiceDetail(user, invoice) {
+function adminInvoiceDetail(user, invoice, state = {}) {
   const totals = invoiceTotals(invoice);
   const manualCandidate = invoice.sourceType === "manual_candidate";
-  const lineRows = (invoice.lines ?? []).map((line) => `<tr>
-    <td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td>
-    <td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td>
-    <td>${escapeHtml(line.courseTitle)}${manualCandidate ? "" : `<br><span class="muted">${formatDate(line.assignedAt)}</span>`}</td>
-    <td>${manualCandidate ? `<span class="muted">Manual invoice item</span>` : `${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "No certificate")}</span>`}</td>
-    <td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td>
-    <td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td>
-  </tr>`).join("");
+  const manualGroup = invoice.sourceType === "manual_group";
+  const lineRows = (invoice.lines ?? []).map((line) => {
+    if (manualGroup) {
+      const names = invoiceLineStudentNamesText(line);
+      const quantity = invoiceLineStudentNames(line).length;
+      return `<tr data-manual-group-line>
+        <td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td>
+        <td>${escapeHtml(line.courseTitle)}</td>
+        <td><textarea name="studentNames_${line.id}" rows="4" maxlength="4000" required>${escapeHtml(names)}</textarea></td>
+        <td><strong data-manual-group-quantity>${quantity}</strong></td>
+        <td><input name="unitPrice_${line.id}" type="number" min="0" step="0.01" value="${Number(line.unitPrice) || 0}" required /></td>
+        <td><strong data-manual-group-amount>${(quantity * Math.max(0, Number(line.unitPrice) || 0)).toFixed(2)}</strong></td>
+        <td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td>
+      </tr>`;
+    }
+    return `<tr>
+      <td><input type="checkbox" name="included_${line.id}" ${line.included !== false ? "checked" : ""} /></td>
+      <td>${escapeHtml(line.studentName)}<br><span class="muted">${escapeHtml(line.company || line.studentEmail)}</span></td>
+      <td>${escapeHtml(line.courseTitle)}${manualCandidate ? "" : `<br><span class="muted">${formatDate(line.assignedAt)}</span>`}</td>
+      <td>${manualCandidate ? `<span class="muted">Manual invoice item</span>` : `${badge(line.status)}<br><span class="muted">${escapeHtml(line.certificateNumber || "No certificate")}</span>`}</td>
+      <td><input name="amount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.amount) || 0}" /></td>
+      <td><input name="lineDiscount_${line.id}" type="number" min="0" step="0.01" value="${Number(line.discount) || 0}" /></td>
+    </tr>`;
+  }).join("");
+  const itemHeaders = manualGroup
+    ? "<th>Include</th><th>Course</th><th>Students</th><th>Qty</th><th>Price per student</th><th>Amount</th><th>Discount</th>"
+    : `<th>Include</th><th>${manualCandidate ? "Candidate" : "Student"}</th><th>Course</th><th>${manualCandidate ? "Type" : "Status / certificate"}</th><th>Price</th><th>Discount</th>`;
   return adminShell(user, `Invoice ${invoice.number}`, `<section class="section stack"><div class="toolbar"><div><span class="eyebrow">Invoice</span><h1>${escapeHtml(invoice.number)}</h1><p class="lead">Edit items before sending. Changes are saved in the history.</p></div><div class="table-actions"><a class="small-button" href="/admin/checks">Back to list</a><a class="small-button" href="/admin/checks/template">Template</a><a class="small-button warning" href="${invoice.pdfUrl || `/admin/checks/invoices/${invoice.id}.pdf`}">PDF and print</a></div></div>
-    <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Recipient</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Company</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>Email</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Issue date</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Currency</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Invoice discount</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Extra charge</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Status</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Payment date</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div>${invoiceReportColumnSelector(invoiceSelectedColumns(invoice.columns ?? []))}<div class="field"><label>Comment</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
-      <article class="panel stack"><h2>Items</h2><table class="table"><thead><tr><th>Include</th><th>${manualCandidate ? "Candidate" : "Student"}</th><th>Course</th><th>${manualCandidate ? "Type" : "Status / certificate"}</th><th>Price</th><th>Discount</th></tr></thead><tbody>${lineRows}</tbody></table></article>
+    ${state.error ? `<div class="notice danger">${escapeHtml(state.error)}</div>` : ""}
+    <form method="post" action="/admin/checks/invoices/${invoice.id}/update" class="stack"><article class="panel"><div class="admin-edit-grid"><div class="field"><label>Recipient</label><input name="recipientName" value="${escapeHtml(invoice.recipientName || "")}" /></div><div class="field"><label>Company</label><input name="recipientCompany" value="${escapeHtml(invoice.recipientCompany || "")}" /></div><div class="field"><label>Email</label><input name="recipientEmail" type="email" value="${escapeHtml(invoice.recipientEmail || "")}" /></div><div class="field"><label>Issue date</label><input name="issueDate" type="date" value="${escapeHtml(String(invoice.issueDate || "").slice(0, 10))}" /></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="${escapeHtml(String(invoice.dueDate || "").slice(0, 10))}" /></div><div class="field"><label>Currency</label><input name="currency" value="${escapeHtml(invoice.currency || "")}" placeholder="USD" /></div><div class="field"><label>Invoice discount</label><input name="discount" type="number" min="0" step="0.01" value="${Number(invoice.discount) || 0}" /></div><div class="field"><label>Extra charge</label><input name="extraCharge" type="number" min="0" step="0.01" value="${Number(invoice.extraCharge) || 0}" /></div><div class="field"><label>VAT, %</label><input name="vatRate" type="number" min="0" step="0.01" value="${Number(invoice.vatRate) || 0}" /></div><div class="field"><label>Status</label><select name="status">${invoiceStatusOptions(invoice.status)}</select></div><div class="field"><label>Payment date</label><input name="paidAt" type="date" value="${escapeHtml(String(invoice.paidAt || "").slice(0, 10))}" /></div></div>${manualGroup ? "" : invoiceReportColumnSelector(invoiceSelectedColumns(invoice.columns ?? []))}<div class="field"><label>Comment</label><textarea name="comment">${escapeHtml(invoice.comment || "")}</textarea></div></article>
+      <article class="panel stack"><h2>Items</h2><div class="table-scroll"><table class="table"><thead><tr>${itemHeaders}</tr></thead><tbody>${lineRows}</tbody></table></div></article>
       <article class="panel"><div class="grid four"><article class="metric"><span class="muted">Subtotal</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.subtotal, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Discounts</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.lineDiscount + totals.invoiceDiscount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">VAT</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.vatAmount, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article><article class="metric"><span class="muted">Total</span><strong class="metric-value">${escapeHtml(formatReportMoney(totals.total, new Set(invoice.currency ? [invoice.currency] : [])))}</strong></article></div></article><div class="table-actions"><button class="button" type="submit">Save and update PDF</button><button class="small-button warning" type="submit" name="sendEmail" value="1">Send by email</button></div></form>
+    ${manualGroup ? `<script nonce="{{CSP_NONCE}}">(() => { const update = (row) => { const names = row.querySelector("textarea").value.split(/\\r?\\n|;/).map((name) => name.trim()).filter(Boolean); const price = Math.max(0, Number(row.querySelector('[name^="unitPrice_"]').value) || 0); row.querySelector("[data-manual-group-quantity]").textContent = String(names.length); row.querySelector("[data-manual-group-amount]").textContent = (names.length * price).toFixed(2); }; document.querySelectorAll("[data-manual-group-line]").forEach((row) => { row.addEventListener("input", () => update(row)); update(row); }); })();</script>` : ""}
     <article class="panel stack"><h2>Change history</h2><table class="table"><thead><tr><th>Date</th><th>User</th><th>Event</th></tr></thead><tbody>${(invoice.changes ?? []).slice().reverse().map((change) => `<tr><td>${new Date(change.at).toLocaleString("en-GB")}</td><td>${escapeHtml(change.byName || "")}</td><td>${escapeHtml(change.action)}</td></tr>`).join("") || `<tr><td colspan="3"><span class="muted">No changes yet.</span></td></tr>`}</tbody></table></article></section>`);
 }
 
@@ -7339,13 +7545,15 @@ function auditAdminAction(admin, pathname, form) {
 function auditActionLabel(action = "") {
   const exact = {
     "/admin/users/create": "New user registered",
+    "/admin/users/verify-password": "Student password checked",
+    "/admin/users/reset-password": "Student password reset",
     "/admin/users/purge": "User permanently deleted",
     "/admin/assignments/create": "Course assigned to student",
     "/admin/course-prices/update": "Course prices updated",
     "/admin/courses/create": "New course created",
     "/admin/homepage/courses": "Home page course showcase updated",
     "/admin/homepage/footer": "Home page footer updated",
-    "/admin/checks/invoices/create-manual": "Manual candidate invoice created",
+    "/admin/checks/invoices/create-manual": "Manual group invoice created",
     "/admin/notifications/send-pending": "Email queue sent",
     "/admin/notifications/templates": "Email templates updated",
     "/admin/notifications/admin-alerts": "Administrator email alerts updated",
@@ -8223,19 +8431,21 @@ async function handlePost(request, response, pathname, user) {
         dueDate: form.get("dueDate")?.toString().trim() ?? "",
         currency: form.get("currency")?.toString().trim() ?? "USD",
         courseIds: form.getAll("courseId").map((value) => value.toString().trim()),
-        amounts: form.getAll("amount").map((value) => value.toString().trim())
+        studentNames: form.getAll("studentNames").map((value) => value.toString()),
+        unitPrices: form.getAll("unitPrice").map((value) => value.toString().trim())
       };
       const issueDate = parseDateOnlyInput(values.issueDate);
       const dueDate = parseDateOnlyInput(values.dueDate);
       const selectedCourses = [];
       const seenCourseIds = new Set();
+      let totalStudents = 0;
       let error = "";
-      if (!values.recipientName) {
-        error = "Enter the candidate's full name.";
+      if (!values.recipientName && !values.recipientCompany) {
+        error = "Enter an invoice recipient or company.";
       } else if (values.recipientName.length > 240) {
-        error = "The candidate's full name must not exceed 240 characters.";
+        error = "The recipient name must not exceed 240 characters.";
       } else if (values.recipientEmail && !isValidEmailAddress(values.recipientEmail)) {
-        error = "Enter a valid candidate email address.";
+        error = "Enter a valid recipient email address.";
       } else if (values.recipientCompany.length > 200) {
         error = "The company name must not exceed 200 characters.";
       } else if (!issueDate || !dueDate) {
@@ -8244,15 +8454,16 @@ async function handlePost(request, response, pathname, user) {
         error = "The due date cannot be earlier than the issue date.";
       } else if (!values.currency || values.currency.length > 12) {
         error = "Enter a currency code of up to 12 characters.";
-      } else if (!values.courseIds.length || values.courseIds.length > 50 || values.courseIds.length !== values.amounts.length) {
+      } else if (!values.courseIds.length || values.courseIds.length > 50 || values.courseIds.length !== values.studentNames.length || values.courseIds.length !== values.unitPrices.length) {
         error = "Add between 1 and 50 course items.";
       }
       if (!error) {
         for (let index = 0; index < values.courseIds.length; index += 1) {
           const courseId = values.courseIds[index];
           const course = courseById(courseId);
-          const amountText = values.amounts[index];
-          const amount = Number(amountText);
+          const studentNames = parseManualInvoiceStudentNames(values.studentNames[index]);
+          const unitPriceText = values.unitPrices[index];
+          const unitPrice = Number(unitPriceText);
           if (!course) {
             error = "Select an existing course in every row.";
             break;
@@ -8261,12 +8472,29 @@ async function handlePost(request, response, pathname, user) {
             error = `Course "${course.title}" was selected more than once.`;
             break;
           }
-          if (!amountText || !Number.isFinite(amount) || amount < 0) {
-            error = `Enter a valid price for "${course.title}".`;
+          if (!studentNames.length) {
+            error = `Enter at least one student for "${course.title}".`;
+            break;
+          }
+          if (studentNames.length > 50 || studentNames.some((name) => name.length > 120)) {
+            error = `Use no more than 50 students per course and 120 characters per full name for "${course.title}".`;
+            break;
+          }
+          if (new Set(studentNames.map((name) => name.toLowerCase())).size !== studentNames.length) {
+            error = `The student list for "${course.title}" contains a duplicate name.`;
+            break;
+          }
+          if (!unitPriceText || !Number.isFinite(unitPrice) || unitPrice < 0) {
+            error = `Enter a valid price per student for "${course.title}".`;
+            break;
+          }
+          totalStudents += studentNames.length;
+          if (totalStudents > 500) {
+            error = "A manual invoice can contain no more than 500 students.";
             break;
           }
           seenCourseIds.add(course.id);
-          selectedCourses.push({ course, amount });
+          selectedCourses.push({ course, studentNames, unitPrice });
         }
       }
       if (error || !selectedCourses.length) {
@@ -8275,21 +8503,25 @@ async function handlePost(request, response, pathname, user) {
       }
 
       const currency = invoiceTemplateValue(values.currency, "USD", 12).toUpperCase() || "USD";
-      const lines = selectedCourses.map(({ course, amount }) => ({
-        id: id("invoice_line"), assignmentId: "", studentId: "",
-        studentName: values.recipientName, studentEmail: values.recipientEmail, company: values.recipientCompany,
-        creatorName: displayUserName(admin) || admin.email, registeredAt: "",
-        courseId: course.id, courseTitle: course.title,
-        oldPrice: course.oldPrice || "", newPrice: course.newPrice || "",
-        assignedAt: "", startedAt: "", completedAt: "", status: "manual", certificateNumber: "",
-        baseAmount: amount, discount: 0, amount, currency, included: true
-      }));
+      const lines = selectedCourses.map(({ course, studentNames, unitPrice }) => {
+        const quantity = studentNames.length;
+        const amount = Math.round(unitPrice * quantity * 100) / 100;
+        return {
+          id: id("invoice_line"), assignmentId: "", studentId: "",
+          studentName: studentNames.join(", "), studentNames, studentEmail: "", company: values.recipientCompany,
+          creatorName: displayUserName(admin) || admin.email, registeredAt: "",
+          courseId: course.id, courseTitle: course.title,
+          oldPrice: course.oldPrice || "", newPrice: course.newPrice || "",
+          assignedAt: "", startedAt: "", completedAt: "", status: "manual", certificateNumber: "",
+          quantity, unitPrice, baseAmount: amount, discount: 0, amount, currency, included: true
+        };
+      });
       const invoice = {
-        id: id("invoice"), number: invoiceNumber(), createdAt: now(), createdById: admin.id, sourceType: "manual_candidate",
+        id: id("invoice"), number: invoiceNumber(), createdAt: now(), createdById: admin.id, sourceType: "manual_group",
         recipientName: values.recipientName, recipientEmail: values.recipientEmail, recipientCompany: values.recipientCompany,
-        period: { from: "", to: "", event: "manual" }, columns: ["course", "amount"], lines, currency,
+        period: { from: "", to: "", event: "manual" }, columns: ["course", "student", "quantity", "unitPrice", "amount"], lines, currency,
         discount: 0, extraCharge: 0, vatRate: 0, comment: "", issueDate, dueDate, status: "draft", paidAt: "", pdfUrl: "", shareToken: opaqueToken(),
-        changes: [{ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: `Manual candidate invoice created with ${lines.length} course item(s)` }]
+        changes: [{ at: now(), byId: admin.id, byName: displayUserName(admin) || admin.email, action: `Manual group invoice created with ${lines.length} course(s) and ${totalStudents} student(s)` }]
       };
       invoiceItems().push(invoice);
       await persistInvoicePdf(invoice);
@@ -8321,15 +8553,61 @@ async function handlePost(request, response, pathname, user) {
     if (invoiceUpdateMatch) {
       const invoice = invoiceById(invoiceUpdateMatch[1]);
       if (!invoice) return redirect(response, "/admin/checks");
+      const manualGroup = invoice.sourceType === "manual_group";
+      const manualGroupUpdates = new Map();
+      if (manualGroup) {
+        let totalStudents = 0;
+        for (const line of invoice.lines ?? []) {
+          const studentNames = parseManualInvoiceStudentNames(form.get(`studentNames_${line.id}`));
+          const unitPriceText = form.get(`unitPrice_${line.id}`)?.toString().trim() ?? "";
+          const unitPrice = Number(unitPriceText);
+          if (!studentNames.length) {
+            send(response, adminInvoiceDetail(admin, invoice, { error: `Enter at least one student for "${line.courseTitle}".` }), 400);
+            return;
+          }
+          if (studentNames.length > 50 || studentNames.some((name) => name.length > 120)) {
+            send(response, adminInvoiceDetail(admin, invoice, { error: `Use no more than 50 students per course and 120 characters per full name for "${line.courseTitle}".` }), 400);
+            return;
+          }
+          if (new Set(studentNames.map((name) => name.toLowerCase())).size !== studentNames.length) {
+            send(response, adminInvoiceDetail(admin, invoice, { error: `The student list for "${line.courseTitle}" contains a duplicate name.` }), 400);
+            return;
+          }
+          if (!unitPriceText || !Number.isFinite(unitPrice) || unitPrice < 0) {
+            send(response, adminInvoiceDetail(admin, invoice, { error: `Enter a valid price per student for "${line.courseTitle}".` }), 400);
+            return;
+          }
+          totalStudents += studentNames.length;
+          if (totalStudents > 500) {
+            send(response, adminInvoiceDetail(admin, invoice, { error: "A manual invoice can contain no more than 500 students." }), 400);
+            return;
+          }
+          manualGroupUpdates.set(line.id, { studentNames, unitPrice });
+        }
+      }
       for (const key of ["recipientName", "recipientCompany", "recipientEmail", "issueDate", "dueDate", "currency", "comment", "paidAt"]) invoice[key] = form.get(key)?.toString().trim() ?? "";
-      invoice.columns = invoiceSelectedColumns(form.getAll("column").map((value) => value.toString()));
+      invoice.columns = manualGroup
+        ? ["course", "student", "quantity", "unitPrice", "amount"]
+        : invoiceSelectedColumns(form.getAll("column").map((value) => value.toString()));
       for (const key of ["discount", "extraCharge", "vatRate"]) invoice[key] = Math.max(0, Number(form.get(key)) || 0);
       const requestedStatus = form.get("status")?.toString() ?? "draft";
       invoice.status = invoiceStatuses.includes(requestedStatus) ? requestedStatus : "draft";
       for (const line of invoice.lines ?? []) {
         line.included = form.get(`included_${line.id}`) === "on";
-        line.amount = Math.max(0, Number(form.get(`amount_${line.id}`)) || 0);
         line.discount = Math.max(0, Number(form.get(`lineDiscount_${line.id}`)) || 0);
+        if (manualGroup) {
+          const update = manualGroupUpdates.get(line.id);
+          line.studentNames = update.studentNames;
+          line.studentName = update.studentNames.join(", ");
+          line.quantity = update.studentNames.length;
+          line.unitPrice = update.unitPrice;
+          line.amount = Math.round(line.quantity * line.unitPrice * 100) / 100;
+          line.baseAmount = line.amount;
+          line.company = invoice.recipientCompany;
+          line.currency = invoice.currency;
+        } else {
+          line.amount = Math.max(0, Number(form.get(`amount_${line.id}`)) || 0);
+        }
         if (invoice.sourceType === "manual_candidate") {
           line.studentName = invoice.recipientName;
           line.studentEmail = invoice.recipientEmail;
@@ -8682,17 +8960,39 @@ async function handlePost(request, response, pathname, user) {
       return;
     }
 
+    if (pathname === "/admin/users/verify-password") {
+      const student = db.users.find((item) => item.id === form.get("id") && item.role === "student");
+      const suppliedPassword = form.get("password")?.toString() ?? "";
+      if (!student) {
+        saveDb(db);
+        redirect(response, "/admin/users");
+        return;
+      }
+      const credentialCheck = suppliedPassword && verifyPassword(suppliedPassword, student.passwordHash) ? "match" : "mismatch";
+      saveDb(db);
+      redirect(response, `/admin/users?studentId=${encodeURIComponent(student.id)}&credentialCheck=${credentialCheck}#user-${encodeURIComponent(student.id)}`);
+      return;
+    }
+
     if (pathname === "/admin/users/reset-password") {
       const student = db.users.find((item) => item.id === form.get("id") && item.role === "student");
       const temporaryPassword = form.get("password")?.toString() ?? "";
-      if (student && temporaryPassword.length >= 12) {
-        student.passwordHash = hashPassword(temporaryPassword);
-        student.mustChangePassword = false;
-        invalidateUserSessions(student);
-        await sendResetPasswordCredentials(student, temporaryPassword);
+      if (!student) {
+        saveDb(db);
+        redirect(response, "/admin/users");
+        return;
       }
+      if (temporaryPassword.length < 12) {
+        saveDb(db);
+        redirect(response, `/admin/users?studentId=${encodeURIComponent(student.id)}&passwordReset=invalid#user-${encodeURIComponent(student.id)}`);
+        return;
+      }
+      student.passwordHash = hashPassword(temporaryPassword);
+      student.mustChangePassword = false;
+      invalidateUserSessions(student);
+      const delivered = await sendResetPasswordCredentials(student, temporaryPassword);
       saveDb(db);
-      redirect(response, "/admin/users");
+      redirect(response, `/admin/users?studentId=${encodeURIComponent(student.id)}&passwordReset=${delivered ? "sent" : "email-failed"}#user-${encodeURIComponent(student.id)}`);
       return;
     }
 
