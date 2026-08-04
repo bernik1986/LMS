@@ -421,6 +421,8 @@ test("manual certificate issue creates a unique five-year certificate, A4 PDF, v
   });
   assert.equal(pdf.response.status, 200);
   assert.equal(pdf.response.headers.get("content-type"), "application/pdf");
+  assert.equal(pdf.response.headers.get("content-disposition"), 'attachment; filename="Seafarer_Alex_FAS.pdf"');
+  assert.ok(!pdf.response.headers.get("content-disposition").includes(certificate.certificateNumber));
   assert.ok(pdf.body.length > 2000);
   const document = await PDFDocument.load(pdf.body);
   assert.equal(document.getPageCount(), 1);
@@ -442,7 +444,7 @@ test("manual certificate issue creates a unique five-year certificate, A4 PDF, v
     headers: { cookie: adminCookie }
   });
   assert.equal(printablePdf.response.status, 200);
-  assert.match(printablePdf.response.headers.get("content-disposition"), /^inline;/);
+  assert.equal(printablePdf.response.headers.get("content-disposition"), 'inline; filename="Seafarer_Alex_FAS.pdf"');
   assert.equal(printablePdf.response.headers.get("content-type"), "application/pdf");
   const certificatePage = await app.request(`/certificates/${certificate.id}`, {
     headers: { cookie: adminCookie }
@@ -462,7 +464,8 @@ test("manual certificate issue creates a unique five-year certificate, A4 PDF, v
     "Certificate email was not delivered to the SMTP fixture."
   );
   const certificateEmail = app.smtp.messages.find((message) => decodedSmtpText(message).includes(certificate.certificateNumber));
-  assert.ok(smtpAttachmentNames(certificateEmail).some((name) => name.toLowerCase().endsWith(".pdf")));
+  assert.ok(smtpAttachmentNames(certificateEmail).includes("Seafarer_Alex_FAS.pdf"));
+  assert.ok(!smtpAttachmentNames(certificateEmail).some((name) => name.includes(certificate.certificateNumber)));
   assert.ok(readFileSync(`${app.uploadsDir}/${app.readDb().users.find((user) => user.id === "user_student").photoUrl.replace("/uploads/", "")}`).length > 100);
 });
 
@@ -542,6 +545,7 @@ test("direct certificate issue persists a candidate without creating a user or a
   });
   assert.equal(pdf.response.status, 200);
   assert.equal(pdf.response.headers.get("content-type"), "application/pdf");
+  assert.equal(pdf.response.headers.get("content-disposition"), 'attachment; filename="Navigator_Morgan_FAS.pdf"');
   assert.ok(pdf.body.length > 2000);
   const document = await PDFDocument.load(pdf.body);
   assert.equal(document.getPageCount(), 1);

@@ -2221,9 +2221,48 @@ function certificatePdfBuffer(certificate) {
   });
 }
 
+function certificateFileNamePart(value, fallback) {
+  const cyrillicToLatin = {
+    а: "a", б: "b", в: "v", г: "h", ґ: "g", д: "d", е: "e", є: "ye", ё: "yo", ж: "zh", з: "z",
+    и: "i", і: "i", ї: "yi", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r",
+    с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y",
+    ь: "", э: "e", ю: "yu", я: "ya"
+  };
+  const transliterated = [...String(value ?? "")].map((character) => {
+    const replacement = cyrillicToLatin[character.toLowerCase()];
+    if (replacement === undefined) return character;
+    return character === character.toUpperCase()
+      ? `${replacement.slice(0, 1).toUpperCase()}${replacement.slice(1)}`
+      : replacement;
+  }).join("");
+  const safe = transliterated
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return safe || fallback;
+}
+
+function certificateCourseAbbreviation(courseTitle) {
+  const words = certificateFileNamePart(courseTitle, "COURSE").split("_").filter(Boolean);
+  const stopWords = new Set(["a", "an", "and", "at", "by", "for", "from", "in", "of", "on", "the", "to", "with"]);
+  const knownAcronyms = new Set(["ARPA", "CES", "ECDIS", "GMDSS", "IMO", "ISO", "MARPOL", "SOLAS", "STCW", "VR"]);
+  const meaningfulWords = words.filter((word) => !stopWords.has(word.toLowerCase()));
+  if (!meaningfulWords.length) return "COURSE";
+  if (meaningfulWords.length === 1) return meaningfulWords[0].toUpperCase().slice(0, 18);
+  return meaningfulWords.map((word, index) => {
+    if (/^\d+$/.test(word)) return word;
+    if (index === 0 && knownAcronyms.has(word.toUpperCase())) return word;
+    return word[0];
+  }).join("").toUpperCase().slice(0, 18) || "COURSE";
+}
+
 function certificatePdfFileName(certificate) {
-  const number = String(certificate.certificateNumber ?? "certificate").replace(/[^a-zA-Z0-9_-]+/g, "-");
-  return `${number || "certificate"}.pdf`;
+  const lastName = certificateFileNamePart(certificate.snapshotLastName, "Surname");
+  const firstName = certificateFileNamePart(certificate.snapshotFirstName, "Name");
+  const course = certificateCourseAbbreviation(certificate.snapshotCourseTitle);
+  return `${lastName}_${firstName}_${course}.pdf`;
 }
 
 function textFromFormFile(file) {
