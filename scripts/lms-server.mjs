@@ -6228,13 +6228,16 @@ function invoicePdfBuffer(invoice) {
         const fragmentNames = [];
         while (nameIndex + fragmentNames.length < names.length) {
           const candidateNames = [...fragmentNames, names[nameIndex + fragmentNames.length]];
-          const candidateHeight = doc.heightOfString(pdfText(candidateNames.join("\n")), { width: (studentColumn?.width ?? tableWidth) - 4, lineGap: 1 }) + 10;
+          const candidateHeight = doc.heightOfString(pdfText(candidateNames.join(", ")), { width: (studentColumn?.width ?? tableWidth) - 4, lineGap: 1 }) + 10;
           if (fragmentNames.length && candidateHeight > availableHeight) break;
           fragmentNames.push(names[nameIndex + fragmentNames.length]);
           if (candidateHeight > availableHeight) break;
         }
         const cellTexts = columnLayout.map((column) => {
-          if (column.key === "student") return pdfText(fragmentNames.join("\n"));
+          if (column.key === "student") {
+            const continuesOnNextPage = nameIndex + fragmentNames.length < names.length;
+            return pdfText(`${fragmentNames.join(", ")}${continuesOnNextPage ? "," : ""}`);
+          }
           if (!firstFragment && column.key === "course") return `${pdfText(line.courseTitle)} (continued)`;
           if (!firstFragment && ["quantity", "unitPrice", "amount"].includes(column.key)) return "";
           return pdfText(invoiceColumnText(line, column.key));

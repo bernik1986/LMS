@@ -220,6 +220,7 @@ test("manual group invoice combines courses, student lists, and per-student pric
   assert.deepEqual(invoice.columns, ["course", "student", "quantity", "unitPrice", "amount"]);
   assert.deepEqual(invoice.lines.map((line) => line.courseId), ["course_first_aid", "course_maritime_safety"]);
   assert.deepEqual(invoice.lines.map((line) => line.studentNames), [["Morgan Sea", "Taylor Deck"], ["Jordan Bridge"]]);
+  assert.deepEqual(invoice.lines.map((line) => line.studentName), ["Morgan Sea, Taylor Deck", "Jordan Bridge"]);
   assert.deepEqual(invoice.lines.map((line) => line.quantity), [2, 1]);
   assert.deepEqual(invoice.lines.map((line) => line.unitPrice), [125.5, 210]);
   assert.deepEqual(invoice.lines.map((line) => line.amount), [251, 210]);
