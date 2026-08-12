@@ -72,6 +72,12 @@ let queuedNotificationDeliveryTimer = null;
 
 const baseCss = readFileSync(cssPath, "utf8");
 const productCss = `
+@font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Regular.ttf") format("truetype"); font-style: normal; font-weight: 400; font-display: block; }
+@font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Regular.ttf") format("truetype"); font-style: normal; font-weight: 500; font-display: block; }
+@font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Bold.ttf") format("truetype"); font-style: normal; font-weight: 600; font-display: block; }
+@font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Bold.ttf") format("truetype"); font-style: normal; font-weight: 700; font-display: block; }
+@font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Bold.ttf") format("truetype"); font-style: normal; font-weight: 800; font-display: block; }
+@font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Bold.ttf") format("truetype"); font-style: normal; font-weight: 900; font-display: block; }
 .auth-note { display: grid; gap: 6px; border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 14px; border-radius: var(--radius); }
 .notice { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--primary-strong); padding: 14px; }
 .danger { color: #a23b3b; }
@@ -156,14 +162,16 @@ const productCss = `
 .certificate-template textarea { min-height: 300px; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: 13px; }
 .certificate-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .certificate-preview-frame { max-width: 100%; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); padding: 12px; }
+.certificate-pdf-preview-frame { height: min(82vh, 980px); min-height: 620px; overflow: hidden; padding: 0; background: #525659; }
+.certificate-pdf-preview { display: block; width: 100%; height: 100%; border: 0; background: #525659; }
 .certificate.certificate-preview { width: 900px; margin: 0; box-shadow: none; transform: scale(0.72); transform-origin: top left; }
 .certificate.visual-certificate-page { max-width: 1123px; border: 0; padding: 0; background: transparent; box-shadow: var(--shadow); }
 .certificate.visual-certificate-page.certificate-preview { width: 1123px; transform: scale(0.62); transform-origin: top left; }
-.visual-certificate { position: relative; width: 100%; aspect-ratio: 1123 / 794; overflow: hidden; background: #fff; background-size: cover; background-position: center; border: 1px solid var(--line); }
+.visual-certificate { position: relative; width: 100%; aspect-ratio: 1123 / 794; container-type: inline-size; overflow: hidden; background: #fff; background-size: cover; background-position: center; outline: 1px solid var(--line); outline-offset: -1px; font-family: "Marine Certificate Sans", Arial, sans-serif; font-synthesis: none; }
 .visual-certificate.no-background { background: linear-gradient(135deg, #f8fbfd, #e7f1f8); }
 .visual-certificate.has-pdf-background { background: #fff; }
 .visual-cert-pdf-bg { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: 0; }
-.visual-cert-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 18px; white-space: pre-wrap; line-height: 1.12; overflow: hidden; }
+.visual-cert-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.1; overflow: hidden; }
 .visual-cert-field.is-stamp { z-index: 5; }
 .visual-cert-field.align-left { justify-content: flex-start; text-align: left; }
 .visual-cert-field.align-center { justify-content: center; text-align: center; }
@@ -171,13 +179,13 @@ const productCss = `
 .visual-cert-field .certificate-photo, .visual-cert-field img, .visual-cert-field svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; margin: 0; border: 0; border-radius: 0; }
 .certificate-designer-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 16px; align-items: start; }
 .certificate-designer-stage { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); padding: 12px; }
-.certificate-designer-canvas { position: relative; width: min(100%, 1123px); aspect-ratio: 1123 / 794; overflow: hidden; background: #fff; background-size: cover; background-position: center; border: 1px solid var(--line); box-shadow: var(--shadow); touch-action: none; }
+.certificate-designer-canvas { position: relative; width: min(100%, 1123px); aspect-ratio: 1123 / 794; container-type: inline-size; overflow: hidden; background: #fff; background-size: cover; background-position: center; outline: 1px solid var(--line); outline-offset: -1px; box-shadow: var(--shadow); touch-action: none; font-family: "Marine Certificate Sans", Arial, sans-serif; font-synthesis: none; }
 .certificate-designer-canvas.no-background { background: linear-gradient(135deg, #f8fbfd, #dcecf6); }
 .certificate-designer-canvas.has-pdf-background { background: #fff; }
 .certificate-designer-pdf-bg { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: 0; }
-.certificate-designer-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 18px; border: 1px dashed rgba(11, 79, 122, 0.6); background: rgba(255, 255, 255, 0.58); cursor: move; white-space: pre-wrap; line-height: 1.1; overflow: hidden; user-select: none; }
+.certificate-designer-field { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; border: 0; outline: 1px dashed rgba(11, 79, 122, 0.6); outline-offset: -1px; background: rgba(255, 255, 255, 0.58); cursor: move; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.1; overflow: hidden; user-select: none; }
 .certificate-designer-field.is-stamp { z-index: 5; }
-.certificate-designer-field.is-selected { border: 2px solid var(--accent); background: rgba(255, 255, 255, 0.78); box-shadow: 0 0 0 3px rgba(14, 159, 189, 0.18); }
+.certificate-designer-field.is-selected { outline: 2px solid var(--accent); background: rgba(255, 255, 255, 0.78); box-shadow: 0 0 0 3px rgba(14, 159, 189, 0.18); }
 .certificate-designer-field.is-selected::after { content: ""; position: absolute; right: -7px; bottom: -7px; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: var(--accent); box-shadow: 0 1px 3px rgba(13, 27, 42, 0.3); pointer-events: none; }
 .certificate-designer-field.is-hidden { opacity: 0.35; }
 .certificate-designer-field.align-left { justify-content: flex-start; text-align: left; }
@@ -188,6 +196,7 @@ const productCss = `
 .certificate-designer-help { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); padding: 10px; color: var(--muted); font-size: 13px; }
 .certificate-designer-delete-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #e4a2a2; border-radius: var(--radius); background: #fff5f5; padding: 10px; color: #8d3030; font-size: 13px; font-weight: 800; }
 @media (max-width: 980px) { .certificate-designer-layout { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .certificate-pdf-preview-frame { min-height: 480px; } }
 .certificate-event-detail { max-width: 300px; color: var(--muted); font-size: 13px; }
 .template-token-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .template-token-list code { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-muted); color: var(--primary-strong); padding: 5px 7px; }
@@ -1146,13 +1155,26 @@ function restoreCertificateDesignerBackup(course, input) {
   return designer;
 }
 
-function certificateDesignerFieldStyle(field) {
+function certificateDesignerDisplayWidth(designer = {}) {
+  return Number(designer.pageHeight) > Number(designer.pageWidth) ? 794 : 1123;
+}
+
+function certificateDesignerLogicalWidth(designer = {}) {
+  if (designer.backgroundType === "pdf" && Number(designer.pageWidth) > 0) {
+    return Number(designer.pageWidth) * (96 / 72);
+  }
+  return certificateDesignerDisplayWidth(designer);
+}
+
+function certificateDesignerFieldStyle(field, logicalWidth = 1123) {
+  const responsiveFontSize = (Number(field.fontSize) / logicalWidth) * 100;
   return [
     `left:${field.x}%`,
     `top:${field.y}%`,
     `width:${field.width}%`,
     `height:${field.height}%`,
     `font-size:${field.fontSize}px`,
+    `font-size:${responsiveFontSize}cqw`,
     `color:${field.color}`,
     `font-weight:${field.fontWeight}`,
     `text-align:${field.align}`
@@ -1179,9 +1201,10 @@ function certificateDesignerToken(field, designer = {}) {
 }
 
 function certificateDesignerCanvasStyle(designer, includeBackground = false) {
+  const displayWidth = certificateDesignerDisplayWidth(designer);
   const styles = [
     `aspect-ratio:${designer.pageWidth}/${designer.pageHeight}`,
-    `max-width:${designer.pageHeight > designer.pageWidth ? 794 : 1123}px`
+    `max-width:${displayWidth}px`
   ];
   if (designer.pageHeight > designer.pageWidth) styles.push("margin-inline:auto");
   if (includeBackground && designer.backgroundUrl && designer.backgroundType !== "pdf") {
@@ -1199,7 +1222,7 @@ function certificateTemplateFromDesigner(designerInput) {
     ? `<iframe class="visual-cert-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#zoom=page-width&toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
     : "";
   const fields = certificateDesignerFieldsForRender(designer.fields.filter((field) => field.visible))
-    .map((field) => `<div class="${certificateDesignerFieldClasses(field, "visual-cert-field")}" style="${certificateDesignerFieldStyle(field)}">${certificateDesignerToken(field, designer)}</div>`)
+    .map((field) => `<div class="${certificateDesignerFieldClasses(field, "visual-cert-field")}" data-certificate-font-size="${field.fontSize}" style="${certificateDesignerFieldStyle(field, certificateDesignerLogicalWidth(designer))}">${certificateDesignerToken(field, designer)}</div>`)
     .join("");
   return `<div class="visual-certificate${hasBackground ? "" : " no-background"}${hasPdfBackground ? " has-pdf-background" : ""}" data-visual-certificate="1" data-background-type="${hasPdfBackground ? "pdf" : "image"}" data-background-url="${escapeHtml(designer.backgroundUrl)}" data-page-width="${designer.pageWidth}" data-page-height="${designer.pageHeight}"${canvasStyle}>${backgroundLayer}${fields}</div>`;
 }
@@ -1308,14 +1331,15 @@ function saveCertificateDesignerOverlayImage(course, file, index = 0) {
   return { ok: true, imageUrl: `/uploads/${fileName}` };
 }
 
-function certificateDesignerEditorFieldHtml(field) {
+function certificateDesignerEditorFieldHtml(field, logicalWidth) {
   const editorText = field.editableText ? field.text || field.label : field.label;
   const editorContent = field.isCustomImage && field.imageUrl ? `<img src="${escapeHtml(field.imageUrl)}" alt="${escapeHtml(field.label)}" />` : escapeHtml(editorText);
-  return `<div class="${certificateDesignerFieldClasses(field, "certificate-designer-field")} ${field.visible ? "" : "is-hidden"}" data-designer-field="${escapeHtml(field.key)}" style="${certificateDesignerFieldStyle(field)}">${editorContent}</div>`;
+  return `<div class="${certificateDesignerFieldClasses(field, "certificate-designer-field")} ${field.visible ? "" : "is-hidden"}" data-designer-field="${escapeHtml(field.key)}" style="${certificateDesignerFieldStyle(field, logicalWidth)}">${editorContent}</div>`;
 }
 
-function certificateDesignerEditorHtml(course, previewCertificate) {
+function certificateDesignerEditorHtml(course) {
   const designer = certificateDesignerForCourse(course);
+  const logicalWidth = certificateDesignerLogicalWidth(designer);
   const designerJson = escapeHtml(JSON.stringify(designer));
   const hasPdfBackground = Boolean(designer.backgroundUrl) && designer.backgroundType === "pdf";
   const canvasStyle = certificateDesignerCanvasStyle(designer, true);
@@ -1323,7 +1347,6 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
     ? `<iframe class="certificate-designer-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#zoom=page-width&toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`
     : "";
   const fieldOptions = designer.fields.map((field) => `<option value="${escapeHtml(field.key)}">${escapeHtml(field.label)}</option>`).join("");
-  const previewClass = certificateShellClass(previewCertificate.certificateHtml, "certificate-preview");
   return `<article class="panel certificate-template">
         <h2>Visual certificate designer</h2>
         <p class="muted">Upload a certificate PDF or image, add text or image elements, drag fields on the canvas, tune size and color, then save.</p>
@@ -1333,7 +1356,7 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
             <div class="certificate-designer-stage">
               <div class="certificate-designer-canvas ${designer.backgroundUrl ? "" : "no-background"}${hasPdfBackground ? " has-pdf-background" : ""}" data-designer-canvas${canvasStyle}>
                 ${backgroundLayer}
-                ${certificateDesignerFieldsForRender(designer.fields).map(certificateDesignerEditorFieldHtml).join("")}
+                ${certificateDesignerFieldsForRender(designer.fields).map((field) => certificateDesignerEditorFieldHtml(field, logicalWidth)).join("")}
               </div>
             </div>
             <div class="certificate-designer-tools">
@@ -1373,10 +1396,12 @@ function certificateDesignerEditorHtml(course, previewCertificate) {
           </div>
         </form>
         <div class="certificate-preview-actions">
-          <a class="small-button primary" href="/admin/courses/${course.id}/certificate-template/preview">Open preview</a>
+          <a class="small-button primary" href="/admin/courses/${course.id}/certificate-template/preview">Open exact preview</a>
+          <a class="small-button" href="/admin/courses/${course.id}/certificate-template/preview.pdf" target="_blank" rel="noopener">Open preview PDF</a>
         </div>
-        <div class="certificate-preview-frame">
-          <div class="${previewClass}">${previewCertificate.certificateHtml}</div>
+        <p class="muted">This exact preview is generated by the same PDF renderer used for student downloads, printing and email attachments.</p>
+        <div class="certificate-preview-frame certificate-pdf-preview-frame">
+          <iframe class="certificate-pdf-preview" src="/admin/courses/${course.id}/certificate-template/preview.pdf#toolbar=0&navpanes=0&view=FitH" title="Exact certificate PDF preview"></iframe>
         </div>
         ${certificateDesignerScript()}
       </article>`;
@@ -1416,6 +1441,10 @@ function certificateDesignerScript() {
   const localImageUrls = new Map();
   const byKey = (key) => designer.fields.find((field) => field.key === key);
   const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
+  const logicalWidth = designer.backgroundType === "pdf" && Number(designer.pageWidth) > 0
+    ? Number(designer.pageWidth) * (96 / 72)
+    : (Number(designer.pageHeight) > Number(designer.pageWidth) ? 794 : 1123);
+  const responsiveFontSize = (size) => ((Number(size) || 12) / logicalWidth) * 100 + "cqw";
   function selected() { return byKey(selectedKey) || designer.fields[0]; }
   function fieldNode(key) { return canvas.querySelector('[data-designer-field="' + CSS.escape(key) + '"]'); }
   function isCustomTextField(field) { return Boolean(field?.isCustomText); }
@@ -1438,10 +1467,10 @@ function certificateDesignerScript() {
     if (node.querySelector("img, svg")) return;
     const maximum = Number(field.fontSize) || 12;
     let size = maximum;
-    node.style.fontSize = size + "px";
+    node.style.fontSize = responsiveFontSize(size);
     while ((node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight) && size > 6) {
       size = Math.max(6, size - 0.5);
-      node.style.fontSize = size + "px";
+      node.style.fontSize = responsiveFontSize(size);
     }
   }
   function applyField(field) {
@@ -1451,7 +1480,7 @@ function certificateDesignerScript() {
     node.style.top = field.y + "%";
     node.style.width = field.width + "%";
     node.style.height = field.height + "%";
-    node.style.fontSize = field.fontSize + "px";
+    node.style.fontSize = responsiveFontSize(field.fontSize);
     node.style.color = field.color;
     node.style.fontWeight = field.fontWeight;
     node.style.textAlign = field.align;
@@ -1821,6 +1850,20 @@ function certificateFontPaths() {
   return { regular, bold: bold || regular };
 }
 
+function certificateFontMetrics(fontPath, fallback = { ascent: 0.718, descent: 0.207 }) {
+  try {
+    if (!fontPath) return fallback;
+    const parsedFont = fontkit.create(readFileSync(fontPath));
+    const unitsPerEm = Number(parsedFont.unitsPerEm) || 1000;
+    return {
+      ascent: Math.max(0, Number(parsedFont.ascent) / unitsPerEm),
+      descent: Math.max(0, Math.abs(Number(parsedFont.descent)) / unitsPerEm)
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 async function pdfLibCertificateFonts(pdfDoc) {
   const { regular: regularFontPath, bold: boldFontPath } = certificateFontPaths();
   try {
@@ -1830,20 +1873,43 @@ async function pdfLibCertificateFonts(pdfDoc) {
       const boldFont = boldFontPath
         ? await pdfDoc.embedFont(readFileSync(boldFontPath), { subset: true })
         : regularFont;
-      return { regularFont, boldFont };
+      return {
+        regularFont,
+        boldFont,
+        regularMetrics: certificateFontMetrics(regularFontPath),
+        boldMetrics: certificateFontMetrics(boldFontPath || regularFontPath)
+      };
     }
   } catch {
     // Fall back to built-in fonts if local font embedding is unavailable.
   }
   return {
     regularFont: await pdfDoc.embedFont(StandardFonts.Helvetica),
-    boldFont: await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+    boldFont: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+    regularMetrics: { ascent: 0.718, descent: 0.207 },
+    boldMetrics: { ascent: 0.718, descent: 0.207 }
   };
 }
 
-async function embedPdfLibRasterImage(pdfDoc, imagePath) {
-  if (!imagePath || !existsSync(imagePath)) return null;
-  const bytes = readFileSync(imagePath);
+function renderedRasterImageBytes(imageSource = "") {
+  const imagePath = uploadPathForRenderedUrl(imageSource) || (existsSync(imageSource) ? imageSource : "");
+  if (imagePath) return { bytes: readFileSync(imagePath), extension: extname(imagePath).toLowerCase() };
+  const dataMatch = String(imageSource).match(/^data:image\/[^;,]+(?:;charset=[^;,]+)?(;base64)?,(.*)$/s);
+  if (!dataMatch) return null;
+  try {
+    return {
+      bytes: dataMatch[1] ? Buffer.from(dataMatch[2], "base64") : Buffer.from(decodeURIComponent(dataMatch[2])),
+      extension: ""
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function embedPdfLibRasterImage(pdfDoc, imageSource) {
+  const source = renderedRasterImageBytes(imageSource);
+  if (!source?.bytes?.length) return null;
+  const { bytes, extension } = source;
   try {
     // Browsers apply EXIF orientation automatically; normalizing through sharp
     // keeps downloaded and emailed PDFs visually identical to the HTML preview.
@@ -1851,9 +1917,8 @@ async function embedPdfLibRasterImage(pdfDoc, imagePath) {
     return await pdfDoc.embedPng(normalizedPng);
   } catch {
     try {
-      const ext = extname(imagePath).toLowerCase();
-      if (ext === ".png") return await pdfDoc.embedPng(bytes);
-      if ([".jpg", ".jpeg"].includes(ext)) return await pdfDoc.embedJpg(bytes);
+      if (extension === ".png") return await pdfDoc.embedPng(bytes);
+      if ([".jpg", ".jpeg"].includes(extension)) return await pdfDoc.embedJpg(bytes);
     } catch {
       // Return null below when neither normalization nor direct embedding works.
     }
@@ -1945,14 +2010,16 @@ function wrapPdfText(font, value, size, maxWidth) {
 }
 
 function fitPdfText(font, value, requestedSize, width, height) {
-  let size = Math.max(4, Number(requestedSize) || 12);
+  const minimumSize = 6 * (72 / 96);
+  const sizeStep = 0.5 * (72 / 96);
+  let size = Math.max(minimumSize, Number(requestedSize) || 12);
   let lines = [];
-  let leading = size * 1.12;
+  let leading = size * 1.1;
   while (true) {
     lines = wrapPdfText(font, value, size, width);
-    leading = size * 1.12;
-    if (lines.length * leading <= height + 0.25 || size <= 4) break;
-    size = Math.max(4, size - 0.25);
+    leading = size * 1.1;
+    if (lines.length * leading <= height + 0.25 || size <= minimumSize) break;
+    size = Math.max(minimumSize, size - sizeStep);
   }
   if (lines.length * leading > height + 0.25) {
     const maxLines = Math.max(1, Math.floor(height / leading));
@@ -1964,7 +2031,7 @@ function fitPdfText(font, value, requestedSize, width, height) {
 function drawPdfLibText(page, text, options) {
   let value = normalizePdfFieldText(text);
   if (!value) return;
-  const { x, y, width, height, font, fontSize, color, align } = options;
+  const { x, y, width, height, font, fontSize, color, align, fontMetrics } = options;
   let layout;
   try {
     layout = fitPdfText(font, value, fontSize, width, height);
@@ -1976,7 +2043,12 @@ function drawPdfLibText(page, text, options) {
   const lineWidths = lines.map((line) => font.widthOfTextAtSize(line || " ", size));
   const blockHeight = lines.length * leading;
   const blockBottom = y + Math.max(0, (height - blockHeight) / 2);
-  const baselineOffset = size * 0.22;
+  const ascent = size * (fontMetrics?.ascent ?? 0.718);
+  const descent = size * (fontMetrics?.descent ?? 0.207);
+  const fullFontHeight = ascent + descent;
+  // Match a browser line box centered by flexbox: center the font metrics inside
+  // the 1.1 line-height box, then place the PDF baseline above the descender.
+  const baselineOffset = (leading - fullFontHeight) / 2 + descent;
   for (const [index, line] of lines.entries()) {
     const textWidth = lineWidths[index];
     const drawX = align === "right" ? x + Math.max(0, width - textWidth) : align === "left" ? x : x + Math.max(0, (width - textWidth) / 2);
@@ -2002,12 +2074,13 @@ async function drawQrOnPdfLib(pdfDoc, page, value, x, y, size) {
 }
 
 async function drawVisualCertificateFieldsOnPdfLib(pdfDoc, page, certificate, html) {
-  const { regularFont, boldFont } = await pdfLibCertificateFonts(pdfDoc);
+  const { regularFont, boldFont, regularMetrics, boldMetrics } = await pdfLibCertificateFonts(pdfDoc);
   const { x: pageX, y: pageY, width: pageWidth, height: pageHeight } = page.getCropBox();
-  const canvas = renderedCertificateCanvasSize(html);
-  const fontScale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+  // Certificate editor font sizes are CSS pixels. PDF coordinates are points,
+  // therefore the browser-compatible conversion is always 96 px = 72 pt.
+  const cssPixelsToPdfPoints = 72 / 96;
 
-  const fieldPattern = /<div class="visual-cert-field[^"]*" style="([^"]+)">([\s\S]*?)<\/div>/g;
+  const fieldPattern = /<div class="visual-cert-field[^"]*"[^>]*\bstyle="([^"]+)"[^>]*>([\s\S]*?)<\/div>/g;
   for (const match of html.matchAll(fieldPattern)) {
     const style = match[1];
     const content = match[2];
@@ -2016,15 +2089,16 @@ async function drawVisualCertificateFieldsOnPdfLib(pdfDoc, page, certificate, ht
     const width = (styleNumber(style, "width", 10) / 100) * pageWidth;
     const height = (styleNumber(style, "height", 5) / 100) * pageHeight;
     const y = pageY + pageHeight - top - height;
-    const fontSize = styleNumber(style, "font-size", 12) * fontScale;
+    const fontSize = styleNumber(style, "font-size", 12) * cssPixelsToPdfPoints;
     const color = pdfLibColor(styleText(style, "color", "#0d1b2a"));
     const align = styleText(style, "text-align", "center");
     const fontWeight = Number(styleText(style, "font-weight", "500"));
     const font = fontWeight >= 600 ? boldFont : regularFont;
+    const fontMetrics = fontWeight >= 600 ? boldMetrics : regularMetrics;
 
     const imageMatch = content.match(/<img[^>]+src="([^"]+)"/i);
     if (imageMatch) {
-      const image = await embedPdfLibRasterImage(pdfDoc, uploadPathForRenderedUrl(imageMatch[1]));
+      const image = await embedPdfLibRasterImage(pdfDoc, imageMatch[1]);
       drawPdfLibImageFit(page, image, x, y, width, height);
       continue;
     }
@@ -2035,7 +2109,7 @@ async function drawVisualCertificateFieldsOnPdfLib(pdfDoc, page, certificate, ht
       continue;
     }
 
-    drawPdfLibText(page, decodeHtmlText(content), { x, y, width, height, font, fontSize, color, align });
+    drawPdfLibText(page, decodeHtmlText(content), { x, y, width, height, font, fontSize, color, align, fontMetrics });
   }
 }
 
@@ -2079,8 +2153,7 @@ function visualCertificatePdfKitBuffer(certificate, html) {
 
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
-    const canvas = renderedCertificateCanvasSize(html);
-    const fontScale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+    const cssPixelsToPdfPoints = 72 / 96;
     const backgroundUrl = renderedCertificateBackgroundUrl(html);
     const backgroundPath = renderedCertificateBackgroundType(html, backgroundUrl) === "image" ? uploadPathForRenderedUrl(backgroundUrl) : "";
     if (backgroundPath && existsSync(backgroundPath)) {
@@ -2093,7 +2166,7 @@ function visualCertificatePdfKitBuffer(certificate, html) {
       doc.rect(0, 0, pageWidth, pageHeight).fill("#ffffff");
     }
 
-    const fieldPattern = /<div class="visual-cert-field[^"]*" style="([^"]+)">([\s\S]*?)<\/div>/g;
+    const fieldPattern = /<div class="visual-cert-field[^"]*"[^>]*\bstyle="([^"]+)"[^>]*>([\s\S]*?)<\/div>/g;
     for (const match of html.matchAll(fieldPattern)) {
       const style = match[1];
       const content = match[2];
@@ -2101,7 +2174,7 @@ function visualCertificatePdfKitBuffer(certificate, html) {
       const y = (styleNumber(style, "top") / 100) * pageHeight;
       const width = (styleNumber(style, "width", 10) / 100) * pageWidth;
       const height = (styleNumber(style, "height", 5) / 100) * pageHeight;
-      const fontSize = styleNumber(style, "font-size", 12) * fontScale;
+      const fontSize = styleNumber(style, "font-size", 12) * cssPixelsToPdfPoints;
       const color = styleText(style, "color", "#0d1b2a");
       const align = styleText(style, "text-align", "center");
       const fontWeight = Number(styleText(style, "font-weight", "500"));
@@ -3268,6 +3341,7 @@ function contentTypeFor(fileName) {
   if (ext === ".webp") return "image/webp";
   if (ext === ".gif") return "image/gif";
   if (ext === ".pdf") return "application/pdf";
+  if (ext === ".ttf") return "font/ttf";
   if (ext === ".mp4" || ext === ".m4v") return "video/mp4";
   if (ext === ".mov") return "video/quicktime";
   if (ext === ".webm") return "video/webm";
@@ -4797,6 +4871,24 @@ function page(title, user, body) {
             requestAnimationFrame(() => window.scrollTo({ top: Number(savedScroll) || 0, behavior: "instant" }));
           }
         }
+
+        const fitCertificateField = (field) => {
+          if (field.querySelector("img, svg")) return;
+          const certificate = field.closest("[data-visual-certificate]");
+          const logicalWidth = certificate?.dataset.backgroundType === "pdf" && Number(certificate?.dataset.pageWidth) > 0
+            ? Number(certificate.dataset.pageWidth) * (96 / 72)
+            : (Number(certificate?.dataset.pageHeight) > Number(certificate?.dataset.pageWidth) ? 794 : 1123);
+          const maximum = Number(field.dataset.certificateFontSize) || Number.parseFloat(field.style.fontSize) || 12;
+          let size = maximum;
+          field.style.fontSize = (size / logicalWidth) * 100 + "cqw";
+          while ((field.scrollWidth > field.clientWidth || field.scrollHeight > field.clientHeight) && size > 6) {
+            size = Math.max(6, size - 0.5);
+            field.style.fontSize = (size / logicalWidth) * 100 + "cqw";
+          }
+        };
+        const fitCertificateFields = () => document.querySelectorAll(".visual-cert-field").forEach(fitCertificateField);
+        if (document.fonts?.ready) document.fonts.ready.then(() => requestAnimationFrame(fitCertificateFields));
+        else requestAnimationFrame(fitCertificateFields);
       })();
     </script>
   </body>
@@ -6908,8 +7000,7 @@ function adminFiles(user, searchParams = new URLSearchParams()) {
 }
 
 function adminCourseDetail(user, course) {
-  const previewCertificate = sampleCertificateForCourse(course);
-  const certificateDesignerBlock = certificateDesignerEditorHtml(course, previewCertificate);
+  const certificateDesignerBlock = certificateDesignerEditorHtml(course);
   const deletionUsage = courseDeletionUsage(course.id);
   const deletionDetails = [
     deletionUsage.assignments ? `assignments: ${deletionUsage.assignments}` : "",
@@ -6968,11 +7059,9 @@ function adminCourseDetail(user, course) {
           <button class="button" type="submit">Save template</button>
         </form>
         <div class="certificate-preview-actions">
-          <a class="small-button primary" href="/admin/courses/${course.id}/certificate-template/preview">Open preview</a>
-          <span class="muted">The sample shows the current HTML template with test student data.</span>
-        </div>
-        <div class="certificate-preview-frame">
-          <div class="${certificateShellClass(previewCertificate.certificateHtml, "certificate-preview")}">${previewCertificate.certificateHtml}</div>
+          <a class="small-button primary" href="/admin/courses/${course.id}/certificate-template/preview">Open exact preview</a>
+          <a class="small-button" href="/admin/courses/${course.id}/certificate-template/preview.pdf" target="_blank" rel="noopener">Open preview PDF</a>
+          <span class="muted">The preview uses the same renderer as downloaded and emailed certificates.</span>
         </div>
       </article>
       <article class="panel stack">
@@ -7079,7 +7168,6 @@ function adminCourseDetail(user, course) {
 }
 
 function adminCertificateTemplatePreview(user, course) {
-  const previewCertificate = sampleCertificateForCourse(course);
   return adminShell(
     user,
     "Certificate preview",
@@ -7091,10 +7179,25 @@ function adminCertificateTemplatePreview(user, course) {
       </div>
       <div class="actions">
         <a class="button secondary" href="/admin/courses/${course.id}">Back to course</a>
+        <a class="button" href="/admin/courses/${course.id}/certificate-template/preview.pdf" target="_blank" rel="noopener">Open PDF</a>
       </div>
-      <div class="${certificateShellClass(previewCertificate.certificateHtml)}">${previewCertificate.certificateHtml}</div>
+      <div class="certificate-preview-frame certificate-pdf-preview-frame">
+        <iframe class="certificate-pdf-preview" src="/admin/courses/${course.id}/certificate-template/preview.pdf#toolbar=0&navpanes=0&view=FitH" title="Exact certificate PDF preview"></iframe>
+      </div>
     </section>`
   );
+}
+
+async function sendCertificateTemplatePdfPreview(response, course) {
+  const previewCertificate = sampleCertificateForCourse(course);
+  const pdf = await certificatePdfBuffer(previewCertificate);
+  response.writeHead(200, {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `inline; filename="certificate-preview-${course.id}.pdf"`,
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, no-store"
+  });
+  response.end(pdf);
 }
 
 function adminCertificateActions(certificate, returnTo = "/admin/certificates") {
@@ -9959,6 +10062,12 @@ async function handleRequest(request, response) {
     if (testPreviewMatch) {
       const course = courseById(testPreviewMatch[1]);
       return send(response, course ? adminTestPreview(admin, course) : adminShell(admin, "Not found", `<div class="notice">Course not found.</div>`), course ? 200 : 404);
+    }
+    const certificateTemplatePdfPreviewMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/certificate-template\/preview\.pdf$/);
+    if (certificateTemplatePdfPreviewMatch) {
+      const course = courseById(certificateTemplatePdfPreviewMatch[1]);
+      if (!course) return send(response, adminShell(admin, "Not found", `<div class="notice">Course not found.</div>`), 404);
+      return sendCertificateTemplatePdfPreview(response, course);
     }
     const certificateTemplatePreviewMatch = pathname.match(/^\/admin\/courses\/([^/]+)\/certificate-template\/preview$/);
     if (certificateTemplatePreviewMatch) {

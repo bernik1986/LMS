@@ -180,9 +180,11 @@ function mergeFields(fields, overrides) {
 }
 
 function templateHtmlFromDesigner(designer) {
+  const displayWidth = designer.pageHeight > designer.pageWidth ? 794 : 1123;
+  const logicalWidth = designer.pageWidth * (96 / 72);
   const style = [
     `aspect-ratio:${designer.pageWidth}/${designer.pageHeight}`,
-    `max-width:${designer.pageHeight > designer.pageWidth ? 794 : 1123}px`,
+    `max-width:${displayWidth}px`,
     ...(designer.pageHeight > designer.pageWidth ? ["margin-inline:auto"] : [])
   ].join(";");
   const background = `<iframe class="visual-cert-pdf-bg" src="${escapeHtml(designer.backgroundUrl)}#zoom=page-width&toolbar=0&navpanes=0&scrollbar=0" title="Certificate background" tabindex="-1"></iframe>`;
@@ -197,6 +199,7 @@ function templateHtmlFromDesigner(designer) {
         `width:${field.width}%`,
         `height:${field.height}%`,
         `font-size:${field.fontSize}px`,
+        `font-size:${(Number(field.fontSize) / logicalWidth) * 100}cqw`,
         `color:${field.color}`,
         `font-weight:${field.fontWeight}`,
         `text-align:${field.align}`
@@ -204,7 +207,7 @@ function templateHtmlFromDesigner(designer) {
       const token = field.key === "stampImage"
         ? `<img class="certificate-stamp" src="${escapeHtml(designer.stampUrl)}" alt="Stamp" />`
         : `{{${field.key}}}`;
-      return `<div class="${classes}" style="${fieldStyle}">${token}</div>`;
+      return `<div class="${classes}" data-certificate-font-size="${field.fontSize}" style="${fieldStyle}">${token}</div>`;
     })
     .join("");
   return `<div class="visual-certificate has-pdf-background" data-visual-certificate="1" data-background-type="pdf" data-background-url="${escapeHtml(designer.backgroundUrl)}" data-page-width="${designer.pageWidth}" data-page-height="${designer.pageHeight}" style="${style}">${background}${fields}</div>`;

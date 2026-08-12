@@ -336,6 +336,26 @@ test("certificate designer supports A4 background, custom fields, apply-all, bac
   assert.ok(databaseAfterUpdate.settings.defaultCertificateDesigner);
   assert.ok(existsSync(`${app.uploadsDir}/${databaseAfterUpdate.courses[0].source.certificateDesigner.backgroundUrl.replace("/uploads/", "")}`));
 
+  const editorPage = await app.request(
+    "/admin/courses/course_maritime_safety",
+    { headers: { cookie: adminCookie } }
+  );
+  assert.equal(editorPage.response.status, 200);
+  assert.match(editorPage.text, /Marine Certificate Sans/);
+  assert.match(editorPage.text, /certificate-template\/preview\.pdf/);
+  assert.match(editorPage.text, /same PDF renderer used for student downloads/);
+
+  const exactPreview = await app.request(
+    "/admin/courses/course_maritime_safety/certificate-template/preview.pdf",
+    { headers: { cookie: adminCookie } }
+  );
+  assert.equal(exactPreview.response.status, 200);
+  assert.equal(exactPreview.response.headers.get("content-type"), "application/pdf");
+  const previewPdf = await PDFDocument.load(exactPreview.body);
+  assert.equal(previewPdf.getPageCount(), 1);
+  assert.ok(Math.abs(previewPdf.getPage(0).getWidth() - 841.89) < 2);
+  assert.ok(Math.abs(previewPdf.getPage(0).getHeight() - 595.28) < 2);
+
   const exported = await app.request(
     "/admin/courses/course_maritime_safety/certificate-designer/export",
     { headers: { cookie: adminCookie } }

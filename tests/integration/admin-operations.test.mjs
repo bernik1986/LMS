@@ -66,6 +66,15 @@ test("administrator screens and spreadsheet or CSV exports are reachable and fil
     assert.ok(exported.body.length > 20);
   }
 
+  const certificatePdfPreview = await app.request(
+    `/admin/courses/${course.id}/certificate-template/preview.pdf`,
+    { headers: { cookie: adminCookie } }
+  );
+  assert.equal(certificatePdfPreview.response.status, 200);
+  assert.match(certificatePdfPreview.response.headers.get("content-type"), /application\/pdf/);
+  assert.match(certificatePdfPreview.response.headers.get("content-disposition"), /^inline;/);
+  assert.ok(certificatePdfPreview.body.length > 500);
+
   const filteredReport = await app.request(
     `/admin/reports?userId=${encodeURIComponent(student.id)}&courseId=${encodeURIComponent(course.id)}&status=not_started`,
     { headers: { cookie: adminCookie } }
