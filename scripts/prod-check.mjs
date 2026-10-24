@@ -1,5 +1,6 @@
 import { accessSync, constants, existsSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadLocalEnv } from "./env.mjs";
 import {
   flattenDb,
@@ -10,10 +11,7 @@ import {
   validateFlatDb
 } from "./prisma-db.mjs";
 
-loadLocalEnv();
-
 const strict = process.argv.includes("--strict");
-const skipUploads = process.argv.includes("--skip-uploads") || process.env.PROD_CHECK_SKIP_UPLOADS === "true";
 const uploadsDir = resolve("data/uploads");
 const errors = [];
 const warnings = [];
@@ -110,7 +108,7 @@ function uploadPathFromPublicPath(publicPath) {
   return path;
 }
 
-function collectUploadRefs(value, source, refs) {
+export function collectUploadRefs(value, source, refs) {
   if (typeof value === "string") {
     const matches = value.match(/\/uploads\/[^"'<>\s)]+/g) ?? [];
     for (const match of matches) {
@@ -126,11 +124,14 @@ function collectUploadRefs(value, source, refs) {
     return;
   }
   for (const [key, child] of Object.entries(value)) {
+    // Historical audit details are truncated and do not represent live file references.
+    if (source === "db" && ["auditEvents", "certificateEvents"].includes(key)) continue;
     collectUploadRefs(child, `${source}.${key}`, refs);
   }
 }
 
 function checkUploads(flat) {
+  const skipUploads = process.argv.includes("--skip-uploads") || process.env.PROD_CHECK_SKIP_UPLOADS === "true";
   if (skipUploads) {
     addWarning("Upload reference check skipped. Run npm run prod:check after copying data/uploads.");
     if (existsSync(uploadsDir)) {
@@ -188,6 +189,7 @@ async function checkDatabase() {
 }
 
 async function main() {
+  loadLocalEnv();
   checkEnv();
   if (!existsSync("package-lock.json")) addWarning("package-lock.json is missing. Use npm ci on production when possible.");
   if (!existsSync("prisma/migrations")) addError("prisma/migrations folder is missing.");
@@ -206,7 +208,9 @@ async function main() {
   console.log(`Result: passed (${warnings.length} warning(s)).`);
 }
 
-main().catch((error) => {
-  console.error(`Production readiness check crashed: ${error.message}`);
-  process.exit(1);
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(`Production readiness check crashed: ${error.message}`);
+    process.exit(1);
+  });
+}

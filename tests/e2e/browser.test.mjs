@@ -133,13 +133,16 @@ test("student browser flow opens a compact course cover and shows one test quest
   await page.goto(`${app.baseUrl}/dashboard/tests/assign_demo`);
   const steps = page.locator("[data-test-step]");
   assert.equal(await steps.count(), 2);
-  assert.equal(await steps.locator(":visible").count(), 1);
+  assert.equal(await steps.filter({ visible: true }).count(), 1);
   assert.equal(await page.locator("[data-test-progress]").innerText(), "Question 1 of 2");
+  assert.equal(await page.getByRole("button", { name: "Previous" }).isVisible(), false);
+  assert.equal(await page.getByRole("button", { name: "Submit test" }).isVisible(), false);
   await steps.nth(0).locator("input").nth(1).check();
   await page.getByRole("button", { name: "Next" }).click();
-  assert.equal(await steps.locator(":visible").count(), 1);
+  assert.equal(await steps.filter({ visible: true }).count(), 1);
   assert.equal(await page.locator("[data-test-progress]").innerText(), "Question 2 of 2");
   assert.ok(await page.getByRole("button", { name: "Submit test" }).isVisible());
+  assert.equal(await page.getByRole("button", { name: "Next", exact: true }).isVisible(), false);
   assert.deepEqual(browserErrors, []);
   await context.close();
 });
@@ -166,6 +169,18 @@ test("admin browser screens expose New Course on demand and allow selecting an a
   const roleSelect = page.locator('form[action="/admin/users/create"] select[name="role"]');
   assert.ok(await roleSelect.isVisible());
   assert.deepEqual(await roleSelect.locator("option").allTextContents(), ["Student", "Instructor", "Administrator"]);
+
+  let deletionConfirmation = "";
+  page.once("dialog", async (dialog) => {
+    deletionConfirmation = dialog.message();
+    await dialog.dismiss();
+  });
+  await page.locator('form[action="/admin/users/purge"]').first().evaluate((form) => {
+    form.querySelector('input[name="confirmPermanentDelete"]').checked = true;
+    form.requestSubmit();
+  });
+  assert.match(deletionConfirmation, /Permanently delete this student/);
+  assert.equal(new URL(page.url()).pathname, "/admin/users");
 
   await page.goto(`${app.baseUrl}/admin/checks/invoices/new`);
   const invoiceLines = page.locator("[data-manual-invoice-line]");

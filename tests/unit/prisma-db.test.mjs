@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { loadEnvFile } from "../../scripts/env.mjs";
+import { collectUploadRefs } from "../../scripts/prod-check.mjs";
 import {
   defaultConnectionString,
   flattenDb,
@@ -12,6 +13,23 @@ import {
   resolveConnectionString,
   validateFlatDb
 } from "../../scripts/prisma-db.mjs";
+
+test("upload readiness checks live files without treating truncated audit details as file paths", () => {
+  const refs = new Map();
+  collectUploadRefs({
+    users: [{ photoUrl: "/uploads/photo.png" }],
+    materials: [{ content: '<a href="/uploads/manual.pdf?download=1">Manual</a>' }],
+    certificates: [{ snapshotPhotoUrl: "/uploads/photo.png", snapshotStampUrl: "/uploads/stamp.png" }],
+    standaloneCertificates: [{ photoUrl: "/uploads/direct-photo.png" }],
+    settings: { backgroundUrl: "/uploads/template.png" },
+    auditEvents: [{ details: { designerJson: '{"stampUrl":"/uploads/truncated-stamp-178410050' } }],
+    certificateEvents: [{ details: { photoUrl: "/uploads/deleted-historical-photo.png" } }]
+  }, "db", refs);
+  assert.deepEqual([...refs.keys()].sort(), [
+    "/uploads/direct-photo.png", "/uploads/manual.pdf", "/uploads/photo.png", "/uploads/stamp.png", "/uploads/template.png"
+  ]);
+  assert.deepEqual([...refs.get("/uploads/photo.png")], ["db.users[0].photoUrl", "db.certificates[0].snapshotPhotoUrl"]);
+});
 
 function fixtureDb() {
   return {

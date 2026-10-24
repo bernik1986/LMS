@@ -16,7 +16,7 @@ import pg from "pg";
 import { createDataBackup } from "../../scripts/backup-data.mjs";
 import { applyPrismaMigrations } from "../../scripts/apply-prisma-migrations.mjs";
 import { importCoursePriceRevision } from "../../scripts/import-course-price-revision.mjs";
-import { loadPrismaDb, replacePrismaDb } from "../../scripts/prisma-db.mjs";
+import { clearPrismaDatabase, createPrismaClient, loadPrismaDb, replacePrismaDb } from "../../scripts/prisma-db.mjs";
 
 const { Client } = pg;
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -130,6 +130,12 @@ async function createTemporaryPostgresDatabase() {
   await admin.connect();
   await admin.query(`CREATE DATABASE "${databaseName}"`);
   await applyPrismaMigrations({ connectionString, log: silentLog });
+  const prisma = createPrismaClient(connectionString);
+  try {
+    await clearPrismaDatabase(prisma);
+  } finally {
+    await prisma.$disconnect();
+  }
   return {
     connectionString,
     async cleanup() {

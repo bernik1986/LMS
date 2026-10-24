@@ -33,6 +33,7 @@ const maxCertificateBackgroundUploadBytes = Number(process.env.MAX_CERTIFICATE_T
 const maxRequestBodyBytes = Number(process.env.MAX_REQUEST_BODY_MB ?? Math.ceil(maxVideoUploadBytes / 1024 / 1024 + 8)) * 1024 * 1024;
 const sessionTtlMs = Number(process.env.SESSION_TTL_HOURS ?? 12) * 60 * 60 * 1000;
 const passwordResetTtlMs = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 30) * 60 * 1000;
+const testSubmissionGraceMs = Math.max(0, Number(process.env.TEST_SUBMISSION_GRACE_MS ?? 10_000));
 const smtpConnectionTimeoutMs = Math.max(5, Number(process.env.SMTP_CONNECTION_TIMEOUT_SECONDS ?? 30)) * 1000;
 const smtpTransientRetryMs = Math.max(1, Number(process.env.SMTP_RETRY_MINUTES ?? 15)) * 60 * 1000;
 const smtpRateLimitRetryMs = Math.max(1, Number(process.env.SMTP_RATE_LIMIT_RETRY_MINUTES ?? 65)) * 60 * 1000;
@@ -72,6 +73,7 @@ let queuedNotificationDeliveryTimer = null;
 
 const baseCss = readFileSync(cssPath, "utf8");
 const productCss = `
+[data-test-wizard] [hidden] { display: none !important; }
 @font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Regular.ttf") format("truetype"); font-style: normal; font-weight: 400; font-display: block; }
 @font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Regular.ttf") format("truetype"); font-style: normal; font-weight: 500; font-display: block; }
 @font-face { font-family: "Marine Certificate Sans"; src: url("/assets/fonts/LiberationSans-Bold.ttf") format("truetype"); font-style: normal; font-weight: 600; font-display: block; }
@@ -4799,7 +4801,9 @@ function statusLabel(status) {
     queued: "Queued",
     logged: "Logged",
     sent: "Sent",
-    failed: "Failed"
+    passed: "Passed",
+    failed: "Failed",
+    expired: "Time expired"
   };
   return labels[status] ?? status;
 }
@@ -4861,6 +4865,10 @@ function page(title, user, body) {
         const scrollKey = "marine-lms:scroll:" + window.location.pathname;
         document.addEventListener("submit", (event) => {
           const form = event.target;
+          if (form instanceof HTMLFormElement && form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
+            event.preventDefault();
+            return;
+          }
           if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "post" || form.matches("[data-test-wizard], [data-no-scroll-restore]")) return;
           sessionStorage.setItem(scrollKey, String(window.scrollY));
         });
@@ -5091,6 +5099,20 @@ function contactsPage(user) {
     user,
     `<main class="page"><section class="section"><div class="section-heading"><div><span class="eyebrow">Contact</span><h1>Contact Marine LMS</h1><p class="lead">For training and course applications, use email or submit an application for the course you need.</p></div><a class="button" href="/apply">Apply now</a></div><article class="panel stack"><div><strong>Email</strong><br><a class="link-line" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></div></article></section></main>`
   );
+}
+
+function testAttemptDisplayStatus(attempt) {
+  if (attempt?.failureReason === "time_expired" || attempt?.status === "expired") return "expired";
+  return attempt?.status === "passed" ? "test_passed" : "test_failed";
+}
+
+function testAttemptBadge(attempt) {
+  return badge(testAttemptDisplayStatus(attempt));
+}
+
+function testAttemptFailureExplanation(attempt) {
+  if (testAttemptDisplayStatus(attempt) !== "expired") return "";
+  return "The time limit expired before the test was submitted. The score was recorded, but this attempt could not be accepted.";
 }
 
 function aboutPage(user) {
@@ -5415,7 +5437,7 @@ function adminStudentCard(student, viewer = null) {
         </details>
         <details class="danger-zone">
           <summary>Delete permanently</summary>
-          <form class="stack" method="post" action="/admin/users/purge" onsubmit="return confirm('Permanently delete this student and all related courses, tests, and certificates? This cannot be undone.');">
+          <form class="stack" method="post" action="/admin/users/purge" data-confirm="Permanently delete this student and all related courses, tests, and certificates? This cannot be undone.">
             <input type="hidden" name="id" value="${student.id}" />
             <p class="notice danger"><strong>Irreversible action.</strong> This deletes the student, assigned courses, test attempts, certificates, notifications, access sessions, recovery links, and the uploaded certificate photo.</p>
             <label><input name="confirmPermanentDelete" type="checkbox" value="delete" required /> I understand that this cannot be undone.</label>
@@ -5644,7 +5666,7 @@ function adminStudentDetail(admin, student) {
               return `<tr>
                 <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
                 <td>${attempt.attemptNumber}</td>
-                <td>${attempt.scorePercent}% ${badge(attempt.status === "passed" ? "test_passed" : "test_failed")}</td>
+                <td>${attempt.scorePercent}% ${testAttemptBadge(attempt)}${testAttemptFailureExplanation(attempt) ? `<br><span class="muted">${escapeHtml(testAttemptFailureExplanation(attempt))}</span>` : ""}</td>
                 <td>${new Date(attempt.finishedAt).toLocaleString("en-GB")}</td>
                 <td>${attemptWrongAnswersHtml(attempt)}</td>
               </tr>`;
@@ -6566,8 +6588,8 @@ function testReportParams(searchParams = new URLSearchParams()) {
 }
 
 function testStatusOptions(selectedStatus) {
-  return ["", "passed", "failed"]
-    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? (status === "passed" ? "Passed" : "Failed") : "All results"}</option>`)
+  return ["", "passed", "failed", "expired"]
+    .map((status) => `<option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status ? statusLabel(status) : "All results"}</option>`)
     .join("");
 }
 
@@ -6579,7 +6601,7 @@ function filteredAttempts(params) {
       const course = assignment ? courseById(assignment.courseId) : null;
       if (params.userId && attempt.userId !== params.userId) return false;
       if (params.courseId && assignment?.courseId !== params.courseId) return false;
-      if (params.status && attempt.status !== params.status) return false;
+      if (params.status && testAttemptDisplayStatus(attempt) !== (params.status === "passed" ? "test_passed" : params.status === "failed" ? "test_failed" : params.status)) return false;
       return matchesQuery([displayUserName(student), student?.email, course?.title, attempt.status], params.q);
     })
     .sort((a, b) => new Date(b.finishedAt).getTime() - new Date(a.finishedAt).getTime());
@@ -6620,7 +6642,7 @@ function adminTests(user, searchParams = new URLSearchParams()) {
               <td><a class="link-line" href="/admin/users/${attempt.userId}">${escapeHtml(displayUserName(student) || student?.email || "")}</a><br><span class="muted">${escapeHtml(student?.email ?? "")}</span></td>
               <td>${escapeHtml(course?.title ?? "Course deleted")}</td>
               <td>${attempt.attemptNumber}</td>
-              <td>${attempt.scorePercent}% ${badge(attempt.status === "passed" ? "test_passed" : "test_failed")}</td>
+              <td>${attempt.scorePercent}% ${testAttemptBadge(attempt)}${testAttemptFailureExplanation(attempt) ? `<br><span class="muted">${escapeHtml(testAttemptFailureExplanation(attempt))}</span>` : ""}</td>
               <td>${new Date(attempt.finishedAt).toLocaleString("en-GB")}</td>
               <td>${attemptWrongAnswersHtml(attempt)}</td>
             </tr>`;
@@ -7040,7 +7062,7 @@ function adminCourseDetail(user, course) {
         <h2>Delete course</h2>
         ${courseDeletionBlocked(deletionUsage)
           ? `<p class="muted">This course cannot be deleted: ${escapeHtml(deletionDetails)}. Delete or move the related data first.</p>`
-          : `<p class="muted">Deletion permanently removes the course, lessons, materials, and test.</p><form method="post" action="/admin/courses/${course.id}/delete" onsubmit="return confirm('Permanently delete this course?');"><button class="small-button danger" type="submit">Delete course</button></form>`}
+          : `<p class="muted">Deletion permanently removes the course, lessons, materials, and test.</p><form method="post" action="/admin/courses/${course.id}/delete" data-confirm="Permanently delete this course?"><button class="small-button danger" type="submit">Delete course</button></form>`}
       </article>` : ""}
       <article class="panel certificate-template">
         <h2>Certificate template</h2>
@@ -8052,7 +8074,7 @@ function studentCourseDetail(user, assignment) {
       <article id="test-result" class="panel stack">
         <h2>Final test</h2>
         <p class="muted">Attempts used: ${attempts.length} of ${course.test.attemptsLimit + (assignment.extraTestAttempts ?? 0)}. Pass mark: ${course.test.passingPercent}%.</p>
-        ${latestAttempt && course.test.showResultToUser ? `<div class="notice"><strong>Latest result:</strong> ${latestAttempt.scorePercent}% · attempt ${latestAttempt.attemptNumber} · ${badge(latestAttempt.status === "passed" ? "test_passed" : "test_failed")}</div>` : ""}
+        ${latestAttempt && course.test.showResultToUser ? `<div class="notice${testAttemptDisplayStatus(latestAttempt) === "expired" ? " danger" : ""}"><strong>Latest result:</strong> ${latestAttempt.scorePercent}% · attempt ${latestAttempt.attemptNumber} · ${testAttemptBadge(latestAttempt)}${testAttemptFailureExplanation(latestAttempt) ? `<br><strong>Reason:</strong> ${escapeHtml(testAttemptFailureExplanation(latestAttempt))}` : ""}</div>` : ""}
         ${canTakeTest(assignment) ? `<a class="button" href="/dashboard/tests/${assignment.id}">Take test</a>` : `<div class="notice">The test becomes available after the required materials are completed, or it has already been completed.</div>`}
       </article>
     </section>`
@@ -8068,8 +8090,11 @@ function studentTestPage(user, assignment) {
     assignment.activeTestStartedAt = now();
     saveDb(db);
   }
+  const testDeadlineAt = course.test.timeLimitMinutes > 0
+    ? new Date(assignment.activeTestStartedAt).getTime() + course.test.timeLimitMinutes * 60 * 1000
+    : 0;
   const timeLimitNotice = course.test.timeLimitMinutes > 0
-    ? `<div class="notice"><strong>Time limit:</strong> ${course.test.timeLimitMinutes} min. The timer started when this page was opened.</div>`
+    ? `<div class="notice" data-test-timer><strong>Time limit:</strong> ${course.test.timeLimitMinutes} min. The timer started when this page was opened. <strong data-test-countdown aria-live="polite">Calculating remaining time...</strong></div>`
     : "";
   return studentShell(
     user,
@@ -8077,7 +8102,7 @@ function studentTestPage(user, assignment) {
     `<section class="section">
       <div><span class="eyebrow">Test</span><h1>${escapeHtml(course.test.title)}</h1><p class="lead">Choose one correct answer for each question.</p></div>
       ${timeLimitNotice}
-      <form class="stack" method="post" action="/dashboard/tests/${assignment.id}" data-test-wizard>
+      <form class="stack" method="post" action="/dashboard/tests/${assignment.id}" data-test-wizard${testDeadlineAt ? ` data-test-deadline-at="${testDeadlineAt}"` : ""}>
         <p class="muted" data-test-progress aria-live="polite"></p>
         ${course.test.questions
           .slice()
@@ -8106,7 +8131,11 @@ function studentTestPage(user, assignment) {
           const next = form.querySelector("[data-test-next]");
           const submit = form.querySelector("[data-test-submit]");
           const progress = form.querySelector("[data-test-progress]");
+          const countdown = document.querySelector("[data-test-countdown]");
+          const deadlineAt = Number(form.dataset.testDeadlineAt) || 0;
           let current = 0;
+          let expiryTimer = null;
+          let expiring = false;
 
           const showStep = () => {
             steps.forEach((step, index) => { step.hidden = index !== current; });
@@ -8132,6 +8161,28 @@ function studentTestPage(user, assignment) {
             current = Math.min(steps.length - 1, current + 1);
             showStep();
           });
+          form.addEventListener("submit", () => {
+            if (expiryTimer) clearInterval(expiryTimer);
+          });
+          const updateCountdown = () => {
+            if (!deadlineAt || !countdown || expiring) return;
+            const remaining = Math.max(0, deadlineAt - Date.now());
+            const totalSeconds = Math.ceil(remaining / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = String(totalSeconds % 60).padStart(2, "0");
+            countdown.textContent = "Time remaining: " + minutes + ":" + seconds;
+            if (remaining > 0) return;
+            expiring = true;
+            countdown.textContent = "Time expired. Submitting the attempt...";
+            previous.disabled = true;
+            next.disabled = true;
+            submit.disabled = true;
+            form.submit();
+          };
+          if (deadlineAt) {
+            updateCountdown();
+            expiryTimer = setInterval(updateCountdown, 1000);
+          }
           showStep();
         })();
       </script>
@@ -8171,7 +8222,7 @@ function studentTests(user) {
         .map((attempt) => {
           const assignment = db.assignments.find((item) => item.id === attempt.assignmentId);
           const course = courseById(assignment.courseId);
-          return `<tr><td>${escapeHtml(course.title)}</td><td>${attempt.attemptNumber}</td><td>${attempt.scorePercent}%</td><td>${badge(attempt.status === "passed" ? "test_passed" : "test_failed")}</td></tr>`;
+          return `<tr><td>${escapeHtml(course.title)}</td><td>${attempt.attemptNumber}</td><td>${attempt.scorePercent}%</td><td>${testAttemptBadge(attempt)}${testAttemptFailureExplanation(attempt) ? `<br><span class="muted">${escapeHtml(testAttemptFailureExplanation(attempt))}</span>` : ""}</td></tr>`;
         })
         .join("")}</tbody></table>
     </section>`
@@ -9862,7 +9913,7 @@ async function handlePost(request, response, pathname, user) {
     const startedAt = assignment.activeTestStartedAt || now();
     const expired =
       course.test.timeLimitMinutes > 0 &&
-      Date.now() - new Date(startedAt).getTime() > course.test.timeLimitMinutes * 60 * 1000;
+      Date.now() - new Date(startedAt).getTime() > course.test.timeLimitMinutes * 60 * 1000 + testSubmissionGraceMs;
     let correctCount = 0;
     const answers = questions.map((question) => {
       const selectedOptionIds =
@@ -9888,7 +9939,7 @@ async function handlePost(request, response, pathname, user) {
       startedAt,
       finishedAt: now(),
       scorePercent,
-      status: passed ? "passed" : "failed",
+      status: expired ? "expired" : passed ? "passed" : "failed",
       failureReason: expired ? "time_expired" : "",
       answers
     };
