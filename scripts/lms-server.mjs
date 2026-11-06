@@ -11,6 +11,7 @@ import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import { loadLocalEnv } from "./env.mjs";
 import { loadPrismaDb, maskedConnectionString, replacePrismaDb, resolveConnectionString, syncPrismaDb } from "./prisma-db.mjs";
+import { prepareAssessmentCorrection } from "./assessment-regrade.mjs";
 
 loadLocalEnv();
 
@@ -732,6 +733,10 @@ async function loadDb() {
     await saveQueue;
     if (lastSaveError) throw lastSaveError;
     const data = await loadPrismaDb({ connectionString: databaseUrl });
+    if (process.env.LMS_ASSESSMENT_MAINTENANCE === "true") {
+      if (!(data.users?.length || data.courses?.length)) throw new Error("Assessment maintenance cannot initialize an empty database.");
+      return data;
+    }
     if (!(data.users?.length || data.courses?.length)) {
       if (!allowDemoData) {
         throw new Error("Production database is empty. Import data or create the first administrator before starting Marine LMS.");
@@ -755,6 +760,7 @@ async function loadDb() {
   }
 
   const data = JSON.parse(readFileSync(dbPath, "utf8"));
+  if (process.env.LMS_ASSESSMENT_MAINTENANCE === "true") return data;
   const changed = normalizeDb(data);
   if (changed) {
     writeFileSync(dbPath, JSON.stringify(data, null, 2), "utf8");
@@ -793,6 +799,38 @@ function saveDb(data) {
 
 let db = await loadDb();
 persistedDb = cloneDb(db);
+
+export async function applyAssessmentCorrectionMaintenance(plan, { asOf, approvedManualAssignmentIds = [] } = {}) {
+  if (process.env.LMS_CLI_MODE !== "true" || process.env.LMS_MAINTENANCE_CONFIRMED !== "true") throw new Error("Assessment maintenance requires an offline CLI session.");
+  const prepared = prepareAssessmentCorrection(db, plan, { asOf });
+  if (prepared.report.alreadyApplied) return prepared.report;
+  if (approvedManualAssignmentIds.some((assignmentId) => !prepared.report.eligibleAssignmentIds.includes(assignmentId))) throw new Error("Manual approval must reference an eligible corrected assignment.");
+  const previous = db;
+  db = prepared.database;
+  const report = { ...prepared.report, planSha256: plan.sha256, approvedManualAssignmentIds, certificates: [] };
+  try {
+    for (const assignmentId of report.eligibleAssignmentIds) {
+      const assignment = db.assignments.find((item) => item.id === assignmentId);
+      const course = courseById(assignment.courseId);
+      const user = userById(assignment.userId);
+      const existing = activeCertificateForAssignment(assignmentId);
+      const manuallyApproved = approvedManualAssignmentIds.includes(assignmentId);
+      const allowed = courseAutomaticallyIssuesCertificate(course) || manuallyApproved;
+      const blockReason = user?.status !== "active" ? "user_inactive" : completedRequiredCount(assignment, course) !== requiredMaterials(course).length ? "materials_incomplete" : "";
+      const certificate = existing || (allowed && !blockReason ? issueCertificate(assignment, { action: manuallyApproved ? "manual_issue" : "assessment_correction" }) : null);
+      report.certificates.push({ assignmentId, certificateId: certificate?.id ?? null, outcome: existing ? "already_issued" : certificate ? "issued" : blockReason || (allowed ? "photo_required" : "manual_approval_required") });
+    }
+    db.auditEvents ??= [];
+    db.auditEvents.push({ id: id("audit"), adminEmail: "system", action: "assessment_correction", createdAt: now(), details: { version: plan.version, planSha256: plan.sha256, report } });
+    if (usePrismaStorage) await syncPrismaDb(previous, db, { connectionString: databaseUrl });
+    else writeFileSync(dbPath, JSON.stringify(db, null, 2), "utf8");
+    persistedDb = cloneDb(db);
+    return report;
+  } catch (error) {
+    db = previous;
+    throw error;
+  }
+}
 
 function defaultCertificateTemplate() {
   return `<span class="eyebrow">Marine LMS Certificate</span>
@@ -4315,6 +4353,10 @@ function sortedQuestionOptions(question) {
   return [...(question.options ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+function assessmentPaperVersion(test) {
+  return createHash("sha256").update(JSON.stringify(test.questions)).digest("hex");
+}
+
 function parseQuestionOptions(form) {
   const options = [];
   for (let index = 1; index <= 6; index += 1) {
@@ -4682,6 +4724,7 @@ function issueCertificate(assignment, options = {}) {
   const user = userById(assignment.userId);
   const course = courseById(assignment.courseId);
   if (!user || !course) return null;
+  if (options.action !== "manual_issue" && (user.status !== "active" || completedRequiredCount(assignment, course) !== requiredMaterials(course).length)) return null;
   if (!hasCertificatePhoto(user)) {
     db.notifications.push({
       id: id("note"),
@@ -5596,9 +5639,11 @@ function attemptWrongAnswersHtml(attempt) {
   const assignment = db.assignments.find((item) => item.id === attempt.assignmentId);
   const course = assignment ? courseById(assignment.courseId) : null;
   const questions = new Map((course?.test?.questions ?? []).map((question) => [question.id, question]));
-  const wrongAnswers = (attempt.answers ?? []).filter((answer) => !answer.isCorrect);
-  if (!wrongAnswers.length) return `<span class="muted">No errors.</span>`;
-  return `<details><summary>${wrongAnswers.length} incorrect answers</summary><div class="stack">${wrongAnswers
+  const wrongAnswers = (attempt.answers ?? []).filter((answer) => !answer.isCorrect && !answer.assessmentCorrection?.excluded);
+  const excludedCount = (attempt.answers ?? []).filter((answer) => answer.assessmentCorrection?.excluded).length;
+  const correctionNotice = excludedCount ? `<p class="muted">${excludedCount} question(s) excluded after assessment review.</p>` : "";
+  if (!wrongAnswers.length) return `${correctionNotice}<span class="muted">No errors.</span>`;
+  return `${correctionNotice}<details><summary>${wrongAnswers.length} incorrect answers</summary><div class="stack">${wrongAnswers
     .map((answer) => {
       const question = questions.get(answer.questionId);
       const options = question?.options ?? [];
@@ -8086,8 +8131,12 @@ function studentTestPage(user, assignment) {
   if (!canTakeTest(assignment)) {
     return studentShell(user, "Test unavailable", `<section class="section"><div class="notice">The test is not available right now.</div></section>`);
   }
-  if (course.test.timeLimitMinutes > 0 && !assignment.activeTestStartedAt) {
-    assignment.activeTestStartedAt = now();
+  const paperVersion = assessmentPaperVersion(course.test);
+  const previousVersion = assignment.source?.activeAssessmentPaperVersion;
+  const paperChanged = Boolean(previousVersion && previousVersion !== paperVersion);
+  if (!previousVersion || paperChanged || (course.test.timeLimitMinutes > 0 && !assignment.activeTestStartedAt)) {
+    assignment.source = { ...assignment.source, activeAssessmentPaperVersion: paperVersion };
+    if (paperChanged || (course.test.timeLimitMinutes > 0 && !assignment.activeTestStartedAt)) assignment.activeTestStartedAt = now();
     saveDb(db);
   }
   const testDeadlineAt = course.test.timeLimitMinutes > 0
@@ -8103,6 +8152,7 @@ function studentTestPage(user, assignment) {
       <div><span class="eyebrow">Test</span><h1>${escapeHtml(course.test.title)}</h1><p class="lead">Choose one correct answer for each question.</p></div>
       ${timeLimitNotice}
       <form class="stack" method="post" action="/dashboard/tests/${assignment.id}" data-test-wizard${testDeadlineAt ? ` data-test-deadline-at="${testDeadlineAt}"` : ""}>
+        <input type="hidden" name="assessmentPaperVersion" value="${assessmentPaperVersion(course.test)}" />
         <p class="muted" data-test-progress aria-live="polite"></p>
         ${course.test.questions
           .slice()
@@ -9910,6 +9960,11 @@ async function handlePost(request, response, pathname, user) {
     }
     const course = courseById(assignment.courseId);
     const questions = course.test.questions;
+    const submittedPaperVersion = form.get("assessmentPaperVersion")?.toString() ?? "";
+    if ((submittedPaperVersion || course.source?.assessmentCorrectionVersion) && submittedPaperVersion !== assessmentPaperVersion(course.test)) {
+      send(response, studentShell(student, "Test updated", `<section class="section"><div class="notice">This test was updated while your page was open. No attempt has been used. Open the updated test to continue.</div><a class="button" href="/dashboard/tests/${assignment.id}">Open updated test</a></section>`), 409);
+      return;
+    }
     const startedAt = assignment.activeTestStartedAt || now();
     const expired =
       course.test.timeLimitMinutes > 0 &&
@@ -9941,7 +9996,8 @@ async function handlePost(request, response, pathname, user) {
       scorePercent,
       status: expired ? "expired" : passed ? "passed" : "failed",
       failureReason: expired ? "time_expired" : "",
-      answers
+      answers,
+      source: { assessmentPaperVersion: assessmentPaperVersion(course.test), questionSnapshots: cloneDb(questions), passingPercent: course.test.passingPercent, timeLimitMinutes: course.test.timeLimitMinutes }
     };
     assignment.activeTestStartedAt = "";
     db.testAttempts.push(attempt);

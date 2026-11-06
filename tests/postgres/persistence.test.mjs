@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import test, { after, before } from "node:test";
 import pg from "pg";
 import { applyPrismaMigrations } from "../../scripts/apply-prisma-migrations.mjs";
+import { prepareAssessmentCorrection } from "../../scripts/assessment-regrade.mjs";
 import {
   clearPrismaDatabase,
   createPrismaClient,
@@ -456,4 +457,70 @@ test("clearPrismaDatabase removes all mutable data while retaining a valid migra
   }
   const migrationCount = await prisma.$queryRawUnsafe('SELECT COUNT(*)::int AS count FROM "_prisma_migrations"');
   assert.ok(migrationCount[0].count > 0);
+});
+
+test("assessment corrections persist atomically with original answers and unchanged certificate policy", async () => {
+  const fixture = sampleDb();
+  fixture.testAttempts[0].scorePercent = 0;
+  fixture.testAttempts[0].status = "failed";
+  fixture.testAttempts[0].answers[0] = { questionId: "pg_question", selectedOptionId: "pg_option_no", isCorrect: false };
+  fixture.assignments[0].status = "test_failed";
+  await replacePrismaDb(fixture, { connectionString });
+  const before = await loadPrismaDb({ connectionString });
+  const question = before.courses[0].test.questions[0];
+  const oldOptions = question.options.map(({ id, optionText, isCorrect }) => ({ id, optionText, isCorrect }));
+  const plan = { version: "pg-correction", corrections: [{ courseId: "pg_course", questionId: question.id, oldQuestionText: question.questionText, oldType: question.type, oldOptions, newOptions: oldOptions.map((o) => ({ ...o, isCorrect: !o.isCorrect })), retrospective: "rekey" }] };
+  const { database: corrected, report } = prepareAssessmentCorrection(before, plan, { asOf: "2026-07-24T00:00:00Z" });
+  corrected.auditEvents.push({ id: "correction_audit", action: "assessment_correction", adminEmail: "system", createdAt: "2026-07-24T00:00:00Z", details: { version: plan.version, report } });
+  const invalid = structuredClone(corrected);
+  invalid.auditEvents.at(-1).details.nonJsonValue = 1n;
+  await assert.rejects(syncPrismaDb(before, invalid, { connectionString }), /BigInt/);
+  let persisted = await loadPrismaDb({ connectionString });
+  assert.equal(persisted.testAttempts[0].scorePercent, 0);
+  assert.equal(persisted.courses[0].test.questions[0].options[0].isCorrect, true);
+  await syncPrismaDb(before, corrected, { connectionString });
+  persisted = await loadPrismaDb({ connectionString });
+  assert.equal(persisted.testAttempts[0].scorePercent, 100);
+  assert.equal(persisted.testAttempts[0].status, "passed");
+  assert.equal(persisted.testAttempts[0].source.assessmentCorrections[0].original.scorePercent, 0);
+  assert.equal(persisted.courses[0].autoIssueCertificate, false);
+  assert.equal(persisted.certificates.length, 1);
+  assert.equal(prepareAssessmentCorrection(persisted, plan, { asOf: "2026-07-24T00:00:00Z" }).report.alreadyApplied, true);
+  await clearPrismaDatabase(prisma);
+});
+
+test("Rightship assessment migration imports the supplied answer key without overwriting an existing test", async () => {
+  const sql = readFileSync(resolve("prisma/migrations/20261026130000_add_rightship_inspection_test/migration.sql"), "utf8");
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`INSERT INTO "Course" ("id", "title", "certificateTemplateHtml", "autoIssueCertificate", "updatedAt")
+      VALUES ('course_0bbe1e76', 'Rightship Inspection', 'unchanged template', false, now())`);
+    await client.query(`INSERT INTO "Test" ("id", "courseId", "title", "passingPercent", "timeLimitMinutes")
+      VALUES ('rightship_migration_fixture', 'course_0bbe1e76', 'Final test', 80, 30)`);
+    await client.query(sql);
+    const settings = await client.query(`SELECT "passingPercent", "timeLimitMinutes", "attemptsLimit", "allowRetake"
+      FROM "Test" WHERE "id" = 'rightship_migration_fixture'`);
+    assert.deepEqual(settings.rows[0], { passingPercent: 70, timeLimitMinutes: 0, attemptsLimit: 3, allowRetake: true });
+    const questions = await client.query(`SELECT q."sortOrder", count(o."id")::int AS options,
+      count(o."id") FILTER (WHERE o."isCorrect")::int AS correct,
+      min(o."sortOrder") FILTER (WHERE o."isCorrect") AS answer
+      FROM "TestQuestion" q JOIN "TestOption" o ON o."questionId" = q."id"
+      WHERE q."testId" = 'rightship_migration_fixture'
+      GROUP BY q."id" ORDER BY q."sortOrder"`);
+    assert.equal(questions.rows.length, 10);
+    assert.equal(questions.rows.reduce((sum, q) => sum + q.options, 0), 25);
+    assert(questions.rows.every((q) => q.correct === 1));
+    assert.deepEqual(questions.rows.map((q) => q.answer), [3, 1, 2, 2, 1, 1, 3, 2, 2, 1]);
+    const course = await client.query(`SELECT "autoIssueCertificate", "certificateTemplateHtml" FROM "Course" WHERE "id" = 'course_0bbe1e76'`);
+    assert.deepEqual(course.rows[0], { autoIssueCertificate: false, certificateTemplateHtml: "unchanged template" });
+    await assert.rejects(client.query(sql), /test is no longer empty/);
+    await client.query("ROLLBACK");
+    // A fresh database without this administrator-created course must still migrate.
+    await client.query(sql);
+  } finally {
+    await client.query("ROLLBACK").catch(() => {});
+    await client.end();
+  }
 });

@@ -1,0 +1,4452 @@
+{
+  "version": "assessment-corrections-2026-11-06",
+  "corrections": [
+    {
+      "questionId": "wp_question_254",
+      "courseId": "wp_course_431",
+      "auditNumber": 3,
+      "oldQuestionText": "What do the sides in the relative plotting triangle represent?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1450",
+          "optionText": "Targets true course and speed\u2022 Own ship relative course and speed\u2022Targets relative course and speed",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1451",
+          "optionText": "Targets true course\u2022 Own ship true course\u2022 Targets relative course",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1452",
+          "optionText": "Targets true speed \u2022 Own ship true speed \u2022 Targets relative speed",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1453",
+          "optionText": "Targets true course and speed \u2022 Own ship true course and speed \u2022 Targets relative course and speed",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1450",
+          "optionText": "Targets true course and speed\u2022 Own ship relative course and speed\u2022Targets relative course and speed",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1451",
+          "optionText": "Targets true course\u2022 Own ship true course\u2022 Targets relative course",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1452",
+          "optionText": "Targets true speed \u2022 Own ship true speed \u2022 Targets relative speed",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1453",
+          "optionText": "Targets true course and speed \u2022 Own ship true course and speed \u2022 Targets relative course and speed",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified vector relationship: target true velocity equals own-ship true velocity plus target relative velocity; D is the complete velocity triangle.",
+      "sourceUrls": [
+        "https://www.furunousa.com/-/media/sites/furuno/document_library/documents/manuals/public_manuals/far3xxx_operators_manual.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_256",
+      "courseId": "wp_course_431",
+      "auditNumber": 5,
+      "oldQuestionText": "How can the true course and speed of a target be found when the display is showing relative vectors?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1462",
+          "optionText": "By examining the vectors displayed",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1463",
+          "optionText": "By looking at the digital readout of target information",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1464",
+          "optionText": "Can only be found by changing to true vectors",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1465",
+          "optionText": "By comparing target vector with ownship vector",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1462",
+          "optionText": "By examining the vectors displayed",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1463",
+          "optionText": "By looking at the digital readout of target information",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1464",
+          "optionText": "Can only be found by changing to true vectors",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1465",
+          "optionText": "By comparing target vector with ownship vector",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Manufacturer evidence: the target data readout gives true course and speed independently of the displayed relative vector.",
+      "sourceUrls": [
+        "https://www.furunousa.com/-/media/sites/furuno/document_library/documents/manuals/public_manuals/far3xxx_operators_manual.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_267",
+      "courseId": "wp_course_431",
+      "auditNumber": 16,
+      "oldQuestionText": "Ship A is navigating in an area of restricted visibility and has detected, by radar alone, a crossing ship, B, on her port bow. Which ship is the \"Stand-On\" vessel?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1528",
+          "optionText": "None",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1529",
+          "optionText": "ShipA",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1530",
+          "optionText": "Ship A, as long the ARPA clearly shows that ship B is crossing from port",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1531",
+          "optionText": "ShipB",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1528",
+          "optionText": "None",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1529",
+          "optionText": "ShipA",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1530",
+          "optionText": "Ship A, as long the ARPA clearly shows that ship B is crossing from port",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1531",
+          "optionText": "ShipB",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified Rule 19 interpretation: radar-only detection in restricted visibility does not designate a stand-on vessel.",
+      "sourceUrls": [
+        "https://www.gov.uk/government/publications/mgn-369-mf-amendment-1-navigation-safety-navigation-practices-relevant-to-restricted-visibility/mgn-369-mf-amendment-1-navigation-safety-navigation-practices-relevant-to-restricted-visibility"
+      ]
+    },
+    {
+      "questionId": "wp_question_268",
+      "courseId": "wp_course_431",
+      "auditNumber": 17,
+      "oldQuestionText": "What information is immediately apparent from the \"relative plot\" of another vessel?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1534",
+          "optionText": "Own ships course over ground",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1535",
+          "optionText": "TCPA",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1536",
+          "optionText": "CPA",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1537",
+          "optionText": "Targets true course and speed",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "On a relative-motion plot, what is the shortest perpendicular distance from own ship's position to the target's projected relative track called?",
+      "newOptions": [
+        {
+          "id": "wp_option_1534",
+          "optionText": "Own ships course over ground",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1535",
+          "optionText": "TCPA",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1536",
+          "optionText": "CPA",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1537",
+          "optionText": "Targets true course and speed",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional navigation judgment: the original 'immediately apparent' wording does not distinguish CPA geometry from TCPA calculation. Specify the plotted distance; exclude past attempts.",
+      "sourceUrls": [
+        "https://www.furunousa.com/-/media/sites/furuno/document_library/documents/manuals/public_manuals/far3xxx_operators_manual.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_13",
+      "courseId": "wp_course_144",
+      "auditNumber": 24,
+      "oldQuestionText": "When lowering a side-launched lifeboat, when is the hook load approximately zero? Select the ONE correct answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_67",
+          "optionText": "When the lifeboat is stationary and floating in the water",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_68",
+          "optionText": "As soon as it clears the lifeboat davits",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_69",
+          "optionText": "As soon as the lifeboat keel touches the water",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_70",
+          "optionText": "If the boat starts swinging",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_67",
+          "optionText": "When the lifeboat is stationary and floating in the water",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_68",
+          "optionText": "As soon as it clears the lifeboat davits",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_69",
+          "optionText": "As soon as the lifeboat keel touches the water",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_70",
+          "optionText": "If the boat starts swinging",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Physical principle corroborated by the investigation: buoyancy supports a stationary, waterborne boat; clearing the davits does not unload the hooks. This is not an instruction to release hooks.",
+      "sourceUrls": [
+        "https://assets.publishing.service.gov.uk/media/547c7130ed915d4c100000e3/european-highway.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_20",
+      "courseId": "wp_course_144",
+      "auditNumber": 31,
+      "oldQuestionText": "How must a manufacturer ensure that a lifeboat release and retrieval system fitted to a lifeboat is safe and reliable? Select the ONE correct answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_109",
+          "optionText": "The manufacturer needs only to check that it works properly before leaving the factory",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_110",
+          "optionText": "The design only needs to be made of non-rusting materials",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_111",
+          "optionText": "The design needs only to have a mechanical device to prevent accidental release.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_112",
+          "optionText": "A lifeboat release and retrieval system must go through strict testing and evaluation to make sure it meets the standard required under SOLAS",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_109",
+          "optionText": "The manufacturer needs only to check that it works properly before leaving the factory",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_110",
+          "optionText": "The design only needs to be made of non-rusting materials",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_111",
+          "optionText": "The design needs only to have a mechanical device to prevent accidental release.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_112",
+          "optionText": "A lifeboat release and retrieval system must go through strict testing and evaluation to make sure it meets the standard required under SOLAS",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified safety principle: approval requires testing and evaluation; a mechanical safeguard alone is insufficient.",
+      "sourceUrls": [
+        "https://www.legislation.gov.uk/uksi/2020/501/pdfs/uksiod_20200501_en.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_330",
+      "courseId": "wp_course_434",
+      "auditNumber": 35,
+      "oldQuestionText": "Whose approval will beneeded when a new Ballast Water Management Plan is developed?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1899",
+          "optionText": "The company itself, and the ship's flag State, or a Classification Society acting on behalf of the flag State",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1900",
+          "optionText": "Theship's Master",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1901",
+          "optionText": "Only the senior management in the company",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1902",
+          "optionText": "The US Coastguard or the IMO, as applicable",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1899",
+          "optionText": "The flag State Administration, or a recognized organization authorized to act on its behalf.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1900",
+          "optionText": "Theship's Master",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1901",
+          "optionText": "Only the senior management in the company",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1902",
+          "optionText": "The US Coastguard or the IMO, as applicable",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified BWM regulation B-1: approval is by the Administration. The old A adds company approval as a supposed regulatory requirement; replace it rather than infer a unique past answer.",
+      "sourceUrls": [
+        "https://www.imo.org/en/about/conventions/pages/international-convention-for-the-control-and-management-of-ships%27-ballast-water-and-sediments-%28bwm%29.aspx"
+      ]
+    },
+    {
+      "questionId": "wp_question_332",
+      "courseId": "wp_course_434",
+      "auditNumber": 37,
+      "oldQuestionText": "According to this module, why does the United States Coastguard require ballast tanks to be cleaned regularly?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1907",
+          "optionText": "To remove sediment",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1908",
+          "optionText": "To remove marine fouling",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1909",
+          "optionText": "To allow for inspection",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1910",
+          "optionText": "To avoid the build-up of chemicals used for ballast water treatment",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1907",
+          "optionText": "To remove sediment",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1908",
+          "optionText": "To remove marine fouling",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1909",
+          "optionText": "To allow for inspection",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1910",
+          "optionText": "To avoid the build-up of chemicals used for ballast water treatment",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified 33 CFR 151.2050(c): routine ballast-tank cleaning removes sediment.",
+      "sourceUrls": [
+        "https://www.ecfr.gov/current/title-33/chapter-I/subchapter-O/part-151/subpart-D/section-151.2050"
+      ]
+    },
+    {
+      "questionId": "wp_question_334",
+      "courseId": "wp_course_434",
+      "auditNumber": 39,
+      "oldQuestionText": "Are the ballast water treatment requirements of the U.S. Coastguard and the IMO the same? Select the ONE best answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1915",
+          "optionText": "No, they are similar, but not exactly the same",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1916",
+          "optionText": "No, the ballast water treatment requirements of the U.S. Coastguard and the IMO are completely different",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1917",
+          "optionText": "Yes, since the U.S. Coastguard accepts all IMO requirements and approvals.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1918",
+          "optionText": "Yes. they are exactly the same, since the IMO requirements apply everywhere",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1915",
+          "optionText": "No, they are similar, but not exactly the same",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1916",
+          "optionText": "No, the ballast water treatment requirements of the U.S. Coastguard and the IMO are completely different",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1917",
+          "optionText": "Yes, since the U.S. Coastguard accepts all IMO requirements and approvals.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1918",
+          "optionText": "Yes. they are exactly the same, since the IMO requirements apply everywhere",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified USCG guidance distinguishes US and IMO treatment/approval requirements. Similar does not mean automatically interchangeable.",
+      "sourceUrls": [
+        "https://www.news.uscg.mil/maritime-commons/Article/4345296/us-coast-guard-updates-ballast-water-faqs-key-insights-for-maritime-professiona/"
+      ]
+    },
+    {
+      "questionId": "wp_question_336",
+      "courseId": "wp_course_434",
+      "auditNumber": 41,
+      "oldQuestionText": "How would you know what to report about the ships' ballast prior to arriving in the territorial waters of a port State?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1923",
+          "optionText": "You would need to check with the port State. because requirements vary",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1924",
+          "optionText": "Only copies of the relevant pages from the ship's Ballast Record Book are required",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1925",
+          "optionText": "You can always use the standard IMO report form",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1926",
+          "optionText": "No report is required until the ship has arrived in port",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1923",
+          "optionText": "You would need to check with the port State. because requirements vary",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1924",
+          "optionText": "Only copies of the relevant pages from the ship's Ballast Record Book are required",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1925",
+          "optionText": "You can always use the standard IMO report form",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1926",
+          "optionText": "No report is required until the ship has arrived in port",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified reporting guidance recognizes port-State requirements; checking the destination authority is the only option accommodating local variation.",
+      "sourceUrls": [
+        "https://imocompendium.imo.org/public/IMO-Compendium/Current/DS/files/BWM.2-Circ.80.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_337",
+      "courseId": "wp_course_434",
+      "auditNumber": 42,
+      "oldQuestionText": "How long must the ballast water record book be kept on board?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1927",
+          "optionText": "At least two years from the date of the last entry",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1928",
+          "optionText": "Until the next IOPPC certificate renewal",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1929",
+          "optionText": "At least five years from the date of the last entry",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1930",
+          "optionText": "At least six months from the date of the last entry",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1927",
+          "optionText": "At least two years from the date of the last entry",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1928",
+          "optionText": "Until the next IOPPC certificate renewal",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1929",
+          "optionText": "At least five years from the date of the last entry",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1930",
+          "optionText": "At least six months from the date of the last entry",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified BWM regulation B-2.2: retain onboard for two years after the final entry, then under company control for three more.",
+      "sourceUrls": [
+        "https://imocompendium.imo.org/public/IMO-Compendium/Current/DS/files/BWM.2-Circ.80.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_145",
+      "courseId": "wp_course_288",
+      "auditNumber": 59,
+      "oldQuestionText": "Two crewmen are heard to be arguing with each other about their religious beliefs. Which one of the following types of conflict is this?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_843",
+          "optionText": "Values conflict",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_844",
+          "optionText": "Technical conflict",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_845",
+          "optionText": "Interest conflict",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_846",
+          "optionText": "Personal conflict",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "A disagreement concerns incompatible religious beliefs, rather than resources or technical methods. Which option identifies the basis of that disagreement?",
+      "newOptions": [
+        {
+          "id": "wp_option_843",
+          "optionText": "Values conflict",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_844",
+          "optionText": "Technical conflict",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_845",
+          "optionText": "Interest conflict",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_846",
+          "optionText": "Conflict over access to equipment",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional judgment: religious beliefs point to values, but 'personal conflict' overlaps in the original scenario. Narrow the classification and exclude the old ambiguous item.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_146",
+      "courseId": "wp_course_288",
+      "auditNumber": 60,
+      "oldQuestionText": "Which one of the following is NOT a good handling technique when dealing with interpersonal relationship issue?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_849",
+          "optionText": "Be sure to respect his/her opinions.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_850",
+          "optionText": "Ensure that you are understood first before trying to understand the other person's point of view.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_851",
+          "optionText": "As you talk, ask for feedback. Do not 'attack' the other person with accusations.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_852",
+          "optionText": "Try to listen to the other person with open minds.",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_849",
+          "optionText": "Be sure to respect his/her opinions.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_850",
+          "optionText": "Ensure that you are understood first before trying to understand the other person's point of view.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_851",
+          "optionText": "As you talk, ask for feedback. Do not 'attack' the other person with accusations.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_852",
+          "optionText": "Try to listen to the other person with open minds.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Professional communication judgment, supported by feedback guidance: insisting on being understood before listening is the poor technique; open-minded listening is not.",
+      "sourceUrls": [
+        "https://www.otago.ac.nz/buildrespect/step-3-direct-feedback-fact-or-judgement.html"
+      ]
+    },
+    {
+      "questionId": "wp_question_148",
+      "courseId": "wp_course_288",
+      "auditNumber": 62,
+      "oldQuestionText": "The chief mate has been very critical of the crew's performance after seeing him asleep while on lookout duties on several occasions. If you are the Chief Mate, which of the following statements will you say to AB in order to avoid destructive conflict?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_861",
+          "optionText": "\"You are unbelievably useless.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_862",
+          "optionText": "\"I get frustrated every time I see a crew member doing that.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_863",
+          "optionText": "\"If you do that one more time, you will be dismissed.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_864",
+          "optionText": "\"You are very irresponsible!\"",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_861",
+          "optionText": "\"You are unbelievably useless.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_862",
+          "optionText": "I saw you asleep while on lookout. This puts the ship at risk. What happened, and what support or changes are needed to keep the lookout safe?",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_863",
+          "optionText": "\"If you do that one more time, you will be dismissed.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_864",
+          "optionText": "\"You are very irresponsible!\"",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional communication judgment: the old choices offered insults, threats or a vague emotion statement, not a clearly constructive factual response. Add one and exclude the old item.",
+      "sourceUrls": [
+        "https://www.otago.ac.nz/buildrespect/step-3-direct-feedback-fact-or-judgement.html"
+      ]
+    },
+    {
+      "questionId": "wp_question_149",
+      "courseId": "wp_course_288",
+      "auditNumber": 63,
+      "oldQuestionText": "Select the option that most accurately completes the following statement. \"In order to arrive at a win-win solution to problems, it is best to...",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_867",
+          "optionText": "...accept the fact that somebody has to lose.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_868",
+          "optionText": "...personalize the problem and be defensive.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_869",
+          "optionText": "...define the problem in such a way that it is mutually acceptable to both parties.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_870",
+          "optionText": "...amplify the faults of the other party.\"",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_867",
+          "optionText": "...accept the fact that somebody has to lose.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_868",
+          "optionText": "...personalize the problem and be defensive.\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_869",
+          "optionText": "...define the problem in such a way that it is mutually acceptable to both parties.\"",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_870",
+          "optionText": "...amplify the faults of the other party.\"",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Professional communication judgment: a mutually understood problem supports joint resolution; amplifying personal faults does not.",
+      "sourceUrls": [
+        "https://www.otago.ac.nz/buildrespect/step-3-direct-feedback-fact-or-judgement.html"
+      ]
+    },
+    {
+      "questionId": "wp_question_427",
+      "courseId": "wp_course_582",
+      "auditNumber": 72,
+      "oldQuestionText": "Which one of the following reasons is most accurate as to why it is important to follow a certain structure in communicating feedback?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2442",
+          "optionText": "To ensure that the receiver will be forced to follow your demand.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2443",
+          "optionText": "To boost your confidence in giving feedback.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2444",
+          "optionText": "To make the receiver lose face.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2445",
+          "optionText": "To emphasize to the receiver their wrongdoings.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2442",
+          "optionText": "To make feedback clear, specific and constructive, so both people understand the issue and the next steps.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2443",
+          "optionText": "To boost your confidence in giving feedback.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2444",
+          "optionText": "To make the receiver lose face.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2445",
+          "optionText": "To emphasize to the receiver their wrongdoings.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional communication judgment: forcing compliance is not the purpose of structured feedback; confidence is a plausible secondary benefit, so the old item is not a clean rekey.",
+      "sourceUrls": [
+        "https://www.otago.ac.nz/buildrespect/step-3-direct-feedback-fact-or-judgement.html"
+      ]
+    },
+    {
+      "questionId": "wp_question_191",
+      "courseId": "wp_course_320",
+      "auditNumber": 80,
+      "oldQuestionText": "Software (including games) can be installed on specific vessel computers when it is expressly authorized by the IT department.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1118",
+          "optionText": "Yes, on the computer specified by the IT department",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1119",
+          "optionText": "Yes, on all computers",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1120",
+          "optionText": "No",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1118",
+          "optionText": "Yes, on the computer specified by the IT department",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1119",
+          "optionText": "Yes, on all computers",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1120",
+          "optionText": "No",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Internal logical consistency, not a universal company policy: the stem expressly grants IT authorization for specified computers; A matches that restriction.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_381",
+      "courseId": "wp_course_513",
+      "auditNumber": 94,
+      "oldQuestionText": "Which statement best describes what happens to the ship symbol in North up true motion mode on ECDIS?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2173",
+          "optionText": "'This is a feature only seen on radar.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2174",
+          "optionText": "Vessel symbol moves across the screen.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2175",
+          "optionText": "'Vessel symbol shows the heading fixed vertically on the screen.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2176",
+          "optionText": "'Vessel is stopped on the screen land moves relative.'",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2173",
+          "optionText": "'This is a feature only seen on radar.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2174",
+          "optionText": "Vessel symbol moves across the screen.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2175",
+          "optionText": "'Vessel symbol shows the heading fixed vertically on the screen.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2176",
+          "optionText": "'Vessel is stopped on the screen land moves relative.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified manufacturer description: in true motion the ship moves relative to the stationary chart; north-up does not fix heading vertically.",
+      "sourceUrls": [
+        "https://www.furuno.it/docs/OPERATOR_MANUAL/FMD3200_3300_Ver5-xx-OME-B4.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_382",
+      "courseId": "wp_course_513",
+      "auditNumber": 95,
+      "oldQuestionText": "Select the option that correctly completes the following statement in relation to ECDIS. 'An isolated danger beacon is represented on an ENC chart with...'",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2179",
+          "optionText": "'..a single red sphere.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2180",
+          "optionText": "'..two upright red spheres.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2181",
+          "optionText": "'..two red spheres slightly inclined.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2182",
+          "optionText": "'..a single black sphere.'",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "What is the IALA topmark of an isolated danger beacon?",
+      "newOptions": [
+        {
+          "id": "wp_option_2179",
+          "optionText": "One red sphere.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2180",
+          "optionText": "Two red spheres, one above the other.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2181",
+          "optionText": "Two black cones, points upward.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2182",
+          "optionText": "Two black spheres, one above the other.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified physical topmark, not a universal ENC portrayal: two black spheres. The old answers contain no correct pair and confuse physical marking with display symbology.",
+      "sourceUrls": [
+        "https://handbook.safetransport.vic.gov.au/boating-rules/buoyage-types/isolated-danger-marks/"
+      ]
+    },
+    {
+      "questionId": "wp_question_384",
+      "courseId": "wp_course_513",
+      "auditNumber": 97,
+      "oldQuestionText": "What happens on the ECDIS display when the selected safety contour value does NOT exist in the chart data set?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2191",
+          "optionText": "The next lowest will be highlighted as a bold line",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2192",
+          "optionText": "The next highest value will be shown highlighted as a bold line",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2193",
+          "optionText": "The depth areas will be colored dark blue",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2194",
+          "optionText": "The ECDIS will not display a contour value at all",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2191",
+          "optionText": "The next lowest will be highlighted as a bold line",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2192",
+          "optionText": "The next highest value will be shown highlighted as a bold line",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2193",
+          "optionText": "The depth areas will be colored dark blue",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2194",
+          "optionText": "The ECDIS will not display a contour value at all",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified manufacturer behavior: use the next deeper available contour when the selected depth is absent; 'highest value' means greater numerical depth.",
+      "sourceUrls": [
+        "https://www.furuno.it/docs/OPERATOR_MANUAL/FMD3200_3300_Ver5-xx-OME-B4.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_388",
+      "courseId": "wp_course_513",
+      "auditNumber": 101,
+      "oldQuestionText": "Which statement best describes the action needed if ECDIS cannot automatically display Temporary and Preliminary notices?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2215",
+          "optionText": "'Ignore them as they will be made into a Notice to Mariners soon.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2216",
+          "optionText": "'Annotate the ECDIS using the notes function.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2217",
+          "optionText": "'Ask a VAR to encode them into SENC format.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2218",
+          "optionText": "'Inform the Master.'",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2215",
+          "optionText": "'Ignore them as they will be made into a Notice to Mariners soon.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2216",
+          "optionText": "'Annotate the ECDIS using the notes function.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2217",
+          "optionText": "'Ask a VAR to encode them into SENC format.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2218",
+          "optionText": "'Inform the Master.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Manufacturer-supported navigation practice: apply relevant missing notice information as manual notes/updates. Informing the Master alone does not annotate the chart.",
+      "sourceUrls": [
+        "https://www.furuno.it/docs/OPERATOR_MANUAL/FMD3200_3300_Ver5-xx-OME-B4.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_389",
+      "courseId": "wp_course_513",
+      "auditNumber": 102,
+      "oldQuestionText": "Which statement best describes why it is important to remove canceled chart cells from the ECDIS?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2221",
+          "optionText": "'To stop them from being loaded onto the ECDIS display.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2222",
+          "optionText": "'It is part of flag State requirements.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2223",
+          "optionText": "'New charts will not load if old versions are there.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2224",
+          "optionText": "'So that the computer hard drive stays uncluttered.'",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2221",
+          "optionText": "'To stop them from being loaded onto the ECDIS display.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2222",
+          "optionText": "'It is part of flag State requirements.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2223",
+          "optionText": "'New charts will not load if old versions are there.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2224",
+          "optionText": "'So that the computer hard drive stays uncluttered.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Professional navigation judgment: removal prevents use of cancelled chart data. Disk tidiness is not the navigational purpose; no claim that all systems require manual removal.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "question_343327d4",
+      "courseId": "course_fbc339f4",
+      "auditNumber": 135,
+      "oldQuestionText": "Enclosed space entry, Hazard awareness and preparations for entry: According to SOLAS, what is the minimum amount of oxygen required for entry into an enclosed space? Select the ONE correct answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "option_cc692a28",
+          "optionText": "23% by volume.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_87dc72cc",
+          "optionText": "16% by volume.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_ebe0d444",
+          "optionText": "19.5%by volume.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_ffbb9d1d",
+          "optionText": "21% by volume.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Under IMO resolution MSC.581(110), section 7.4.1, what steady oxygen reading is recommended before enclosed-space entry, alongside the other required safety checks?",
+      "newOptions": [
+        {
+          "id": "option_cc692a28",
+          "optionText": "23% by volume.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_87dc72cc",
+          "optionText": "16% by volume.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_ebe0d444",
+          "optionText": "19.5%by volume.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_ffbb9d1d",
+          "optionText": "20.9% by volume.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified MSC.581(110) section 7.4.1 recommendation, not a universal SOLAS minimum. National ranges may differ; old 19.5/21 wording is unsuitable for retrospective rekey.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.581(110).pdf"
+      ]
+    },
+    {
+      "questionId": "question_e48b5923",
+      "courseId": "course_fbc339f4",
+      "auditNumber": 136,
+      "oldQuestionText": "Enclosed space entry, Hazard awareness and preparations for entry: What is the maximum acceptable reading on a flammable gas meter before entry into an enclosed space? Select the ONE correct answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "option_c9d6693c",
+          "optionText": "Up to 1% concentration by volume.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_dafaf2e9",
+          "optionText": "Up to 50% of the lower flammable limit.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_aed7d8df",
+          "optionText": "Up to 10 % of the lower flammable limit.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_7012e326",
+          "optionText": "Up to the lower Hammable limit.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Under IMO resolution MSC.581(110), what flammable-gas reading is recommended before enclosed-space entry where the risk assessment identifies flammable gas or vapour?",
+      "newOptions": [
+        {
+          "id": "option_c9d6693c",
+          "optionText": "Less than 1% of the lower flammable limit (LFL).",
+          "isCorrect": true
+        },
+        {
+          "id": "option_dafaf2e9",
+          "optionText": "Up to 50% of the lower flammable limit.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_aed7d8df",
+          "optionText": "Up to 10 % of the lower flammable limit.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_7012e326",
+          "optionText": "Up to the lower flammable limit.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified MSC.581(110) section 7.4.3: less than 1% LFL, not 1% by volume or 10% LFL. No old option is correct; this reading alone does not authorize entry.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.581(110).pdf"
+      ]
+    },
+    {
+      "questionId": "question_4f11d16b",
+      "courseId": "course_fbc339f4",
+      "auditNumber": 150,
+      "oldQuestionText": "Enclosed space entry, The entry operation: How should entry to an enclosed space be controlled? Select the ONE correct answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "option_4aba5103",
+          "optionText": "The attendant should keep a record (tally) on who goes in and comes out.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_0dc46254",
+          "optionText": "People should report to the Master or Chief Officer before entering and after leaving.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_77b7d1cf",
+          "optionText": "Anyone named on the Permit can enter or leave at any time until the Permit is withdrawn.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_440d5014",
+          "optionText": "People should report to the bridge before entering and after leaving.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "option_4aba5103",
+          "optionText": "The attendant should keep a record (tally) on who goes in and comes out.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_0dc46254",
+          "optionText": "People should report to the Master or Chief Officer before entering and after leaving.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_77b7d1cf",
+          "optionText": "Anyone named on the Permit can enter or leave at any time until the Permit is withdrawn.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_440d5014",
+          "optionText": "People should report to the bridge before entering and after leaving.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Professional entry-control judgment, consistent with IMO attendant and entry-record guidance: an entry/exit tally controls who is inside; reporting to officers does not replace it.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.581(110).pdf"
+      ]
+    },
+    {
+      "questionId": "question_8bff5612",
+      "courseId": "course_fbc339f4",
+      "auditNumber": 151,
+      "oldQuestionText": "Enclosed space entry, The entry operation: When should an enclosed space be tested with approved portable gasdetectors? Select the ONE correct answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "option_27ab718f",
+          "optionText": "Before entry, if any doubt exists about the atmosphere in the space.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_bbb34f16",
+          "optionText": "Before entry only.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_c231fb1a",
+          "optionText": "Before entry, and periodically if personal gas detectors are not worn.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_02fa4217",
+          "optionText": "Before entry and periodically.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "option_27ab718f",
+          "optionText": "Before entry, if any doubt exists about the atmosphere in the space.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_bbb34f16",
+          "optionText": "Before entry only.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_c231fb1a",
+          "optionText": "Before entry, and periodically if personal gas detectors are not worn.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_02fa4217",
+          "optionText": "Before entry and periodically.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified IMO guidance requires pre-entry and repeated occupied-space testing. Personal detectors do not remove that obligation.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.581(110).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_49",
+      "courseId": "wp_course_156",
+      "auditNumber": 153,
+      "oldQuestionText": "What is one characteristic of a metal tire?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_286",
+          "optionText": "It is relatively cool.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_287",
+          "optionText": "It is very common.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_288",
+          "optionText": "It is very easy to start.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_289",
+          "optionText": "It is very hot.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "What is one characteristic of a metal fire?",
+      "newOptions": [
+        {
+          "id": "wp_option_286",
+          "optionText": "It is relatively cool.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_287",
+          "optionText": "It is very common.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_288",
+          "optionText": "It is very easy to start.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_289",
+          "optionText": "It is very hot.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional fire-safety judgment: burning metal is a high-temperature hazard. The stem says 'tire', not 'fire'; correct the subject and exclude the malformed past item.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_51",
+      "courseId": "wp_course_156",
+      "auditNumber": 155,
+      "oldQuestionText": "A pan of cooking oil catches fire on the stove in the galley. What is the best way to put such a fire out?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_298",
+          "optionText": "Water - applied by a spray.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_299",
+          "optionText": "Water - applied by a jet.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_300",
+          "optionText": "Cover the pan with a tire blanket.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_301",
+          "optionText": "Dry Powder.",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "A small pan of cooking oil catches fire in the galley. The alarm has been raised, the heat is off, escape is clear, and trained crew judge it safe to tackle. Which listed method is appropriate?",
+      "newOptions": [
+        {
+          "id": "wp_option_298",
+          "optionText": "Water - applied by a spray.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_299",
+          "optionText": "Water - applied by a jet.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_300",
+          "optionText": "Smother the pan with a suitable fire blanket, following training.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_301",
+          "optionText": "Dry Powder.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified COSWP 4.3/23.9 guidance supports smothering cooking-oil fires only when safe. Correct the blanket typo and add safety conditions; do not infer an answer to the old unqualified scenario.",
+      "sourceUrls": [
+        "https://www.mardep.gov.hk/filemanager/en/share/aboutus/pdf/sab/sabp2_26anx2.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_451",
+      "courseId": "wp_course_589",
+      "auditNumber": 168,
+      "oldQuestionText": "What drip rate should be used during bunker sampling?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2591",
+          "optionText": "The drip rate should be enough to give sufficient volume of fuel sample in the cubitainer by the end of the bunkering.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2592",
+          "optionText": "The drip rate should be enough to completely fill the cubitainer well before the end of the bunkering.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2593",
+          "optionText": "The drip rate should be enough to give sufficient volume of fuel sample in the cubitainer well before the end of the bunkering.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2594",
+          "optionText": "The drip rate should be enough to completely fill the cubitainer by the end of the bunkering.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Which drip-sampling practice produces a representative fuel sample over the whole bunkering operation?",
+      "newOptions": [
+        {
+          "id": "wp_option_2591",
+          "optionText": "Collect continuously throughout delivery at a rate that provides enough sample without overflowing the container.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2592",
+          "optionText": "Stop collecting as soon as the container fills, even if delivery continues.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2593",
+          "optionText": "Collect only near the beginning of delivery.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2594",
+          "optionText": "Collect only after bunkering has finished.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified sampling guidance requires collection throughout delivery. The old 'sufficient' and 'completely fill by the end' options overlap; make continuous representative collection explicit and exclude past scoring.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MEPCDocuments/MEPC.182(59).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_456",
+      "courseId": "wp_course_589",
+      "auditNumber": 173,
+      "oldQuestionText": "Why must the density of the bunker fuel be accurately known?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2621",
+          "optionText": "To work out the quantity of bunkers received, since mass is volume divided by density.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2622",
+          "optionText": "To calculate the temperature needed to atomize and burn it.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2623",
+          "optionText": "To calculate the minimum storage temperature at which it can still be pumped.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2624",
+          "optionText": "To work out the quantity of bunkers received, since mass is volume multiplied by density",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2621",
+          "optionText": "To work out the quantity of bunkers received, since mass is volume divided by density.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2622",
+          "optionText": "To calculate the temperature needed to atomize and burn it.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2623",
+          "optionText": "To calculate the minimum storage temperature at which it can still be pumped.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2624",
+          "optionText": "To work out the quantity of bunkers received, since mass is volume multiplied by density",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified dimensional identity: mass = volume multiplied by density, using consistent units and reference temperature. Division in the old key is wrong.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_459",
+      "courseId": "wp_course_592",
+      "auditNumber": 186,
+      "oldQuestionText": "Which one of the given options best completes the following statement: In relation to GMDSS, sea area A2 means an area...",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2639",
+          "optionText": "..within Radar coverage of at least one Coast Earth Station\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2640",
+          "optionText": "...coastal water in sight of a Coast Station\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2641",
+          "optionText": "..within coverage of at least one coast station with MFDSC and telephony\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2642",
+          "optionText": "...within 150 nautical miles from the coast\"",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2639",
+          "optionText": "..within Radar coverage of at least one Coast Earth Station\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2640",
+          "optionText": "...coastal water in sight of a Coast Station\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2641",
+          "optionText": "...excluding sea area A1, within the radiotelephone coverage of at least one MF coast station providing continuous DSC alerting, as defined by a Contracting Government.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2642",
+          "optionText": "...within 150 nautical miles from the coast\"",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified SOLAS IV definition: A2 excludes A1 and depends on MF radiotelephone coverage with continuous DSC, not a fixed coastal distance. Add missing qualifiers and void the incomplete old item.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.496(105).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_460",
+      "courseId": "wp_course_592",
+      "auditNumber": 187,
+      "oldQuestionText": "Which one of the given options best completes the following statement: Ship-to-ship distress alerting is on...",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2645",
+          "optionText": "...VHF telephony\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2646",
+          "optionText": "...mobile telephones\"",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2647",
+          "optionText": "...digital selective calling in the VHF and MF bands\"",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2645",
+          "optionText": "...VHF telephony\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2646",
+          "optionText": "...mobile telephones\"",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2647",
+          "optionText": "...digital selective calling in the VHF and MF bands\"",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified GMDSS distinction: DSC in VHF/MF provides ship-to-ship distress alerting; a mobile telephone is not the GMDSS alerting system.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.496(105).pdf",
+        "https://www.gov.uk/government/publications/msn-1903-m-the-global-maritime-distress-and-safety-system-gmdss-ship-requirements/msn-1903-m-gmdss-ship-requirements"
+      ]
+    },
+    {
+      "questionId": "wp_question_462",
+      "courseId": "wp_course_592",
+      "auditNumber": 189,
+      "oldQuestionText": "Which piece of equipment on the bridge is used for locating a SART?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2656",
+          "optionText": "Radio Direction Finder",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2657",
+          "optionText": "10 cm (3 GHz) Radar",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2658",
+          "optionText": "3 cm (9 GHz) Radar",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2659",
+          "optionText": "Radar Direction Finder",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Which bridge equipment detects a radar search and rescue transponder (radar SART), rather than an AIS-SART?",
+      "newOptions": [
+        {
+          "id": "wp_option_2656",
+          "optionText": "Radio Direction Finder",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2657",
+          "optionText": "10 cm (3 GHz) Radar",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2658",
+          "optionText": "3 cm (9 GHz) Radar",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2659",
+          "optionText": "Radar Direction Finder",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified radar-SART operation uses X-band radar. The generic SART stem did not distinguish AIS-SART; specify radar SART and exclude the ambiguous past item.",
+      "sourceUrls": [
+        "https://www.gov.uk/government/publications/msn-1903-m-the-global-maritime-distress-and-safety-system-gmdss-ship-requirements/msn-1903-m-gmdss-ship-requirements"
+      ]
+    },
+    {
+      "questionId": "wp_question_59",
+      "courseId": "wp_course_159",
+      "auditNumber": 198,
+      "oldQuestionText": "Which ONE of these does MARPOL class as garbage?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_342",
+          "optionText": "BaIlast Water",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_343",
+          "optionText": "External wash water containing cleaning agents",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_344",
+          "optionText": "Black water, from toilets and urinals",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_345",
+          "optionText": "Grey water, from sinks and showers",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_342",
+          "optionText": "BaIlast Water",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_343",
+          "optionText": "External wash water containing cleaning agents",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_344",
+          "optionText": "Black water, from toilets and urinals",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_345",
+          "optionText": "Grey water, from sinks and showers",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified MARPOL Annex V regulation 1.12 includes cleaning agents/additives in external wash water as operational waste. Sewage and grey water are not the correct garbage category.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MEPCDocuments/MEPC.201(62).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_66",
+      "courseId": "wp_course_159",
+      "auditNumber": 205,
+      "oldQuestionText": "Can we discharge food wastes inside a MARPOL special area for garbage? Select the ONE best answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_384",
+          "optionText": "Yes, provided that the ship is en-route, the food waste is comminuted and we are more than 3 nm from the nearest land or ice shelf",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_385",
+          "optionText": "Yes, provided that the ship is en-route, the food waste is comminuted and we are more than 12 nm from the nearest land or ice shelf",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_386",
+          "optionText": "Yes, provided that the ship is en-route, the food is not wrapped in plastic and we are more than 12 nm from the nearest land or ice shelf",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_387",
+          "optionText": "No. garbage can never be discharged within a special area",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Under MARPOL Annex V regulation 6, outside polar waters and where no stricter local rule applies, may food waste be discharged within a special area? Select the ONE best answer.",
+      "newOptions": [
+        {
+          "id": "wp_option_384",
+          "optionText": "Yes, provided that the ship is en-route, the food waste is comminuted and we are more than 3 nm from the nearest land or ice shelf",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_385",
+          "optionText": "Yes, while en route, as far from land as practicable and at least 12 nautical miles away, if ground or comminuted to pass a 25 mm screen and not mixed with other garbage.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_386",
+          "optionText": "Yes, provided that the ship is en-route, the food is not wrapped in plastic and we are more than 12 nm from the nearest land or ice shelf",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_387",
+          "optionText": "No. garbage can never be discharged within a special area",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified Annex V regulation 6 permits qualifying food waste, with restrictions missing from the old answers. Scope out polar/national exceptions and specify screening, contamination and distance; exclude past item.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MEPCDocuments/MEPC.201(62).pdf",
+        "https://www.imo.org/en/ourwork/environment/pages/garbage-default.aspx"
+      ]
+    },
+    {
+      "questionId": "wp_question_99",
+      "courseId": "wp_course_174",
+      "auditNumber": 232,
+      "oldQuestionText": "1. Why does the I.S.M. Code require hazardous occurrences to be reported to the company?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_578",
+          "optionText": "The I.S.M. Code only requires accidents to be reported to the company",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_579",
+          "optionText": "So that procedures can be changed to avoid a future accident",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_580",
+          "optionText": "So the knowledge of the crew can be checked",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_581",
+          "optionText": "So that safety bonuses can be calculated",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_578",
+          "optionText": "The I.S.M. Code only requires accidents to be reported to the company",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_579",
+          "optionText": "So that procedures can be changed to avoid a future accident",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_580",
+          "optionText": "So the knowledge of the crew can be checked",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_581",
+          "optionText": "So that safety bonuses can be calculated",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified ISM section 9: reporting enables corrective action and prevention, not calculation of bonuses.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.741(18).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_101",
+      "courseId": "wp_course_174",
+      "auditNumber": 234,
+      "oldQuestionText": "3. How can the Designated Person (DP) quickly change an unsafe situation onboard your ship?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_590",
+          "optionText": "The DP can contact the Class Society quickly for advice",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_591",
+          "optionText": "The DP is an experienced Master",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_592",
+          "optionText": "The DP is an experienced Chief Engineer",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_593",
+          "optionText": "The DP can bring critical issues to the top management's attention without delay",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_590",
+          "optionText": "The DP can contact the Class Society quickly for advice",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_591",
+          "optionText": "The DP is an experienced Master",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_592",
+          "optionText": "The DP is an experienced Chief Engineer",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_593",
+          "optionText": "The DP can bring critical issues to the top management's attention without delay",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified ISM section 4: direct access to highest management enables escalation of critical safety issues.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.741(18).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_103",
+      "courseId": "wp_course_174",
+      "auditNumber": 236,
+      "oldQuestionText": "5. Which I.S.M. Code requirement is met by carrying out regular safety and anti-pollution drills?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_602",
+          "optionText": "To prepare for, and respond to, emergency situations",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_603",
+          "optionText": "To have a procedure for reporting non-conformities",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_604",
+          "optionText": "To comply with STCW",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_605",
+          "optionText": "To have defined levels of authority between personnel",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_602",
+          "optionText": "To prepare for, and respond to, emergency situations",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_603",
+          "optionText": "To have a procedure for reporting non-conformities",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_604",
+          "optionText": "To comply with STCW",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_605",
+          "optionText": "To have defined levels of authority between personnel",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified ISM section 8: drills implement emergency preparedness.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.741(18).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_107",
+      "courseId": "wp_course_174",
+      "auditNumber": 240,
+      "oldQuestionText": "9. Which IMO convention is the I.S.M. Code part of?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_626",
+          "optionText": "SOLAS",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_627",
+          "optionText": "MARPOL",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_628",
+          "optionText": "It is not a part of any convention. It is a stand-alone code of practice",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_629",
+          "optionText": "STCW",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_626",
+          "optionText": "SOLAS",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_627",
+          "optionText": "MARPOL",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_628",
+          "optionText": "It is not a part of any convention. It is a stand-alone code of practice",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_629",
+          "optionText": "STCW",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified IMO explanation: SOLAS chapter IX makes the ISM Code mandatory; it is not part of STCW.",
+      "sourceUrls": [
+        "https://www.imo.org/en/ourwork/humanelement/pages/ismcode.aspx"
+      ]
+    },
+    {
+      "questionId": "wp_question_108",
+      "courseId": "wp_course_174",
+      "auditNumber": 241,
+      "oldQuestionText": "10. Which ONE of the following best describes what the I.S.M. Code requires shipping companies to do?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_632",
+          "optionText": "Improve communication between ship and office with satellite phones",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_633",
+          "optionText": "Establish procedures, plans and instructions to prevent human error",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_634",
+          "optionText": "Employ extra staff to become I.S.M. auditors",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_635",
+          "optionText": "Write procedures to prevent the company being liable for its crews",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_632",
+          "optionText": "Improve communication between ship and office with satellite phones",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_633",
+          "optionText": "Establish and implement a safety management system with procedures, plans and instructions for safe operations and pollution prevention.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_634",
+          "optionText": "Employ extra staff to become I.S.M. auditors",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_635",
+          "optionText": "Write procedures to prevent the company being liable for its crews",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified ISM objectives concern safe operation and pollution prevention. 'Prevent human error' is an incomplete substitute; replace the best-answer text and exclude the old imperfect item.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.741(18).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_109",
+      "courseId": "wp_course_174",
+      "auditNumber": 242,
+      "oldQuestionText": "11. According to this module, why do experienced seafarers still have accidents?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_638",
+          "optionText": "They do the most dangerous work",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_639",
+          "optionText": "They are slow to learn new work practices",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_640",
+          "optionText": "Over-confidence can lead to carelessness",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_641",
+          "optionText": "Over-confidence can lead to carelessness",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Which statement describes how overconfidence can increase accident risk for an experienced seafarer?",
+      "newOptions": [
+        {
+          "id": "wp_option_638",
+          "optionText": "Experience makes all safety checks unnecessary.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_639",
+          "optionText": "Experience guarantees that an accident cannot occur.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_640",
+          "optionText": "Overconfidence always improves attention to hazards.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_641",
+          "optionText": "Over-confidence can lead to carelessness",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Direct structural evidence: C and D contain identical keyed-answer text. Replace one duplicate, narrow the causal claim, and exclude the old item; professional judgment, not a claim that all experienced seafarer accidents have this cause.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_471",
+      "courseId": "wp_course_595",
+      "auditNumber": 261,
+      "oldQuestionText": "What is the purpose of a signaller in a lifting team?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2710",
+          "optionText": "They handle the crane controls",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2711",
+          "optionText": "They signal to other people in the vicinity",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2712",
+          "optionText": "They direct the crane driver",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2713",
+          "optionText": "They sling the load",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_2710",
+          "optionText": "They handle the crane controls",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2711",
+          "optionText": "They signal to other people in the vicinity",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2712",
+          "optionText": "They direct the crane driver",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2713",
+          "optionText": "They sling the load",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified COSWP section 19.10: a signaller directs the lifting-equipment operator.",
+      "sourceUrls": [
+        "https://www.mardep.gov.hk/filemanager/en/share/aboutus/pdf/sab/sabp2_26anx2.pdf"
+      ]
+    },
+    {
+      "questionId": "question_8371a0c0",
+      "courseId": "course_e481ef48",
+      "auditNumber": 294,
+      "oldQuestionText": "Incident investigation, Cause and effect: Which TWO of the following are examples of post-contact controls? Select the TWO correct answers.",
+      "oldType": "multiple_choice",
+      "oldOptions": [
+        {
+          "id": "option_cabf1161",
+          "optionText": "Search and Rescue operations.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_030f55ed",
+          "optionText": "Preparation of firefighting equipment for possible use.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_8189eb2b",
+          "optionText": "Briefing of the ship's crew before the operation",
+          "isCorrect": true
+        },
+        {
+          "id": "option_d1dfab7b",
+          "optionText": "Emergency evacuation plans.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Which TWO actions reduce consequences after an incident has occurred? Select TWO.",
+      "newOptions": [
+        {
+          "id": "option_cabf1161",
+          "optionText": "Conducting search and rescue for people affected by the incident.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_030f55ed",
+          "optionText": "Preparing firefighting equipment before an operation starts.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_8189eb2b",
+          "optionText": "Briefing the crew before the operation.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_d1dfab7b",
+          "optionText": "Evacuating people from danger after the incident.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional safety-model judgment: distinguish actions after an incident from preparedness beforehand. Original plans/preparation options do not identify a unique second post-contact action.",
+      "sourceUrls": [
+        "https://www.hse.gov.uk/foi/internalops/og/ogprocedures/investigation/coreobjectives.htm"
+      ]
+    },
+    {
+      "questionId": "question_6246ffe6",
+      "courseId": "course_e481ef48",
+      "auditNumber": 298,
+      "oldQuestionText": "Incident investigation, Cause and effect: Which TWO of the following are examples of latent, or hidden, factors that may be found to contribute to an accident? Select the TWO correct answers.",
+      "oldType": "multiple_choice",
+      "oldOptions": [
+        {
+          "id": "option_1e51189c",
+          "optionText": "New procedures",
+          "isCorrect": true
+        },
+        {
+          "id": "option_13190c31",
+          "optionText": "Substandard practices",
+          "isCorrect": true
+        },
+        {
+          "id": "option_41bd20b1",
+          "optionText": "Faulty maintenance",
+          "isCorrect": false
+        },
+        {
+          "id": "option_a793a2b8",
+          "optionText": "Design",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Which TWO are underlying organizational or design failures that can contribute to an accident? Select TWO.",
+      "newOptions": [
+        {
+          "id": "option_1e51189c",
+          "optionText": "Introducing an effective procedure after proper risk assessment.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_13190c31",
+          "optionText": "A worker bypassing a guard during the incident.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_41bd20b1",
+          "optionText": "A maintenance system that repeatedly leaves safety-critical defects unrepaired.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_a793a2b8",
+          "optionText": "Equipment design that creates an unrecognized hazardous exposure.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified HSE examples support underlying maintenance-system and design failures. Old stem asks for two but keys three, and bare 'new procedures'/'design' are not necessarily failures.",
+      "sourceUrls": [
+        "https://www.hse.gov.uk/foi/internalops/og/ogprocedures/investigation/coreobjectives.htm"
+      ]
+    },
+    {
+      "questionId": "question_d9fb891b",
+      "courseId": "course_e481ef48",
+      "auditNumber": 301,
+      "oldQuestionText": "Incident investigation, Cause and effect: Which TWO of the following are examples of substandard practices? Select the TWO correct answers.",
+      "oldType": "multiple_choice",
+      "oldOptions": [
+        {
+          "id": "option_3b297dc9",
+          "optionText": "Overriding or bypassing safety devices.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_78f64787",
+          "optionText": "Missing guards or barriers.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_242d1437",
+          "optionText": "Exposure to excessively high or low temperatures.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_853d2fad",
+          "optionText": "Failure to use personal protective equipment.",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "option_3b297dc9",
+          "optionText": "Overriding or bypassing safety devices.",
+          "isCorrect": true
+        },
+        {
+          "id": "option_78f64787",
+          "optionText": "Missing guards or barriers.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_242d1437",
+          "optionText": "Exposure to excessively high or low temperatures.",
+          "isCorrect": false
+        },
+        {
+          "id": "option_853d2fad",
+          "optionText": "Failure to use required personal protective equipment.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional act-versus-condition distinction, consistent with HSE: bypassing devices and omitting required PPE are practices; missing guards are a condition. The original asks TWO but keys THREE, so exclude past item.",
+      "sourceUrls": [
+        "https://www.hse.gov.uk/foi/internalops/og/ogprocedures/investigation/coreobjectives.htm"
+      ]
+    },
+    {
+      "questionId": "wp_question_522",
+      "courseId": "wp_course_647",
+      "auditNumber": 311,
+      "oldQuestionText": "What challenges do seafarers face in relation to their mental health?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_3017",
+          "optionText": "\u2022 No privacy",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3018",
+          "optionText": "\u2022 Fear of piracy",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3019",
+          "optionText": "\u2022 Isolation",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3020",
+          "optionText": "\u2022 Homesickness",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Which circumstances can contribute to mental-health strain for seafarers? Select all that apply.",
+      "newType": "multiple_choice",
+      "newOptions": [
+        {
+          "id": "wp_option_3017",
+          "optionText": "Lack of privacy",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3018",
+          "optionText": "Fear of piracy",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3019",
+          "optionText": "Isolation",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3020",
+          "optionText": "Homesickness",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Empirical/professional judgment, not a diagnosis: each listed circumstance can be a stressor. The original single-choice item wrongly restricted credit to isolation.",
+      "sourceUrls": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10966976/"
+      ]
+    },
+    {
+      "questionId": "wp_question_524",
+      "courseId": "wp_course_647",
+      "auditNumber": 313,
+      "oldQuestionText": "Common behavioral reactions to traumatic events and acute stress include...",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_3028",
+          "optionText": "\u2022 Startling easily",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3029",
+          "optionText": "\u2022 Losing interest in previously pleasurable activities",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3030",
+          "optionText": "\u2022 Avoiding talking",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3031",
+          "optionText": "\u2022 Withdrawal",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Which can occur after a traumatic event? Select all that apply.",
+      "newType": "multiple_choice",
+      "newOptions": [
+        {
+          "id": "wp_option_3028",
+          "optionText": "Being easily startled",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3029",
+          "optionText": "Losing interest in previously enjoyable activities",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3030",
+          "optionText": "Avoiding reminders of the traumatic event",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3031",
+          "optionText": "Withdrawing from social contact",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified NIMH examples support several possible post-trauma reactions, not a single universal response or diagnosis. Narrow vague avoidance wording and use multiple choice; exclude past item.",
+      "sourceUrls": [
+        "https://www.nimh.nih.gov/health/publications/post-traumatic-stress-disorder-ptsd"
+      ]
+    },
+    {
+      "questionId": "wp_question_3164",
+      "courseId": "wp_course_3522",
+      "auditNumber": 324,
+      "oldQuestionText": "Which Mooring technique will be carried out when there is a strong onshore wind and you have to berth without the assistance of tugs?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_13608",
+          "optionText": "Baltic Mooring.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_13609",
+          "optionText": "Baltic Mooring.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_13610",
+          "optionText": "Single Point Mooring (SPM).",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Which named mooring technique can use an anchor and onboard lines to limit impact while berthing alongside a weak or poorly fendered quay in an onshore wind without tugs?",
+      "newOptions": [
+        {
+          "id": "wp_option_13608",
+          "optionText": "Baltic Mooring.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_13609",
+          "optionText": "Mediterranean mooring.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_13610",
+          "optionText": "Single Point Mooring (SPM).",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Direct structural evidence: A/B duplicate the same correct text. Mooring-equipment supplier describes the Baltic technique; name the technique, not a mandatory maneuver for every onshore wind.",
+      "sourceUrls": [
+        "https://prosertek.com/blog/most-common-mooring-methods/"
+      ]
+    },
+    {
+      "questionId": "wp_question_178",
+      "courseId": "wp_course_316",
+      "auditNumber": 340,
+      "oldQuestionText": "How often must the ship review an OPA 90 Vessel Response Plan?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1039",
+          "optionText": "At least once per year",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1040",
+          "optionText": "At least once every 5 years",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1041",
+          "optionText": "Every 3 months",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1042",
+          "optionText": "When a change is required",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1039",
+          "optionText": "At least once per year",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1040",
+          "optionText": "At least once every 5 years",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1041",
+          "optionText": "Every 3 months",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1042",
+          "optionText": "When a change is required",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified 33 CFR 155.1070(a): review annually; amendments when circumstances change are additional.",
+      "sourceUrls": [
+        "https://www.ecfr.gov/current/title-33/chapter-I/subchapter-O/part-155/subpart-D/section-155.1070"
+      ]
+    },
+    {
+      "questionId": "wp_question_179",
+      "courseId": "wp_course_316",
+      "auditNumber": 341,
+      "oldQuestionText": "What is the longest period that an OPA 90 Vessel Response Plan can go before needing to be re-approved by the US Coast Guard?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1045",
+          "optionText": "3 years",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1046",
+          "optionText": "Until there is an important change made to it",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1047",
+          "optionText": "5 years",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1048",
+          "optionText": "10 years",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1045",
+          "optionText": "3 years",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1046",
+          "optionText": "Until there is an important change made to it",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1047",
+          "optionText": "5 years",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1048",
+          "optionText": "10 years",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified 33 CFR 155.1065(c): approval validity is up to five years, not ten.",
+      "sourceUrls": [
+        "https://www.ecfr.gov/current/title-33/chapter-I/subchapter-O/part-155/subpart-D/section-155.1065"
+      ]
+    },
+    {
+      "questionId": "wp_question_183",
+      "courseId": "wp_course_316",
+      "auditNumber": 345,
+      "oldQuestionText": "Which one of the following is a rule for oil tankers that was introduced by OPA 90?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1069",
+          "optionText": "They need to have CPS and electronic charts",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1070",
+          "optionText": "They need to be built with double hulls",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1071",
+          "optionText": "They need extra crew",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1072",
+          "optionText": "They need high capacity cargo pumps",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1069",
+          "optionText": "They need to have CPS and electronic charts",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1070",
+          "optionText": "They need to be built with double hulls",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1071",
+          "optionText": "They need extra crew",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1072",
+          "optionText": "They need high capacity cargo pumps",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified historical OPA 90 requirement: double hulls, not high-capacity cargo pumps. This identifies the introduced rule, not every exemption or phase-in.",
+      "sourceUrls": [
+        "https://www.dco.uscg.mil/Portals/9/DCO%20Documents/5p/5ps/NVIC/1992/n4-92.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_92",
+      "courseId": "wp_course_171",
+      "auditNumber": 361,
+      "oldQuestionText": "What equipment is available to deal with a lifeboat engine fire? Select the ONE best answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_536",
+          "optionText": "A fire extinguisher.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_537",
+          "optionText": "A fixed CO2 system in the engine compartment.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_538",
+          "optionText": "A bailer, to put water over it.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_539",
+          "optionText": "A bucket of sand.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_536",
+          "optionText": "A fire extinguisher.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_537",
+          "optionText": "A fixed CO2 system in the engine compartment.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_538",
+          "optionText": "A bailer, to put water over it.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_539",
+          "optionText": "A bucket of sand.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified LSA 4.4.8.28 includes approved portable equipment for oil fires; a fixed CO2 installation is not a universal lifeboat requirement.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.48(66).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_96",
+      "courseId": "wp_course_171",
+      "auditNumber": 365,
+      "oldQuestionText": "The lifeboat on a gas tanker has an air supply inside. How long would you expect the air supply to last? Select the ONE best answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_560",
+          "optionText": "l hour.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_561",
+          "optionText": "30 minutes.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_562",
+          "optionText": "24hours.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_563",
+          "optionText": "10 minutes.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "What minimum duration must a lifeboat self-contained air supply support safe breathing and normal engine operation with all entrances and openings closed?",
+      "newOptions": [
+        {
+          "id": "wp_option_560",
+          "optionText": "1 hour.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_561",
+          "optionText": "30 minutes.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_562",
+          "optionText": "24hours.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_563",
+          "optionText": "10 minutes.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified minimum is ten minutes under the specified closed-up conditions. Actual model endurance may exceed it; the old question asked expected duration without naming a model.",
+      "sourceUrls": [
+        "https://www.legislation.gov.uk/uksi/2020/501/pdfs/uksiod_20200501_en.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_97",
+      "courseId": "wp_course_171",
+      "auditNumber": 366,
+      "oldQuestionText": "Which TWOof these statements about inflatable life-rafts are true?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_566",
+          "optionText": "An upside down life-raft can only be righted using the rescue boat and a rope.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_567",
+          "optionText": "An upside down life-raft cannot be righted.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_568",
+          "optionText": "Sometimes life-rafts inflate upside down.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_569",
+          "optionText": "Some life-rafts are reversible.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Which TWO of these statements about inflatable life-rafts are true?",
+      "newType": "multiple_choice",
+      "newOptions": [
+        {
+          "id": "wp_option_566",
+          "optionText": "An upside down life-raft can only be righted using the rescue boat and a rope.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_567",
+          "optionText": "An upside down life-raft cannot be righted.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_568",
+          "optionText": "Sometimes life-rafts inflate upside down.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_569",
+          "optionText": "Some life-rafts are reversible.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified liferaft provisions recognize inverted inflation and reversible models. The old stem asks TWO but its type/key permit one; both C and D are true.",
+      "sourceUrls": [
+        "https://www.legislation.gov.uk/uksi/2020/501/pdfs/uksiod_20200501_en.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_312",
+      "courseId": "wp_course_448",
+      "auditNumber": 369,
+      "oldQuestionText": "Which option BEST answers the following question: 'When passage planning on the ECDIS, which two safety functions should always be set?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1795",
+          "optionText": "Safety depth and UKC at a waypoint number.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1796",
+          "optionText": "Course and speed of the vessel.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1797",
+          "optionText": "Speed of the vessel and ETA to destination.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1798",
+          "optionText": "Safety depth contour and safety depth value.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1795",
+          "optionText": "Safety depth and UKC at a waypoint number.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1796",
+          "optionText": "Course and speed of the vessel.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1797",
+          "optionText": "Speed of the vessel and ETA to destination.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1798",
+          "optionText": "Safety depth contour and safety depth value.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified manufacturer chart-alert settings include safety contour and safety depth; waypoint UKC is not a substitute for the contour.",
+      "sourceUrls": [
+        "https://www.furuno.it/docs/OPERATOR_MANUAL/FMD3200_3300_Ver5-xx-OME-B4.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_313",
+      "courseId": "wp_course_448",
+      "auditNumber": 370,
+      "oldQuestionText": "Which answer correctly completes the following statement: 'The conning position, CPS aerial position, and radar antenna position are adjusted into one position on the ECDIS that is called the...",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1801",
+          "optionText": "...consistent common reference point.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1802",
+          "optionText": "...common position for navigation.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1803",
+          "optionText": "...the CCPR.",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "What is the common reference location used to align shipborne navigation measurements and displayed positions?",
+      "newOptions": [
+        {
+          "id": "wp_option_1801",
+          "optionText": "The consistent common reference point (CCRP).",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1802",
+          "optionText": "The next waypoint on the route.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1803",
+          "optionText": "The geographical North Pole.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified common reference-point concept. Old 'CCPR' is an apparent transposition of CCRP and could denote the same intended answer as A; do not penalize that reading. Remove the near-duplicate and fix GPS wording.",
+      "sourceUrls": [
+        "https://www.furunousa.com/-/media/sites/furuno/document_library/documents/manuals/public_manuals/far3xxx_operators_manual.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_316",
+      "courseId": "wp_course_448",
+      "auditNumber": 373,
+      "oldQuestionText": "Which statement BEST describes why a previously validated route would have to be re-validated?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1818",
+          "optionText": "'Revalidation is necessary when it has been put out of monitor mode.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1819",
+          "optionText": "'It would not need re-validating because once validated that is sufficient.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1820",
+          "optionText": "'Revalidation is necessary when there have been chart updates.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1821",
+          "optionText": "'Revalidation is necessary when it has been removed from the display.'",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1818",
+          "optionText": "'Revalidation is necessary when it has been put out of monitor mode.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1819",
+          "optionText": "'It would not need re-validating because once validated that is sufficient.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1820",
+          "optionText": "'Revalidation is necessary when there have been chart updates.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1821",
+          "optionText": "'Revalidation is necessary when it has been removed from the display.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified manufacturer instruction: chart updates require repeating route checks.",
+      "sourceUrls": [
+        "https://www.furuno.it/docs/OPERATOR_MANUAL/FMD3200_3300_Ver5-xx-OME-B4.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_317",
+      "courseId": "wp_course_448",
+      "auditNumber": 374,
+      "oldQuestionText": "Which statement correctly describes the process of ECDIS automatic route validation?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1824",
+          "optionText": "'It is the ECDIS checking the route for safety.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1825",
+          "optionText": "'It is the ECDIS computer checking files are correct.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1826",
+          "optionText": "'This is when the ECDIS checks that the route is not a copy.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1827",
+          "optionText": "'It is the only way to make sure the route is safe.'",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1824",
+          "optionText": "The ECDIS checks the route against charted dangers and selected safety settings; the navigator must also visually appraise it.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1825",
+          "optionText": "'It is the ECDIS computer checking files are correct.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1826",
+          "optionText": "'This is when the ECDIS checks that the route is not a copy.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1827",
+          "optionText": "'It is the only way to make sure the route is safe.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified automatic checks compare route geometry with chart dangers and settings, but do not guarantee safety. Replace the oversimplified answer and explicitly retain visual appraisal; void old item.",
+      "sourceUrls": [
+        "https://www.furuno.it/docs/OPERATOR_MANUAL/FMD3200_3300_Ver5-xx-OME-B4.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_318",
+      "courseId": "wp_course_448",
+      "auditNumber": 375,
+      "oldQuestionText": "Select the option which correctly completes the following statement: 'When validating a route using ECDIS, it is important to have all available charts because...",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1831",
+          "optionText": "'...ECDIS cannot automatically load charts at the correct scale.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1832",
+          "optionText": "'...if not, dangerous objects not present in small scale charts could be missed.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1833",
+          "optionText": "'...ECDIS has no intelligence and has to be helped.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1834",
+          "optionText": "'...if there are raster charts on the ECDIS they would be used.'",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1831",
+          "optionText": "'...ECDIS cannot automatically load charts at the correct scale.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1832",
+          "optionText": "'...if not, dangerous objects not present in small scale charts could be missed.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1833",
+          "optionText": "'...ECDIS has no intelligence and has to be helped.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1834",
+          "optionText": "'...if there are raster charts on the ECDIS they would be used.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified chart-check principle: missing larger-scale coverage can hide dangers. Availability is necessary, not a guarantee of a safe route.",
+      "sourceUrls": [
+        "https://www.furuno.it/docs/OPERATOR_MANUAL/FMD3200_3300_Ver5-xx-OME-B4.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_367",
+      "courseId": "wp_course_488",
+      "auditNumber": 379,
+      "oldQuestionText": "Which of the following are evidence of a POOR safety culture onboard a ship? Select any options that you think apply.",
+      "oldType": "multiple_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_2095",
+          "optionText": "People not paying attention to safety briefings",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2096",
+          "optionText": "Other people wearing PPE such as hard hats, when you cannot see any risks",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2097",
+          "optionText": "Wearing sports shoes in a recreational area of the accommodation",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2098",
+          "optionText": "No security procedures at the gangway",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Which observations clearly indicate poor safety practice? Assume the recreational area has no task-specific protective-footwear requirement. Select all that apply.",
+      "newOptions": [
+        {
+          "id": "wp_option_2095",
+          "optionText": "People not paying attention to safety briefings",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_2096",
+          "optionText": "People wearing appropriate PPE for hazards you have not personally identified.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2097",
+          "optionText": "People wearing permitted sports shoes in a recreational area.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_2098",
+          "optionText": "No security procedures at the gangway",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional safety judgment: wearing extra PPE is not evidence of poor culture, and recreational footwear depends on local requirements. Make those conditions explicit; exclude old ambiguous scoring.",
+      "sourceUrls": [
+        "https://www.hse.gov.uk/ppe/managing-risk-using-ppe.htm"
+      ]
+    },
+    {
+      "questionId": "wp_question_74",
+      "courseId": "wp_course_162",
+      "auditNumber": 393,
+      "oldQuestionText": "You are in the water wearing a SOLAS inflatable lifejacket. It is losing pressure. What can you do? Select the ONE best answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_432",
+          "optionText": "Blow into the top up tube.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_433",
+          "optionText": "Activate the 2nd gas bottle.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_434",
+          "optionText": "Nothing.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_435",
+          "optionText": "Pull the red toggle.",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "An already inflated lifejacket chamber has lost some pressure, and its gas cylinder has discharged. The chamber has a functioning oral inflation tube. How can you top up that chamber in accordance with the manufacturer's instructions?",
+      "newOptions": [
+        {
+          "id": "wp_option_432",
+          "optionText": "Blow into the top up tube.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_433",
+          "optionText": "Discharge a gas cylinder into a different chamber instead of topping up this one.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_434",
+          "optionText": "Nothing.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_435",
+          "optionText": "Pull the same discharged-cylinder toggle again.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified manufacturer oral top-up instructions; a SOLAS jacket may also have a second chamber/cylinder. The old scenario did not establish which inflators had fired, so a universal rekey would be unsafe.",
+      "sourceUrls": [
+        "https://www.secumar.com/wp-content/uploads/2016/08/bedienungsanleitung4001_401.pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_111",
+      "courseId": "wp_course_177",
+      "auditNumber": 411,
+      "oldQuestionText": "1. What is the final check that a pilot ladder is safe to use?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_650",
+          "optionText": "When it is checked by a responsible person.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_651",
+          "optionText": "When it is lashed at the top.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_652",
+          "optionText": "As soon as it is deployed to right level.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_653",
+          "optionText": "When it is checked by the crew that deployed it.",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Under SOLAS pilot-transfer arrangements, who is responsible for supervising rigging and verifying that the arrangement is safe for use?",
+      "newOptions": [
+        {
+          "id": "wp_option_650",
+          "optionText": "The responsible officer, with communication to the bridge.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_651",
+          "optionText": "When it is lashed at the top.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_652",
+          "optionText": "As soon as it is deployed to right level.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_653",
+          "optionText": "Any crew member, without responsible-officer supervision.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified officer supervision requirement. A 'responsible person' is underspecified and rigging crew could include that officer; clarify the check rather than infer past intent.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.308(88).pdf",
+        "https://www.gov.uk/government/publications/mgn-610-mf-amendment-1-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020/mgn-610-mf-amendment-1-navigation-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020"
+      ]
+    },
+    {
+      "questionId": "wp_question_112",
+      "courseId": "wp_course_177",
+      "auditNumber": 412,
+      "oldQuestionText": "2. How does a pilot board a vessel where the freeboard is greater than nine meters?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_656",
+          "optionText": "Using a longer pilot ladder.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_657",
+          "optionText": "Using the accommodation ladder lowered to the sea surface.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_658",
+          "optionText": "Using the pilot ladder as normal.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_659",
+          "optionText": "Using the pilot ladder in combination with the accommodation ladder.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "When a pilot must climb more than 9 metres from the water to the access point, and no suitable lower side access is available, which listed arrangement is required?",
+      "newOptions": [
+        {
+          "id": "wp_option_656",
+          "optionText": "Using a longer pilot ladder.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_657",
+          "optionText": "Using the accommodation ladder lowered to the sea surface.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_658",
+          "optionText": "Using the pilot ladder as normal.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_659",
+          "optionText": "Using the pilot ladder in combination with the accommodation ladder.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified SOLAS distinction concerns climb height, not freeboard alone; a suitable side access can change the arrangement. Specify the climb and exclude the old unqualified item.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.308(88).pdf",
+        "https://www.gov.uk/government/publications/mgn-610-mf-amendment-1-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020/mgn-610-mf-amendment-1-navigation-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020",
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.1045(27).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_114",
+      "courseId": "wp_course_177",
+      "auditNumber": 414,
+      "oldQuestionText": "4. How much of the pilot ladder should be deployed?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_668",
+          "optionText": "Enough to reach the deck of the pilot boat.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_669",
+          "optionText": "Enough to allow for vessel rolling.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_670",
+          "optionText": "Enough to be one meter above the deck of the pilot boat.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_671",
+          "optionText": "Enough to reach the water surface.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "How should the height of the pilot ladder's bottom step be set for a transfer?",
+      "newOptions": [
+        {
+          "id": "wp_option_668",
+          "optionText": "Enough to reach the deck of the pilot boat.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_669",
+          "optionText": "Enough to allow for vessel rolling.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_670",
+          "optionText": "At the safe height above the water agreed with the pilot or pilot-boat operator, accounting for the transfer conditions.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_671",
+          "optionText": "Enough to reach the water surface.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified port-operator procedures specify an agreed/requested ladder height above water, not a universal one-metre gap above the boat deck. All old options omit that coordination.",
+      "sourceUrls": [
+        "https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/1053007/20220103-ECP_MSMS_V7_Public_Final.pdf",
+        "https://www.southernports.com.au/in-port/local-marine-notices/pilot-ladder-requirements"
+      ]
+    },
+    {
+      "questionId": "wp_question_117",
+      "courseId": "wp_course_177",
+      "auditNumber": 417,
+      "oldQuestionText": "Before a pilot ladder is used, what should crewmembers do with it?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_686",
+          "optionText": "Check it to make sure it is safe to use.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_687",
+          "optionText": "Wash all the steps likely to be used.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_688",
+          "optionText": "Check it to make sure it is in a dry condition.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_689",
+          "optionText": "Add a tripping line to the bottom of it.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_686",
+          "optionText": "Check it to make sure it is safe to use.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_687",
+          "optionText": "Wash all the steps likely to be used.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_688",
+          "optionText": "Check it to make sure it is in a dry condition.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_689",
+          "optionText": "Add a tripping line to the bottom of it.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified pilot-ladder maintenance/inspection principle: check overall safe condition; dryness alone is insufficient.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.308(88).pdf",
+        "https://www.gov.uk/government/publications/mgn-610-mf-amendment-1-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020/mgn-610-mf-amendment-1-navigation-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020",
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.1045(27).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_118",
+      "courseId": "wp_course_177",
+      "auditNumber": 418,
+      "oldQuestionText": "How much of the pilot ladder should be deployed? Select the ONE correct answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_693",
+          "optionText": "Enough to reach the deck of the pilot boat.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_694",
+          "optionText": "Enough to allow for vessel rolling.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_695",
+          "optionText": "Enough to be one metre above the deck of the pilot boat.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_696",
+          "optionText": "Enough to reach the water surface.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "How should the height of the pilot ladder's bottom step be set for a transfer?",
+      "newOptions": [
+        {
+          "id": "wp_option_693",
+          "optionText": "Enough to reach the deck of the pilot boat.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_694",
+          "optionText": "Enough to allow for vessel rolling.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_695",
+          "optionText": "At the safe height above the water agreed with the pilot or pilot-boat operator, accounting for the transfer conditions.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_696",
+          "optionText": "Enough to reach the water surface.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified port-operator procedures specify an agreed/requested ladder height above water, not a universal one-metre gap above the boat deck. All old options omit that coordination.",
+      "sourceUrls": [
+        "https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/1053007/20220103-ECP_MSMS_V7_Public_Final.pdf",
+        "https://www.southernports.com.au/in-port/local-marine-notices/pilot-ladder-requirements"
+      ]
+    },
+    {
+      "questionId": "wp_question_119",
+      "courseId": "wp_course_177",
+      "auditNumber": 419,
+      "oldQuestionText": "Even though all ships are different, what is the one thing in common with regard to their pilot ladders? Select the ONE best answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_699",
+          "optionText": "They should all have the 'wheel mark' on them.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_700",
+          "optionText": "They should all be made by the same manufacturer.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_701",
+          "optionText": "The deployment position should always be the same.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_702",
+          "optionText": "They should all be of an IMO approved design.",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "What common requirement applies to pilot ladders used for pilot transfer on ships subject to SOLAS regulation V/23?",
+      "newOptions": [
+        {
+          "id": "wp_option_699",
+          "optionText": "They should all have the 'wheel mark' on them.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_700",
+          "optionText": "They should all be made by the same manufacturer.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_701",
+          "optionText": "The deployment position should always be the same.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_702",
+          "optionText": "They must comply with the applicable SOLAS design, construction and certification requirements.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified SOLAS-compliance principle: IMO does not individually approve each ladder design, and installations need not share one position. Replace the imprecise alternative and scope to SOLAS.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.308(88).pdf",
+        "https://www.gov.uk/government/publications/mgn-610-mf-amendment-1-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020/mgn-610-mf-amendment-1-navigation-solas-chapter-v-guidance-on-the-merchant-shipping-safety-of-navigation-regulations-2020",
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.1045(27).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_122",
+      "courseId": "wp_course_180",
+      "auditNumber": 422,
+      "oldQuestionText": "3. What type of Port State Control Inspection aims to get an overall impression of the ship?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_717",
+          "optionText": "An initial inspection",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_718",
+          "optionText": "A more detailed inspection",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_719",
+          "optionText": "A Concentrated Inspection Campaign",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_720",
+          "optionText": "An expanded inspection",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_717",
+          "optionText": "An initial inspection",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_718",
+          "optionText": "A more detailed inspection",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_719",
+          "optionText": "A Concentrated Inspection Campaign",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_720",
+          "optionText": "An expanded inspection",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified Paris MoU inspection categories: the initial inspection checks documents and general condition to obtain the overall impression; an expanded inspection adds risk-specific scope.",
+      "sourceUrls": [
+        "https://parismou.org/inspection-type/"
+      ]
+    },
+    {
+      "questionId": "wp_question_127",
+      "courseId": "wp_course_180",
+      "auditNumber": 427,
+      "oldQuestionText": "Which of the following statements are true?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_747",
+          "optionText": "The PSCO will always discuss and agree findings with the Master before completing the Inspection Report",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_748",
+          "optionText": "The PSCO will advise the Master of the complaints procedure if a disagreement over a finding cannot be resolved",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_749",
+          "optionText": "On completion of the inspection, the PSCO Inspection Report findings are final and cannot be changed",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_750",
+          "optionText": "The PSCO will complete the Inspection Report on completion of the inspection and present it to the company",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Under the Paris MoU Code of Good Practice for Port State Control Officers, which ONE statement is correct?",
+      "newOptions": [
+        {
+          "id": "wp_option_747",
+          "optionText": "The PSCO will always discuss and agree findings with the Master before completing the Inspection Report",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_748",
+          "optionText": "The PSCO will advise the Master of the complaints procedure if a disagreement over a finding cannot be resolved",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_749",
+          "optionText": "On completion of the inspection, the PSCO Inspection Report findings are final and cannot be changed",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_750",
+          "optionText": "The PSCO will complete the Inspection Report on completion of the inspection and present it to the company",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified Paris MoU PSCO code, paragraphs 20-22: explain the complaints procedure for unresolved disagreement. The old universal stem omitted regional scope; void rather than presume jurisdiction. Complaint and detention appeal are distinct.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/OurWork/IIIS/Documents/A%2034-Res.1206%20-%20PROCEDURES%20FOR%20PORT%20STATE%20CONTROL%2C%202025%20%28Secretariat%29.pdf",
+        "https://parismou.org/download/pscc59-2026-02-general-principles-to-be-applied-in-an-inspection/"
+      ]
+    },
+    {
+      "questionId": "wp_question_209",
+      "courseId": "wp_course_326",
+      "auditNumber": 442,
+      "oldQuestionText": "Check which of the following actions that can be used to reduce the risk in a job:",
+      "oldType": "multiple_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1204",
+          "optionText": "Figure out a different way to do the job",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1205",
+          "optionText": "Identify better tools to do the job",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1206",
+          "optionText": "Wear personal protective equipment",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1207",
+          "optionText": "Change the frequency of performing the job",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1208",
+          "optionText": "Let someone else do the job",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1209",
+          "optionText": "Modify the job procedure",
+          "isCorrect": false
+        }
+      ],
+      "newQuestionText": "Which actions can reduce job risk when selected through a suitable risk assessment? Select all that apply.",
+      "newOptions": [
+        {
+          "id": "wp_option_1204",
+          "optionText": "Eliminate a hazardous step by using a safer work method.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1205",
+          "optionText": "Use tools that reduce the identified hazard.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1206",
+          "optionText": "Use suitable personal protective equipment for remaining risks.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1207",
+          "optionText": "Reduce unnecessary frequency or duration of hazardous exposure without compromising required maintenance.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1208",
+          "optionText": "Transfer the same uncontrolled hazard to another person without changing the task or controls.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1209",
+          "optionText": "Modify the work procedure to control the identified hazard.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified hierarchy of controls supports methods, tools, procedures and PPE; exposure frequency can also matter. Simply transferring a hazard to someone else is not a control. Original conditional options were ambiguous; clarify and void.",
+      "sourceUrls": [
+        "https://www.hse.gov.uk/ppe/managing-risk-using-ppe.htm"
+      ]
+    },
+    {
+      "questionId": "wp_question_168",
+      "courseId": "wp_course_313",
+      "auditNumber": 463,
+      "oldQuestionText": "Is the following statement true or false? 'A chemical carrier will always have an individual SOPEP for oil and an SMPEP for chemicals.'",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_981",
+          "optionText": "The statement is true.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_982",
+          "optionText": "The statement is false.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_981",
+          "optionText": "The statement is true.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_982",
+          "optionText": "The statement is false.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified IMO guidance permits a combined SMPEP covering oil and noxious liquid substances; separate plans are not always required.",
+      "sourceUrls": [
+        "https://www.imo.org/en/ourwork/environment/pages/shipboard-marine-pollution-emergency-plans.aspx"
+      ]
+    },
+    {
+      "questionId": "wp_question_169",
+      "courseId": "wp_course_313",
+      "auditNumber": 464,
+      "oldQuestionText": "When does an oil spill become oil pollution? Select the BEST answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_985",
+          "optionText": "When spilled oil enters the water.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_986",
+          "optionText": "Oil pollution can only be as a result of an accidental overboard discharge of oil.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_987",
+          "optionText": "Oil spilled will always enter the water, so it is always classed as oil pollution.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_988",
+          "optionText": "When the oil is on the side of the ship.",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Which situation explicitly describes spilled oil entering the surrounding water?",
+      "newOptions": [
+        {
+          "id": "wp_option_985",
+          "optionText": "When spilled oil enters the water.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_986",
+          "optionText": "Oil pollution can only be as a result of an accidental overboard discharge of oil.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_987",
+          "optionText": "Oil spilled will always enter the water, so it is always classed as oil pollution.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_988",
+          "optionText": "When the oil is on the side of the ship.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Professional scenario clarification: the old unrestricted term 'oil pollution' can include non-water contamination. Ask specifically about entry into water; no new universal legal definition is asserted.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_170",
+      "courseId": "wp_course_313",
+      "auditNumber": 465,
+      "oldQuestionText": "What could be in an oil spill emergency pollution drill? Select the BEST answer.",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_991",
+          "optionText": "Any foreseeable event that might cause pollution.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_992",
+          "optionText": "It only covers cargo oil spills from manifolds and pipes",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_993",
+          "optionText": "It prepares the crew for actions if there is a hull crack discovered.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_994",
+          "optionText": "It is limited to a stock check of equipment in the SOPEP locker.",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_991",
+          "optionText": "Any foreseeable event that might cause pollution.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_992",
+          "optionText": "It only covers cargo oil spills from manifolds and pipes",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_993",
+          "optionText": "It prepares the crew for actions if there is a hull crack discovered.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_994",
+          "optionText": "It is limited to a stock check of equipment in the SOPEP locker.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Verified ISM emergency-preparedness scope includes foreseeable pollution emergencies, not merely equipment inventory. A hull crack is one possible scenario, not the comprehensive best answer.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.741(18).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_173",
+      "courseId": "wp_course_313",
+      "auditNumber": 468,
+      "oldQuestionText": "Select the answer that BEST completes the following statement: 'Positive behavior means...'",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1009",
+          "optionText": "'...having the correct attitude.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1010",
+          "optionText": "...always doing ANYTHING that you are told to do.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1011",
+          "optionText": "'...never feeling tired when working.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1012",
+          "optionText": "'...never criticizing drills.'",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1009",
+          "optionText": "'...having the correct attitude.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1010",
+          "optionText": "...always doing ANYTHING that you are told to do.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1011",
+          "optionText": "'...never feeling tired when working.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1012",
+          "optionText": "'...never criticizing drills.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Professional safety judgment: a constructive attitude is positive; blind obedience, never being tired or never criticizing drills are not valid requirements.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_174",
+      "courseId": "wp_course_313",
+      "auditNumber": 469,
+      "oldQuestionText": "Which option correctly completes the following statement? 'If the crew show positive behavior during an oil spill...'",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1015",
+          "optionText": "'...they will be more at risk of an accident.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1016",
+          "optionText": "'...they will have a casual attitude.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1017",
+          "optionText": "'...they will work strongly as a team.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1018",
+          "optionText": "'...they will not be working as a team.'",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1015",
+          "optionText": "'...they will be more at risk of an accident.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1016",
+          "optionText": "'...they will have a casual attitude.'",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1017",
+          "optionText": "'...they will work strongly as a team.'",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1018",
+          "optionText": "'...they will not be working as a team.'",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Internal semantic consistency: effective teamwork fits positive emergency behavior; the currently keyed negation contradicts it.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_175",
+      "courseId": "wp_course_313",
+      "auditNumber": 470,
+      "oldQuestionText": "Which of the following demonstrates a positive type of behavior?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1021",
+          "optionText": "Responsive.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1022",
+          "optionText": "Bored.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1023",
+          "optionText": "Unsafe.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1024",
+          "optionText": "Unhelpful.",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1021",
+          "optionText": "Responsive.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_1022",
+          "optionText": "Bored.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1023",
+          "optionText": "Unsafe.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1024",
+          "optionText": "Unhelpful.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "rekey",
+      "reason": "Internal semantic consistency: responsiveness is positive; unsafe behavior is not.",
+      "sourceUrls": []
+    },
+    {
+      "questionId": "wp_question_300",
+      "courseId": "wp_course_442",
+      "auditNumber": 481,
+      "oldQuestionText": "What is the main purpose of the \"flap rudder\"?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_1723",
+          "optionText": "To obtain cheaper rudder operation cost",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1724",
+          "optionText": "To increase rudder reliability",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1725",
+          "optionText": "To reduce rudder size",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1726",
+          "optionText": "To ensure smoother water flow over the rudder",
+          "isCorrect": true
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_1723",
+          "optionText": "To obtain cheaper rudder operation cost",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1724",
+          "optionText": "To increase rudder reliability",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1725",
+          "optionText": "To reduce rudder size",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_1726",
+          "optionText": "To increase rudder lift and improve the vessel's maneuverability.",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified manufacturer purpose: flap geometry increases lift and maneuverability. The old alternatives confuse primary purpose with design consequences; supply a clear answer and void.",
+      "sourceUrls": [
+        "https://becker-marine-systems.com/products/manoeuvring-systems/becker-flap-rudder"
+      ]
+    },
+    {
+      "questionId": "wp_question_546",
+      "courseId": "wp_course_688",
+      "auditNumber": 485,
+      "oldQuestionText": "Is this true that the numerical order of the classes and divisions of the IMDG Code is that of the degree of danger?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_3147",
+          "optionText": "\u0414\u0430",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3148",
+          "optionText": "\u041d\u0435\u0442",
+          "isCorrect": false
+        }
+      ],
+      "newOptions": [
+        {
+          "id": "wp_option_3147",
+          "optionText": "Yes",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3148",
+          "optionText": "No",
+          "isCorrect": true
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified IMDG 2.0.1.1 (42-24, effective 2026): class/division numbers are not a danger ranking. Translate the two Russian labels into English; conservatively void the past non-English item rather than infer comprehension.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.556(108).pdf"
+      ]
+    },
+    {
+      "questionId": "wp_question_559",
+      "courseId": "wp_course_688",
+      "auditNumber": 498,
+      "oldQuestionText": "When is a mandatory dangerous goods report required?",
+      "oldType": "single_choice",
+      "oldOptions": [
+        {
+          "id": "wp_option_3223",
+          "optionText": "When there is a danger of cargo transport units containing dangerous goods being lost overboard",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3224",
+          "optionText": "When containers carrying dangerous goods are lost overboard",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3225",
+          "optionText": "When a DG container has been damaged due to the impact of heavy seas",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3222",
+          "optionText": "When the liquid is seen coming from a portable tank container that is stowed under deck",
+          "isCorrect": true
+        }
+      ],
+      "newQuestionText": "Which TWO incidents trigger a dangerous-goods report for actual or likely loss of packaged dangerous goods into the sea under IMO reporting guidance? Select TWO.",
+      "newType": "multiple_choice",
+      "newOptions": [
+        {
+          "id": "wp_option_3223",
+          "optionText": "An incident makes loss overboard of a cargo unit containing dangerous goods likely.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3224",
+          "optionText": "A container carrying dangerous goods has been lost overboard.",
+          "isCorrect": true
+        },
+        {
+          "id": "wp_option_3225",
+          "optionText": "A dangerous-goods container has only cosmetic damage; no loss into the sea has occurred or is likely.",
+          "isCorrect": false
+        },
+        {
+          "id": "wp_option_3222",
+          "optionText": "Liquid has leaked into secure onboard containment; no loss into the sea has occurred or is likely.",
+          "isCorrect": false
+        }
+      ],
+      "retrospective": "void",
+      "reason": "Verified IMO reporting guidance covers actual or likely loss overboard of packaged dangerous goods. Multiple original options fit, so single-choice grading was invalid. Narrow the reporting trigger; other onboard emergency/reporting duties still apply.",
+      "sourceUrls": [
+        "https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/AssemblyDocuments/A.851(20).pdf"
+      ]
+    }
+  ],
+  "deferred": [
+    {
+      "questionId": "wp_question_255",
+      "auditNumber": 4,
+      "reason": "Equipment-dependent display cue: an own-ship vector can be hidden or zero length. The alarm key is wrong, but the proposed own-vector answer is not a reliable universal identifier. Obtain the course radar model and teach its true/relative mode indication before replacement."
+    },
+    {
+      "questionId": "wp_question_137",
+      "auditNumber": 51,
+      "reason": "Professional-judgment item, not a verified norm: focusing on past events can be necessary for fact-finding. 'Stick to the facts' is constructive, but the proposed replacement is not unambiguously wrong without defining backward-looking blame. Obtain the course framework or approve a rewritten scenario."
+    },
+    {
+      "questionId": "wp_question_141",
+      "auditNumber": 55,
+      "reason": "No universally specified conflict taxonomy is named. Technical, values, interests and personal conflict classifications vary. Do not rekey 'complicated' solely because it sounds less conventional; obtain the module's primary taxonomy."
+    },
+    {
+      "questionId": "wp_question_198",
+      "auditNumber": 84,
+      "reason": "Company-policy dependent: official app stores are not inherently forbidden, but installations may require authorization on managed devices. No fleet policy is supplied. Defer rather than assume unrestricted App Store use."
+    },
+    {
+      "questionId": "wp_question_394",
+      "auditNumber": 107,
+      "reason": "The stem asks why a plan 'might' be incomplete: time pressure, missing data and limited local knowledge are all possible. The audit's preferred explanation is plausible, not a uniquely verified answer. Needs a course-specific or scenario-based replacement."
+    },
+    {
+      "questionId": "wp_question_398",
+      "auditNumber": 111,
+      "reason": "Unsupported generalization about pilots: unfamiliarity and pilotage-authority procedures can both explain non-use. Do not replace one unverified universal explanation with another; require local procedure or explicit scenario."
+    },
+    {
+      "questionId": "wp_question_466",
+      "auditNumber": 193,
+      "reason": "Outdated regulatory framing: post-2024 SOLAS IV uses recognized mobile satellite services; the old Inmarsat-or-HF choice cannot be safely rekeyed to A3. Require a complete modernized question scoped to the applicable carriage rules and flag implementation. Sources: https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.496(105).pdf ; https://wwwcdn.imo.org/localresources/en/OurWork/Safety/Documents/IMO%20Documents%20related%20to/COMSAR.1-Circ.32-Rev.3.pdf"
+    },
+    {
+      "questionId": "wp_question_481",
+      "auditNumber": 271,
+      "reason": "The general holding-brake explanation is plausible, but 'hauling' is unclear and slewing-brake behavior can depend on crane design. No crane manual or model is supplied. Do not make a universal power-off safety claim from the audit alone."
+    },
+    {
+      "questionId": "question_df236e69",
+      "auditNumber": 302,
+      "reason": "Confirmed selection-count defect (asks THREE, keys TWO), but handwriting, pen changes or author identity do not establish when an entry was amended. Do not invent a third forensic indicator or teach these clues as proof; obtain the source investigation exercise and corroborating records."
+    },
+    {
+      "questionId": "wp_question_180",
+      "auditNumber": 342,
+      "reason": "Confirmed conflation of financial-responsibility and response-plan thresholds, but none of the options captures tank/nontank applicability, tonnage convention, operating waters and exemptions. No inferred 300/400 GT rekey. Requires a scoped regulatory replacement, checked against current 33 CFR 155 subparts D/J."
+    },
+    {
+      "questionId": "wp_question_311",
+      "auditNumber": 368,
+      "reason": "The audit conflates a predictive vector/turn predictor with the separate look-ahead anti-grounding check area. Both grounding awareness and close-quarters turning may be plausible. Obtain the ECDIS model and course definition; do not rekey to the 'closest' answer."
+    }
+  ]
+}
