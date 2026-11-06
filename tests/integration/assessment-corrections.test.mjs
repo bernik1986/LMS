@@ -79,15 +79,21 @@ test("an obsolete assessment page is rejected without consuming an attempt or re
     const refreshed = await app.request("/dashboard/tests/assign_demo", { headers: { cookie: studentCookie } });
     const newVersion = refreshed.text.match(/name="assessmentPaperVersion" value="([^"]+)"/)[1];
     assert.notEqual(version, newVersion);
+    const originalRevision = app.readDb().courses.find((c) => c.id === "course_maritime_safety").test.questions[0].source.assessmentRevision;
     const originalClock = app.readDb().assignments.find((a) => a.id === "assign_demo").activeTestStartedAt;
     await app.postForm("/dashboard/tests/assign_demo", { assessmentPaperVersion: "forged-version", q_test_access: "q1_o2", q_alarm: "q2_o1" }, studentCookie);
     await app.request("/dashboard/tests/assign_demo", { headers: { cookie: studentCookie } });
     assert.equal(app.readDb().assignments.find((a) => a.id === "assign_demo").activeTestStartedAt, originalClock, "a forged paper version must not reset the clock");
-    const passed = await app.postForm("/dashboard/tests/assign_demo", { assessmentPaperVersion: newVersion, q_test_access: "q1_o2", q_alarm: "q2_o1" }, studentCookie);
+    await app.postForm("/admin/courses/course_maritime_safety/test/questions/q_test_access/update", { questionText: "Updated question", type: "single_choice", optionId1: "q1_o1", optionId2: "q1_o2", option1: "Immediately after course assignment", option2: "After completing the required materials", correct: "1" }, adminCookie);
+    assert.notEqual(app.readDb().courses.find((c) => c.id === "course_maritime_safety").test.questions[0].source.assessmentRevision, originalRevision);
+    const keyOnlyPage = await app.request("/dashboard/tests/assign_demo", { headers: { cookie: studentCookie } });
+    const keyOnlyVersion = keyOnlyPage.text.match(/name="assessmentPaperVersion" value="([^"]+)"/)[1];
+    assert.notEqual(keyOnlyVersion, newVersion, "an answer-key-only edit must change the public revision without hashing the secret key");
+    const passed = await app.postForm("/dashboard/tests/assign_demo", { assessmentPaperVersion: keyOnlyVersion, q_test_access: "q1_o1", q_alarm: "q2_o1" }, studentCookie);
     assert.equal(passed.response.status, 303);
     const attempt = app.readDb().testAttempts[0];
     assert.equal(attempt.status, "passed");
-    assert.equal(attempt.source.assessmentPaperVersion, newVersion);
+    assert.equal(attempt.source.assessmentPaperVersion, keyOnlyVersion);
     assert.equal(attempt.source.questionSnapshots.length, 2);
   } finally { await app.stop(); }
 });

@@ -4354,7 +4354,13 @@ function sortedQuestionOptions(question) {
 }
 
 function assessmentPaperVersion(test) {
-  return createHash("sha256").update(JSON.stringify(test.questions)).digest("hex");
+  // A public fingerprint must not become an offline oracle for the secret answer key.
+  const publicPaper = test.questions.map((question) => ({
+    id: question.id, text: question.questionText, type: question.type, sortOrder: question.sortOrder,
+    revision: question.source?.assessmentRevision ?? "",
+    options: question.options.map(({ id, optionText, sortOrder }) => ({ id, optionText, sortOrder }))
+  }));
+  return createHash("sha256").update(JSON.stringify(publicPaper)).digest("hex");
 }
 
 function parseQuestionOptions(form) {
@@ -9838,6 +9844,7 @@ async function handlePost(request, response, pathname, user) {
         question.sortOrder = Number(form.get("sortOrder") ?? question.sortOrder) || question.sortOrder;
         const options = parseQuestionOptions(form);
         if (options.length >= 2) question.options = options;
+        question.source = { ...question.source, assessmentRevision: randomUUID() };
         if (!isQuestionValid(question)) {
           course.test.status = "inactive";
         }

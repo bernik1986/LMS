@@ -34,6 +34,7 @@ export function prepareAssessmentCorrection(database, plan, { asOf } = {}) {
     question.questionText = correction.newQuestionText ?? question.questionText;
     question.type = type;
     question.options = question.options.map((option, index) => ({ ...option, ...options[index] }));
+    question.source = { ...question.source, assessmentRevision: plan.version };
     course.source = { ...course.source, assessmentCorrectionVersion: plan.version };
     corrections.set(question.id, correction);
     report.questions.push({ questionId: question.id, courseId: course.id, retrospective: correction.retrospective });

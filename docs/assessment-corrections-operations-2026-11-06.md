@@ -15,7 +15,7 @@ The independent review is in `docs/assessment-correction-review-2026-11-06.md`; 
 - Preserve original answers, score, status and failure reason under the attempt's `source.assessmentCorrections`; retain attempt IDs, sequence and timestamps.
 - Never lower an awarded score or passing result, revoke certificates or forgive recorded expiry/failure reasons. No remaining valid questions or a mismatched historic paper requires human review.
 - Use a saved historical pass threshold when present; otherwise use the course threshold. This operation does not edit pass thresholds, timers, attempt limits, prices, certificate templates or automation checkboxes.
-- New test submissions save question snapshots, scoring settings and a paper hash. Corrected courses reject obsolete forms with HTTP 409 and consume no attempt.
+- New test submissions save question snapshots, scoring settings and a paper hash. The public hash excludes correctness flags and uses a random revision on administrator edits so a key-only change invalidates the form without exposing a brute-force oracle for the key. Corrected courses reject obsolete forms with HTTP 409 and consume no attempt. A rejected POST cannot reset the timer; a new clock is allowed only after a server-recorded paper change.
 
 ## Certificates
 
