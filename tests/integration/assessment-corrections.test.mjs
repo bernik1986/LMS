@@ -50,6 +50,25 @@ test("offline correction uses normal certificate issuance, audit, notification a
       const repeated = await module.applyAssessmentCorrectionMaintenance(plan, { asOf: finishedAt });
       assert.equal(repeated.alreadyApplied, true);
       assert.deepEqual(JSON.parse(readFileSync(env.LMS_DB_PATH, "utf8")), persisted);
+      const request = { assignmentId: assignment.id, userId: user.id, courseId: course.id, enableAutomatic: true };
+      if (["inactive", "incomplete", "no_photo"].includes(policy)) {
+        await assert.rejects(module.issuePassedAssignmentMaintenance(request), /active student|incomplete|photo/);
+        assert.deepEqual(JSON.parse(readFileSync(env.LMS_DB_PATH, "utf8")), persisted);
+      }
+      if (policy === "manual") {
+        await assert.rejects(module.issuePassedAssignmentMaintenance({ ...request, userId: "wrong_student" }), /does not match/);
+        const issued = await module.issuePassedAssignmentMaintenance(request);
+        assert.equal(issued.outcome, "issued");
+        assert.equal(issued.oldAutomatic, false);
+        assert.equal(issued.autoIssueCertificate, true);
+        const once = JSON.parse(readFileSync(env.LMS_DB_PATH, "utf8"));
+        assert.equal(once.certificates.length, 1);
+        assert.equal(once.courses.find((c) => c.id === course.id).autoIssueCertificate, true);
+        assert.equal(once.courses.find((c) => c.id !== course.id).autoIssueCertificate, seed.courses.find((c) => c.id !== course.id).autoIssueCertificate);
+        assert.ok(once.notifications.some((n) => n.id === issued.notificationId && n.type === "certificate_manual_issue"));
+        assert.equal((await module.issuePassedAssignmentMaintenance(request)).outcome, "already_issued");
+        assert.deepEqual(JSON.parse(readFileSync(env.LMS_DB_PATH, "utf8")), once);
+      }
     }
   } finally {
     for (const [key, value] of Object.entries(previous)) {

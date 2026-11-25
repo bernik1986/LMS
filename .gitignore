@@ -20,6 +20,7 @@ imports/wordpress/output/
 data/db.json
 data/uploads
 data/test-artifacts
+data/local-development
 .deploy-keys
 .deploy-tools
 .deploy

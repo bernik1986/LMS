@@ -18,6 +18,7 @@ Read the complete project record here:
 
 - [Project documentation](docs/PROJECT_DOCUMENTATION.md)
 - [Testing guide](docs/TESTING.md)
+- [New computer setup and private handoff](docs/NEW_COMPUTER.md)
 
 It covers the product scope, architecture, confirmed implementation timeline, workflows, roles, data model, certificates, imports, deployment, operations, security, tests, and known limitations.
 

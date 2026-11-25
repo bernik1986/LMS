@@ -832,6 +832,41 @@ export async function applyAssessmentCorrectionMaintenance(plan, { asOf, approve
   }
 }
 
+export async function issuePassedAssignmentMaintenance({ assignmentId, userId, courseId, enableAutomatic = false } = {}) {
+  if (process.env.LMS_CLI_MODE !== "true" || process.env.LMS_MAINTENANCE_CONFIRMED !== "true" || process.env.LMS_ASSESSMENT_MAINTENANCE !== "true") throw new Error("Certificate maintenance requires an offline CLI session.");
+  if (typeof enableAutomatic !== "boolean") throw new Error("Automatic issuance must be an explicit boolean.");
+  const previous = db;
+  db = cloneDb(db);
+  try {
+    const assignment = db.assignments.find((item) => item.id === assignmentId && item.userId === userId && item.courseId === courseId);
+    const user = userById(userId);
+    const course = courseById(courseId);
+    if (!assignment || !user || !course?.test) throw new Error("Assignment, recipient or course does not match.");
+    if (user.status !== "active" || assignment.status !== "completed") throw new Error("An active student and a completed assignment are required.");
+    if (completedRequiredCount(assignment, course) !== requiredMaterials(course).length) throw new Error("Required materials are incomplete.");
+    const passedAttempt = attemptsFor(assignmentId).find((attempt) => attempt.userId === userId && attempt.testId === course.test.id && attempt.status === "passed" && !attempt.failureReason && attempt.finishedAt && attempt.scorePercent >= course.test.passingPercent);
+    if (!passedAttempt) throw new Error("A successful test attempt at the current passing mark is required.");
+    if (!hasCertificatePhoto(user)) throw new Error("A certificate photo is required.");
+    const oldAutomatic = course.autoIssueCertificate;
+    if (enableAutomatic) course.autoIssueCertificate = true;
+    const existing = activeCertificateForAssignment(assignmentId);
+    const certificate = existing || issueCertificate(assignment, { action: "manual_issue" });
+    if (!certificate) throw new Error("Certificate issuance failed.");
+    const note = db.notifications.find((item) => item.certificateId === certificate.id && item.type === "certificate_manual_issue");
+    const report = { assignmentId, userId, student: `${user.firstNameEn} ${user.lastNameEn}`, courseId, courseTitle: course.title, scorePercent: passedAttempt.scorePercent, passingPercent: course.test.passingPercent, certificateId: certificate.id, certificateNumber: certificate.certificateNumber, outcome: existing ? "already_issued" : "issued", notificationId: note?.id ?? null, oldAutomatic, autoIssueCertificate: course.autoIssueCertificate };
+    if (existing && oldAutomatic === course.autoIssueCertificate) return report;
+    db.auditEvents ??= [];
+    db.auditEvents.push({ id: id("audit"), adminEmail: "system", action: "owner_approved_certificate_issue", createdAt: now(), details: report });
+    if (usePrismaStorage) await syncPrismaDb(previous, db, { connectionString: databaseUrl });
+    else writeFileSync(dbPath, JSON.stringify(db, null, 2), "utf8");
+    persistedDb = cloneDb(db);
+    return report;
+  } catch (error) {
+    db = previous;
+    throw error;
+  }
+}
+
 function defaultCertificateTemplate() {
   return `<span class="eyebrow">Marine LMS Certificate</span>
 <h1>Certificate of Completion</h1>

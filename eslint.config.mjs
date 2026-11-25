@@ -10,6 +10,10 @@ const eslintConfig = [
       "node_modules/**",
       "restore-points/**",
       "backups/**",
+      ".deploy/**",
+      ".deploy-tools/**",
+      ".deploy-keys/**",
+      "data/local-development/**",
       "prisma/seed.ts",
       "next-env.d.ts"
     ]
